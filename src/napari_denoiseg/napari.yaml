@@ -13,3 +13,10 @@ contributions:
       display_name: Example QWidget
     - command: napari-denoiseg.make_magic_widget
       display_name: Example Magic Widget
+  sample_data:
+    - command: napari-denoiseg.sample_data
+      display_name: Sample data
+      key: denoiseg_sample
+    - command: napari-denoiseg.sample_data
+      display_name: Labels data
+      key: denoiseg_labels

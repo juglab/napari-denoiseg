@@ -53,7 +53,9 @@ def example_magic_widget(Data: 'napari.layers.Image',
 
     worker.start()
 
+
 def __show_progress(progress):
+    pass
 
 
 @thread_worker
