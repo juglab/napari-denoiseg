@@ -50,20 +50,27 @@ def example_magic_widget(Data: 'napari.layers.Image',
                          epoch_prog: widgets.ProgressBar,
                          step_prog: widgets.ProgressBar):
     def update_progress(update):
-        pass
+        epoch_prog.native.setValue(update[0])
+        step_prog.native.setValue(update[1])
 
     # ProgressBar.native.setValue avoids bug in magicgui ProgressBar.increment(val)
     # @thread_worker(connect={'yielded': epoch_prog.native.setValue})
     @thread_worker(connect={'yielded': update_progress})
     def process():
-        n_pt = 10
-        t_s = 0.5
+        n_pt = 5
+        n_sp = 10
+        t_s = 0.1
         for i in range(n_pt):
-            # update progress bar
-            yield int(i * 100 / (n_pt - 1) + 0.5)
+            p_epoch = int(i * 100 / (n_pt - 1) + 0.5)
 
-            # sleep
-            time.sleep(t_s)
+            for j in range(n_sp):
+                p_step = int(j * 100 / (n_sp - 1) + 0.5)
+
+                # update progress bar
+                yield p_epoch, p_step
+
+                # sleep
+                time.sleep(t_s)
 
     config = {'n_epochs': n_epochs,
               'n_steps': n_steps,
