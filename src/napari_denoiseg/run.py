@@ -27,7 +27,7 @@ with napari.gui_qt():
     # Loading of the training images
     train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
     images = train_data['X_train'].astype(np.float32)[0:30, :, :]
-    labels = train_data['Y_train'].astype(np.int32)[0:10, :, :]
+    labels = train_data['Y_train'].astype(np.int32)[0:16, :, :]
 
     # create a Viewer and add an image here
     # viewer = napari.Viewer()

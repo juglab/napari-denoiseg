@@ -8,7 +8,7 @@ Replace code below according to your needs.
 """
 from napari.qt.threading import thread_worker
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton
-from magicgui import magic_factory
+from magicgui import magic_factory, widgets
 import time
 
 
@@ -31,39 +31,42 @@ class DenoiSegQWidget(QWidget):
         print('napari has', len(self.viewer.layers), 'layers')
 
 
-@magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05},
-               n_epochs={"widget_type": "SpinBox", "step": 1},
-               n_steps={"widget_type": "SpinBox", "step": 1},
-               patch_shape={"widget_type": "Slider", "min": 16, "max": 512, "step": 16},
-               batch_size={"widget_type": "Slider", "min": 16, "max": 512, "step": 16},
-               neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16},
-               progress={"widget_type": "ProgressBar", "min": 0, "max": 100})
+@magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
+               n_epochs={"widget_type": "SpinBox", "step": 1, 'value': 10},
+               n_steps={"widget_type": "SpinBox", "step": 1, 'value': 200},
+               patch_shape={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 64},
+               batch_size={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 64},
+               neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16, 'value': 16},
+               epoch_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'epochs'},
+               step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'})
 def example_magic_widget(Data: 'napari.layers.Image',
                          Ground_truth: 'napari.layers.Labels',
-                         perc_train_labels: float = 0.6,
-                         n_epochs: int = 10,
-                         n_steps: int = 200,
-                         patch_shape: int = 64,
-                         batch_size: int = 64,
-                         neighborhood_radius: int = 5,
-                         progress: int = 0):
+                         perc_train_labels: float,
+                         n_epochs: int,
+                         n_steps: int,
+                         patch_shape: int,
+                         batch_size: int,
+                         neighborhood_radius: int,
+                         epoch_prog: widgets.ProgressBar,
+                         step_prog: widgets.ProgressBar):
+    # ProgressBar.native.setValue avoids bug in magicgui ProgressBar.increment(val)
+    @thread_worker(connect={'yielded': epoch_prog.native.setValue})
+    def process():
+        n_pt = 10
+        t_s = 0.5
+        for i in range(n_pt):
+            # update progress bar
+            yield int(i * 100 / (n_pt - 1) + 0.5)
+
+            # sleep
+            time.sleep(t_s)
+
+    config = {'n_epochs': n_epochs,
+              'n_steps': n_steps,
+              'patch_shape': patch_shape,
+              'batch_size': batch_size,
+              'neighborhood_radius': neighborhood_radius}
+    print(config)
+
     print('Will run lengthy calculation')
-    worker = __process()
-    worker.yielded.connect(__show_progress)
-
-    worker.start()
-
-
-def __show_progress(progress):
-    pass
-
-
-@thread_worker
-def __process():
-    n_pt = 10
-    t_s = 2
-    for i in range(n_pt):
-        # update progress bar
-        yield int(i * 100 / n_pt + 0.5)
-
-        time.sleep(t_s)
+    process()
