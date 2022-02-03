@@ -40,7 +40,7 @@ class DenoiSegQWidget(QWidget):
                progress={"widget_type": "ProgressBar", "min": 0, "max": 100})
 def example_magic_widget(Data: 'napari.layers.Image',
                          Ground_truth: 'napari.layers.Labels',
-                         perc_train_labels: float = 0.2,
+                         perc_train_labels: float = 0.6,
                          n_epochs: int = 10,
                          n_steps: int = 200,
                          patch_shape: int = 64,

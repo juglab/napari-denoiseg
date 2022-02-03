@@ -1,18 +1,20 @@
-import napari
+import urllib
+import zipfile
 
-# create Qt GUI context
-from src.napari_denoiseg import DenoiSegQWidget, example_magic_widget
+import napari
+import os
+
+import numpy as np
+
+from src.napari_denoiseg import example_magic_widget
 
 with napari.gui_qt():
-    # create a Viewer and add an image here
-    viewer = napari.Viewer()
-
     # create a folder for our data
     if not os.path.isdir('./data'):
         os.mkdir('data')
 
-    noise_level == 'n10'
-    link = 'https://zenodo.org/record/5156977/files/DSB2018_n10.zip?download=1'
+    noise_level = 'n0'
+    link = 'https://zenodo.org/record/5156969/files/DSB2018_n0.zip?download=1'
 
     # check if data has been downloaded already
     zipPath = "data/DSB2018_{}.zip".format(noise_level)
@@ -23,12 +25,16 @@ with napari.gui_qt():
             zip_ref.extractall("data")
 
     # Loading of the training images
-    trainval_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
-    train_images = trainval_data['X_train'].astype(np.float32)
-    train_masks = trainval_data['Y_train']
-    val_images = trainval_data['X_val'].astype(np.float32)
-    val_masks = trainval_data['Y_val']
+    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
+    images = train_data['X_train'].astype(np.float32)[0:30, :, :]
+    labels = train_data['Y_train'].astype(np.int32)[0:10, :, :]
 
+    # create a Viewer and add an image here
+    # viewer = napari.Viewer()
+    viewer = napari.view_image(images)
+
+    # add labels
+    viewer.add_labels(labels)
 
     # custom code to add data here
     viewer.window.add_dock_widget(example_magic_widget())
