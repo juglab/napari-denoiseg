@@ -1,0 +1,11 @@
+site_name: napari-denoiseg
+site_description: A simple plugin to use with napari
+site_author: jdeschamps
+
+theme: readthedocs
+
+
+repo_url: https://github.com/jdeschamps/napari-denoiseg
+
+pages:
+- Home: index.md
