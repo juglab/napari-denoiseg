@@ -1,18 +1,13 @@
 name: napari-denoiseg
 display_name: DenoiSeg
 contributions:
-  commands: 
-    - id: napari-denoiseg.make_qwidget
-      python_name: napari_denoiseg._widget:ExampleQWidget
-      title: Make example QWidget
+  commands:
     - id: napari-denoiseg.make_magic_widget
-      python_name: napari_denoiseg._widget:example_magic_widget
-      title: Make example magic widget
+      python_name: napari_denoiseg._widget:denoiseg_widget
+      title: DenoiSeg
   widgets:
-    - command: napari-denoiseg.make_qwidget
-      display_name: Example QWidget
     - command: napari-denoiseg.make_magic_widget
-      display_name: Example Magic Widget
+      display_name: DenoiSeg
   sample_data:
     - command: napari-denoiseg.sample_data
       display_name: Sample data

@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from src.napari_denoiseg import example_magic_widget
+from src.napari_denoiseg import denoiseg_widget
 
 with napari.gui_qt():
     # create a folder for our data
@@ -37,4 +37,4 @@ with napari.gui_qt():
     viewer.add_labels(labels)
 
     # custom code to add data here
-    viewer.window.add_dock_widget(example_magic_widget())
+    viewer.window.add_dock_widget(denoiseg_widget())

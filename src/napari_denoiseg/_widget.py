@@ -7,28 +7,8 @@ see: https://napari.org/plugins/stable/guides.html#widgets
 Replace code below according to your needs.
 """
 from napari.qt.threading import thread_worker
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton
 from magicgui import magic_factory, widgets
 import time
-
-
-class DenoiSegQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # in one of two ways:
-    # 1. use a parameter called `napari_viewer`, as done here
-    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
-    def __init__(self, napari_viewer):
-        super().__init__()
-        self.viewer = napari_viewer
-
-        btn = QPushButton('Click me!')
-        btn.clicked.connect(self._on_click)
-
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(btn)
-
-    def _on_click(self):
-        print('napari has', len(self.viewer.layers), 'layers')
 
 
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
@@ -39,16 +19,16 @@ class DenoiSegQWidget(QWidget):
                neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16, 'value': 16},
                epoch_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'epochs'},
                step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'})
-def example_magic_widget(Data: 'napari.layers.Image',
-                         Ground_truth: 'napari.layers.Labels',
-                         perc_train_labels: float,
-                         n_epochs: int,
-                         n_steps: int,
-                         patch_shape: int,
-                         batch_size: int,
-                         neighborhood_radius: int,
-                         epoch_prog: widgets.ProgressBar,
-                         step_prog: widgets.ProgressBar):
+def denoiseg_widget(data: 'napari.layers.Image',
+                    ground_truth: 'napari.layers.Labels',
+                    perc_train_labels: float,
+                    n_epochs: int,
+                    n_steps: int,
+                    patch_shape: int,
+                    batch_size: int,
+                    neighborhood_radius: int,
+                    epoch_prog: widgets.ProgressBar,
+                    step_prog: widgets.ProgressBar):
     def update_progress(update):
         epoch_prog.native.setValue(update[0])
         step_prog.native.setValue(update[1])
@@ -72,6 +52,12 @@ def example_magic_widget(Data: 'napari.layers.Image',
                 # sleep
                 time.sleep(t_s)
 
+    print(f'Data shape {data.data.shape}')
+    print(f'Total number of labels {ground_truth.data.shape[0]}')
+
+    n_labels = int(0.5 + perc_train_labels * ground_truth.data.shape[0])
+    print(f'Number of labels used for training {n_labels}')
+
     config = {'n_epochs': n_epochs,
               'n_steps': n_steps,
               'patch_shape': patch_shape,
@@ -79,5 +65,12 @@ def example_magic_widget(Data: 'napari.layers.Image',
               'neighborhood_radius': neighborhood_radius}
     print(config)
 
-    print('Will run lengthy calculation')
     process()
+
+
+def __prepare_data():
+    pass
+
+
+def __train():
+    pass
