@@ -16,19 +16,19 @@ import time
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
                n_epochs={"widget_type": "SpinBox", "step": 1, 'value': 10},
                n_steps={"widget_type": "SpinBox", "step": 1, 'value': 200},
-               patch_shape={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 64},
                batch_size={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 64},
-               neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16, 'value': 16},
                epoch_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'epochs'},
                step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'})
+# neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16, 'value': 16},
+# patch_shape={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 64},
 def denoiseg_widget(data: 'napari.layers.Image',
                     ground_truth: 'napari.layers.Labels',
                     perc_train_labels: float,
                     n_epochs: int,
                     n_steps: int,
-                    patch_shape: int,
+                    # neighborhood_radius: int,
+                    # patch_shape: int,
                     batch_size: int,
-                    neighborhood_radius: int,
                     epoch_prog: widgets.ProgressBar,
                     step_prog: widgets.ProgressBar):
     def update_progress(update):
@@ -38,39 +38,30 @@ def denoiseg_widget(data: 'napari.layers.Image',
     # ProgressBar.native.setValue avoids bug in magicgui ProgressBar.increment(val)
     # @thread_worker(connect={'yielded': epoch_prog.native.setValue})
     @thread_worker(connect={'yielded': update_progress})
-    def process():
-        n_pt = 5
-        n_sp = 10
-        t_s = 0.1
-        for i in range(n_pt):
-            p_epoch = int(i * 100 / (n_pt - 1) + 0.5)
+    def process(conf, X, Y, X_val, Y_val):
+        #n_pt = 5
+        #n_sp = 10
+        #t_s = 0.1
+        #for i in range(n_pt):
+        #    p_epoch = int(i * 100 / (n_pt - 1) + 0.5)
 
-            for j in range(n_sp):
-                p_step = int(j * 100 / (n_sp - 1) + 0.5)
+        #    for j in range(n_sp):
+        #       p_step = int(j * 100 / (n_sp - 1) + 0.5)
 
                 # update progress bar
-                yield p_epoch, p_step
+        #       yield p_epoch, p_step
 
                 # sleep
-                time.sleep(t_s)
-
-    print(f'Data shape {data.data.shape}')
-    print(f'Total number of labels {ground_truth.data.shape[0]}')
-
-    n_labels = int(0.5 + perc_train_labels * ground_truth.data.shape[0])
-    print(f'Number of labels used for training {n_labels}')
+    #      time.sleep(t_s)
+        __train(conf, X, Y, X_val, Y_val)
 
     # split train and val
     X, Y, X_val, Y_val = __prepare_data(data.data, ground_truth.data, perc_train_labels)
 
-    config = {'n_epochs': n_epochs,
-              'n_steps': n_steps,
-              'patch_shape': patch_shape,
-              'batch_size': batch_size,
-              'neighborhood_radius': neighborhood_radius}
-    print(config)
+    # create DenoiSeg configuration
+    conf = __generate_config(X, n_epochs, n_steps, batch_size)
 
-    process()
+    process(conf, X, Y, X_val, Y_val)
 
 
 def __prepare_data(data, gt, perc_labels):
@@ -98,7 +89,7 @@ def __prepare_data(data, gt, perc_labels):
     # currently: no shuffling. we detect the non-empty labeled frames and split them. The validation set is
     # entirely constituted of the frames corresponding to the split labeled frames, the training set is all the
     # remaining images. The training gt is then the remaining labeled frames and empty frames.
-    
+
     # get indices of labeled frames
     n_labels = int(0.5 + perc_labels * gt.data.shape[0])
     ind = zero_sum(gt)
@@ -122,5 +113,28 @@ def __prepare_data(data, gt, perc_labels):
     return X, Y, X_val, Y_val
 
 
-def __train():
-    pass
+def __generate_config(X, n_epochs, n_steps, batch_size):
+    from denoiseg.models import DenoiSegConfig
+
+    train_batch_size = 128
+    train_steps_per_epoch = min(400, max(int(X.shape[0] / train_batch_size), 10))
+
+    conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
+                          train_steps_per_epoch=n_steps, train_epochs=n_epochs,
+                          batch_norm=True, train_batch_size=batch_size, unet_n_first=32,
+                          unet_n_depth=4, denoiseg_alpha=0.5, train_tensorboard=True)
+
+    return conf
+
+
+def __train(conf, X, Y, X_val, Y_val):
+    from denoiseg.models import DenoiSeg
+    from datetime import date
+
+    today = date.today().strftime("%b-%d-%Y")
+
+    model_name = 'DenoiSeg_'+ today
+    basedir = 'models'
+    model = DenoiSeg(conf, model_name, basedir)
+    history = model.train(X, Y, (X_val, Y_val))
+
