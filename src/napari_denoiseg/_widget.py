@@ -38,27 +38,19 @@ def denoiseg_widget(data: 'napari.layers.Image',
     # ProgressBar.native.setValue avoids bug in magicgui ProgressBar.increment(val)
     # @thread_worker(connect={'yielded': epoch_prog.native.setValue})
     @thread_worker(connect={'yielded': update_progress})
-    def process(conf, X, Y, X_val, Y_val):
-        #n_pt = 5
-        #n_sp = 10
-        #t_s = 0.1
-        #for i in range(n_pt):
-        #    p_epoch = int(i * 100 / (n_pt - 1) + 0.5)
+    def process(train_conf, train_X, train_Y, val_X, val_Y):
+        import threading
+        training = threading.Thread(target=__train, args=(train_conf, train_X, train_Y, val_X, val_Y))
+        training.start()
 
-        #    for j in range(n_sp):
-        #       p_step = int(j * 100 / (n_sp - 1) + 0.5)
+        yield 20, 20
 
-                # update progress bar
-        #       yield p_epoch, p_step
-
-                # sleep
-    #      time.sleep(t_s)
-        __train(conf, X, Y, X_val, Y_val)
 
     # split train and val
     X, Y, X_val, Y_val = __prepare_data(data.data, ground_truth.data, perc_train_labels)
 
     # create DenoiSeg configuration
+    print(batch_size)
     conf = __generate_config(X, n_epochs, n_steps, batch_size)
 
     process(conf, X, Y, X_val, Y_val)
@@ -137,4 +129,6 @@ def __train(conf, X, Y, X_val, Y_val):
     basedir = 'models'
     model = DenoiSeg(conf, model_name, basedir)
     history = model.train(X, Y, (X_val, Y_val))
+
+
 
