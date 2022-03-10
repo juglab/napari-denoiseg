@@ -12,6 +12,7 @@ from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory, widgets
 from queue import Queue
+import pyqtgraph as pg
 
 
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
@@ -125,8 +126,7 @@ def denoiseg_widget(data: 'napari.layers.Image',
         validation_Y = np.concatenate((validation_Y, Y_val), axis=-1)
 
         # add callbacks
-        model.callbacks.append(UpdateCallback(denoiseg_updater))
-        model.callbacks.append(OnEndCallback(denoiseg_updater))
+        model.callbacks.append(denoiseg_updater)
 
         training = threading.Thread(target=train, args=(model,
                                                         training_data,
@@ -237,7 +237,7 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
     return history
 
 
-class DenoiSegUpdater:
+class DenoiSegUpdater(Callback):
 
     def __init__(self):
         self.queue = Queue(10)
@@ -265,23 +265,11 @@ class DenoiSegUpdater:
     def pop_queue(self):
         return self.queue.get()
 
-
-class UpdateCallback(Callback):
-
-    def __init__(self, updater: DenoiSegUpdater):
-        self.updater = updater
-
     def on_epoch_end(self, epoch, logs=None):
-        self.updater.update_epoch(epoch)
+        self.update_epoch(epoch)
 
     def on_train_batch_end(self, batch, logs=None):
-        self.updater.update_batch(batch)
-
-
-class OnEndCallback(Callback):
-
-    def __init__(self, updater: DenoiSegUpdater):
-        self.updater = updater
+        self.update_batch(batch)
 
     def on_train_end(self, logs=None):
-        self.updater.training_done()
+        self.training_done()
