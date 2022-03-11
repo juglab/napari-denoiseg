@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from src.napari_denoiseg import denoiseg_widget
+from src.napari_denoiseg import CustomWidget, denoiseg_widget
 
 with napari.gui_qt():
     # create a folder for our data
@@ -30,11 +30,15 @@ with napari.gui_qt():
     labels = train_data['Y_train'].astype(np.int32)[0:16, :, :]
 
     # create a Viewer and add an image here
-    # viewer = napari.Viewer()
-    viewer = napari.view_image(images)
+    viewer = napari.Viewer()
 
-    # add labels
+    # add images
+    viewer.add_image(images)
     viewer.add_labels(labels)
 
     # custom code to add data here
     viewer.window.add_dock_widget(denoiseg_widget())
+    #viewer.window.add_dock_widget(CustomWidget(viewer))
+
+
+    napari.run()

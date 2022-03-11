@@ -1,18 +1,34 @@
 """
-This module is an example of a barebones QWidget plugin for napari
-
-It implements the Widget specification.
-see: https://napari.org/plugins/stable/guides.html#widgets
-
-Replace code below according to your needs.
 """
 import time
 
+from magicgui.widgets import Container
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory, widgets
 from queue import Queue
 import pyqtgraph as pg
+from qtpy.QtWidgets import (
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel
+)
+import numpy as np
+
+
+
+def on_create(my_widget):
+    graph_container = QWidget()
+    graphics_widget = pg.GraphicsLayoutWidget()
+    graphics_widget.setBackground(None)
+    graph_container.setMaximumHeight(200)
+    graph_container.setMaximumWidth(400)
+    graph_container.setLayout(QHBoxLayout())
+    graph_container.layout().addWidget(graphics_widget)
+
+    my_widget.native.layout().addWidget(graph_container)
+
+    plot = graphics_widget.addPlot()
+    arr = [(i, np.random.rand()) for i in range(100)]
+    plot.plot(np.array(arr))
 
 
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
@@ -20,16 +36,13 @@ import pyqtgraph as pg
                n_steps={"widget_type": "SpinBox", "step": 1, 'value': 10},  # 400
                batch_size={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8},  # 64
                epoch_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'epochs'},
-               step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'})
-# neighborhood_radius={"widget_type": "Slider", "min": 1, "max": 16, 'value': 16},
-# patch_shape={"widget_type": "Slider", "min": 16, "max": 512, "step": 16, 'value': 16},  # 64
+               step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'},
+               widget_init=on_create)
 def denoiseg_widget(data: 'napari.layers.Image',
                     ground_truth: 'napari.layers.Labels',
                     perc_train_labels: float,
                     n_epochs: int,
                     n_steps: int,
-                    # neighborhood_radius: int,
-                    # patch_shape: int,
                     batch_size: int,
                     epoch_prog: widgets.ProgressBar,
                     step_prog: widgets.ProgressBar):
@@ -136,6 +149,9 @@ def denoiseg_widget(data: 'napari.layers.Image',
                                                         steps_per_epoch))
         training.start()
 
+        # alternatively queue.get(True) blocks the queue until it gets something, instead of pop(). We could use
+        # e+1 == epochs and s+1 == steps_per_epoch as a signal that training is done and avoid
+        # using is_running(). Then we should use a while True loop.
         while denoiseg_updater.is_running() or denoiseg_updater.get_queue_len() > 0:
             time.sleep(0.1)
             if denoiseg_updater.get_queue_len() > 0:

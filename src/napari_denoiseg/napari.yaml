@@ -5,9 +5,14 @@ contributions:
     - id: napari-denoiseg.make_magic_widget
       python_name: napari_denoiseg._widget:denoiseg_widget
       title: DenoiSeg
+    - id: napari-denoiseg.make_magic_widget_plot
+      python_name: napari_denoiseg._widget_plot:CustomWidget
+      title: Gui
   widgets:
     - command: napari-denoiseg.make_magic_widget
       display_name: DenoiSeg
+    - command: napari-denoiseg.make_magic_widget_plot
+      display_name: Gui
   sample_data:
     - command: napari-denoiseg.sample_data
       display_name: Sample data
