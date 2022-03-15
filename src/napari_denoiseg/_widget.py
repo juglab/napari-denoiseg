@@ -47,7 +47,7 @@ class Updater(Callback):
     def on_train_end(self, logs=None):
         self.training_done()
 
-
+# here the call to the progress bar is WRONG, because it creates ProgressBar with ProgressBar value
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
                n_epochs={"widget_type": "SpinBox", "step": 1, 'value': 20},  # 10
                n_steps={"widget_type": "SpinBox", "step": 1, 'value': 4},  # 400
