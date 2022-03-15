@@ -3,14 +3,17 @@
 import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
-from magicgui import magic_factory, widgets
-from qtpy.QtWidgets import QPushButton
+from magicgui import magic_factory
+from magicgui.widgets import ProgressBar
 from queue import Queue
-import pyqtgraph as pg
 import numpy as np
-import webbrowser
+from utils import PlotWidget
 
 
+# should probably refactor this, what would be a pythonic way?
+# java way would be to create an object with member indicating
+# whether the update is an "epoch end" update. This would allow
+# more elegant check than the size of the list.
 class Updater(Callback):
     def __init__(self):
         self.queue = Queue(10)
@@ -45,60 +48,6 @@ class Updater(Callback):
         self.training_done()
 
 
-# singleton pattern to ensure a single window?
-class PlotWidget(widgets.Container):
-    def __setitem__(self, key, value):
-        pass
-
-    def __init__(self):
-        super().__init__()
-
-        self.graphics_widget = pg.GraphicsLayoutWidget()
-        self.graphics_widget.setBackground(None)
-        self.native.layout().addWidget(self.graphics_widget)
-
-        # plot widget
-        self.plot = self.graphics_widget.addPlot()
-        self.plot.setLabel("bottom", "epoch")
-        self.plot.setLabel("left", "loss")
-
-        # tensorboard button
-        tb_button = QPushButton("Open in tensorboard")
-        tb_button.clicked.connect(self.open_tb)
-        self.native.layout().addWidget(tb_button)
-
-        self.epochs = []
-        self.train_loss = []
-        self.val_loss = []
-        self.url = None
-        self.tb = None
-
-    def stop_tb(self):
-        pass
-
-    def open_tb(self):
-        if not self.tb:
-            from tensorboard import program
-
-            self.tb = program.TensorBoard()
-            self.tb.configure(argv=[None, '--logdir', 'models'])
-            self.url = self.tb.launch()
-
-            webbrowser.open(self.url)
-        else:
-            webbrowser.open(self.url)
-
-    def update_plot(self, epoch, train_loss, val_loss):
-        self.plot.clear()
-
-        self.epochs.append(epoch)
-        self.train_loss.append(train_loss)
-        self.val_loss.append(val_loss)
-
-        self.plot.plot(self.epochs, self.train_loss, pen=pg.mkPen(color=(204, 221, 255)), symbol='o', symbolSize=2)
-        self.plot.plot(self.epochs, self.val_loss, pen=pg.mkPen(color=(244, 173, 173)), symbol='o', symbolSize=2)
-
-
 @magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
                n_epochs={"widget_type": "SpinBox", "step": 1, 'value': 20},  # 10
                n_steps={"widget_type": "SpinBox", "step": 1, 'value': 4},  # 400
@@ -112,8 +61,14 @@ def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
                     n_epochs: int,
                     n_steps: int,
                     batch_size: int,
-                    epoch_prog: widgets.ProgressBar,
-                    step_prog: widgets.ProgressBar):
+                    epoch_prog: ProgressBar,
+                    step_prog: ProgressBar):
+    def started():
+        pass
+
+    def finished():
+        pass
+
     def update_progress(update):
         epoch_prog.native.setValue(update[0])
         epoch_prog.native.setFormat(update[1])
@@ -123,7 +78,7 @@ def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
         if update[4][1]:
             plot_graph.update_plot(*update[4])
 
-    @thread_worker(connect={'yielded': update_progress})
+    @thread_worker(connect={'yielded': update_progress, 'started': started, 'finished': finished})
     def process(config, X_train, Y_train, X_val, Y_val):
         import threading
 
