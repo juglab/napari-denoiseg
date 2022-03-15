@@ -4,9 +4,11 @@ import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory, widgets
+from qtpy.QtWidgets import QPushButton
 from queue import Queue
 import pyqtgraph as pg
 import numpy as np
+import webbrowser
 
 
 class Updater(Callback):
@@ -43,6 +45,7 @@ class Updater(Callback):
         self.training_done()
 
 
+# singleton pattern to ensure a single window?
 class PlotWidget(widgets.Container):
     def __setitem__(self, key, value):
         pass
@@ -54,13 +57,36 @@ class PlotWidget(widgets.Container):
         self.graphics_widget.setBackground(None)
         self.native.layout().addWidget(self.graphics_widget)
 
+        # plot widget
         self.plot = self.graphics_widget.addPlot()
         self.plot.setLabel("bottom", "epoch")
         self.plot.setLabel("left", "loss")
 
+        # tensorboard button
+        tb_button = QPushButton("Open in tensorboard")
+        tb_button.clicked.connect(self.open_tb)
+        self.native.layout().addWidget(tb_button)
+
         self.epochs = []
         self.train_loss = []
         self.val_loss = []
+        self.url = None
+        self.tb = None
+
+    def stop_tb(self):
+        pass
+
+    def open_tb(self):
+        if not self.tb:
+            from tensorboard import program
+
+            self.tb = program.TensorBoard()
+            self.tb.configure(argv=[None, '--logdir', 'models'])
+            self.url = self.tb.launch()
+
+            webbrowser.open(self.url)
+        else:
+            webbrowser.open(self.url)
 
     def update_plot(self, epoch, train_loss, val_loss):
         self.plot.clear()
@@ -137,6 +163,10 @@ def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
     # create plot_graph: note clicking on run will create a new one
     plot_graph = PlotWidget()
     napari_viewer.window.add_dock_widget(plot_graph)
+
+    # to stop the tensorboard, but this yields a warning because we access a hidden member
+    # I keep here for reference since I haven't found a good way to stop the tb (they have no closing API)
+    #napari_viewer.window.qt_viewer.destroyed.connect(plot_graph.stop_tb)
 
     # start process
     process(denoiseg_conf, X_t, Y_t, X_v, Y_v)
