@@ -38,7 +38,5 @@ with napari.gui_qt():
 
     # custom code to add data here
     viewer.window.add_dock_widget(denoiseg_widget())
-    #viewer.window.add_dock_widget(CustomWidget(viewer))
-
 
     napari.run()
