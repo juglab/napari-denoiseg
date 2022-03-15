@@ -7,7 +7,7 @@ from magicgui import magic_factory
 from magicgui.widgets import ProgressBar
 from queue import Queue
 import numpy as np
-from utils import PlotWidget
+from utils import _tb_plot_widget
 
 
 # should probably refactor this, what would be a pythonic way?
@@ -116,7 +116,7 @@ def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
     denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size)
 
     # create plot_graph: note clicking on run will create a new one
-    plot_graph = PlotWidget()
+    plot_graph = _tb_plot_widget.tb_plot_widget
     napari_viewer.window.add_dock_widget(plot_graph)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member

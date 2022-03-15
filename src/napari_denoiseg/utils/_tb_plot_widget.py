@@ -4,7 +4,8 @@ import pyqtgraph as pg
 import webbrowser
 
 
-class PlotWidget(Container):
+class __PlotWidget(Container):
+
     def __setitem__(self, key, value):
         pass
 
@@ -55,3 +56,6 @@ class PlotWidget(Container):
 
         self.plot.plot(self.epochs, self.train_loss, pen=pg.mkPen(color=(204, 221, 255)), symbol='o', symbolSize=2)
         self.plot.plot(self.epochs, self.val_loss, pen=pg.mkPen(color=(244, 173, 173)), symbol='o', symbolSize=2)
+
+
+tb_plot_widget = __PlotWidget()
