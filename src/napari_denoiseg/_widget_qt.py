@@ -20,7 +20,8 @@ from qtpy.QtWidgets import (
     QSpinBox,
     QFormLayout
 )
-import enum
+from enum import Enum
+
 
 # should probably refactor this, what would be a pythonic way?
 # java way would be to create an object with member indicating
@@ -88,11 +89,24 @@ def batch_size_slider(slider: int):
     pass
 
 
-class DenoiSegWidget(QWidget):
+class State(Enum):
+    IDLE = 0
+    RUNNING = 1
+    STOPPED = 2
 
+
+class Updates(Enum):
+    EPOCH = 'epoch'
+    BATCH = 'batch'
+    LOSS = 'loss'
+
+
+class DenoiSegWidget(QWidget):
     def __init__(self, napari_viewer):
-        self.viewer = napari_viewer
         super().__init__()
+
+        self.state = State.IDLE
+        self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
 
@@ -103,21 +117,23 @@ class DenoiSegWidget(QWidget):
         # others
         self.perc_train_slider = perc_train_slider()
 
-        self.n_epochs = QSpinBox()
-        self.n_epochs.setMinimum(1)
-        self.n_epochs.setValue(2)
+        self.n_epochs_spin = QSpinBox()
+        self.n_epochs_spin.setMinimum(1)
+        self.n_epochs_spin.setValue(2)
+        self.n_epochs = self.n_epochs_spin.value()
 
-        self.n_steps = QSpinBox()
-        self.n_steps.setMinimum(1)
-        self.n_steps.setValue(10)
+        self.n_steps_spin = QSpinBox()
+        self.n_steps_spin.setMinimum(1)
+        self.n_steps_spin.setValue(10)
+        self.n_steps = self.n_steps_spin.value()
 
         self.batch_size = batch_size_slider()
 
         others = QWidget()
         formLayout = QFormLayout()
         formLayout.addRow('Train label %', self.perc_train_slider.native)
-        formLayout.addRow('N epochs', self.n_epochs)
-        formLayout.addRow('N steps', self.n_steps)
+        formLayout.addRow('N epochs', self.n_epochs_spin)
+        formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size.native)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
@@ -131,14 +147,14 @@ class DenoiSegWidget(QWidget):
         self.pb_epochs.setMinimum(0)
         self.pb_epochs.setMaximum(100)
         self.pb_epochs.setTextVisible(True)
-        self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs.value()}')
+        self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
 
         self.pb_steps = QProgressBar()
         self.pb_steps.setValue(0)
         self.pb_steps.setMinimum(0)
         self.pb_steps.setMaximum(100)
         self.pb_steps.setTextVisible(True)
-        self.pb_steps.setFormat(f'Step ?/{self.n_steps.value()}')
+        self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
 
         progress_widget.layout().addWidget(self.pb_epochs)
         progress_widget.layout().addWidget(self.pb_steps)
@@ -153,23 +169,74 @@ class DenoiSegWidget(QWidget):
         self.plot = TBPlotWidget(300, 300)
         self.layout().addWidget(self.plot.native)
 
-        # worker
-        self.worker = denoiseg_worker()
-        # self.worker.returned.connect(lambda x: w.status.setText(f"worker returned {x}"))
-        self.worker.yielded.connect(lambda x: self.update(x))
-        # self.worker.started.connect(lambda: w.status.setText("worker started..."))
-        self.train_button.clicked.connect(self.worker.start)
+        # actions
+        self.n_epochs_spin.valueChanged.connect(self.update_epochs)
+        self.n_steps_spin.valueChanged.connect(self.update_steps)
 
-    def update(self, i):
-        print(i)
-        self.pb_steps.setValue(i)
+        # worker
+        self.worker = None
+        self.train_button.clicked.connect(self.start_training)
+
+    def start_training(self):
+        if self.state == State.IDLE:
+            self.state = State.RUNNING
+
+            self.plot.clear_plot()
+            self.train_button.setText('Stop')
+
+            self.worker = denoiseg_worker(self)
+            self.worker.yielded.connect(lambda x: self.update_all(x))
+            self.worker.returned.connect(self.done)
+            self.worker.start()
+        elif self.state == State.RUNNING:
+            self.state = State.STOPPED
+
+            self.worker.quit()
+
+            self.train_button.setText('Train again')
+
+    def done(self):
+        self.state = State.IDLE
+        self.train_button.setText('Train again')
+
+    def update_epochs(self):
+        if self.state == State.IDLE:
+            self.n_epochs = self.n_epochs_spin.value()
+            self.pb_epochs.setValue(0)
+            self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
+
+    def update_steps(self):
+        if self.state == State.IDLE:
+            self.n_steps = self.n_steps_spin.value()
+            self.pb_steps.setValue(0)
+            self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
+
+    def update_all(self, updates):
+        if Updates.EPOCH in updates:
+            val = updates[Updates.EPOCH]
+            e_perc = int(100 * updates[Updates.EPOCH] / self.n_epochs + 0.5)
+            self.pb_epochs.setValue(e_perc)
+            self.pb_epochs.setFormat(f'Epoch {val}/{self.n_epochs}')
+
+        if Updates.BATCH in updates:
+            val = updates[Updates.BATCH]
+            s_perc = int(100 * val / self.n_steps + 0.5)
+            self.pb_steps.setValue(s_perc)
+            self.pb_steps.setFormat(f'Epoch {val}/{self.n_steps}')
+
+        if Updates.LOSS in updates:
+            self.plot.update_plot(*updates[Updates.LOSS])
 
 
 @thread_worker(start_thread=False)
-def denoiseg_worker():
-    for i in range(10):
-        time.sleep(0.2)
-        yield i
+def denoiseg_worker(widget: DenoiSegWidget):
+    for i in range(widget.n_epochs):
+        yield {Updates.EPOCH: i+1}
+        for j in range(widget.n_steps):
+            yield {Updates.BATCH: j+1}
+            time.sleep(0.2)
+
+        yield {Updates.LOSS: (i, np.exp(-i / 20), np.exp(-i / 40))}
 
 
 # here the call to the progress bar is WRONG, because it creates ProgressBar with ProgressBar value
