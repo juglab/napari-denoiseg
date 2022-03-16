@@ -1,14 +1,26 @@
 """
 """
+import time
 import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
-from magicgui import magic_factory
-from magicgui.widgets import ProgressBar
+from magicgui import magic_factory, magicgui
+from magicgui.widgets import ProgressBar, create_widget, Container
 from queue import Queue
 import numpy as np
-from utils import tb_plot_widget
-
+from utils import TBPlotWidget
+from qtpy.QtWidgets import (
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QPushButton,
+    QProgressBar,
+    QLabel,
+    QSlider,
+    QSpinBox,
+    QFormLayout
+)
+import enum
 
 # should probably refactor this, what would be a pythonic way?
 # java way would be to create an object with member indicating
@@ -46,6 +58,118 @@ class Updater(Callback):
 
     def on_train_end(self, logs=None):
         self.training_done()
+
+
+def create_choice_widget(napari_viewer):
+    def layer_choice_widget(np_viewer, annotation, **kwargs):
+        widget = create_widget(annotation=annotation, **kwargs)
+        widget.reset_choices()
+        np_viewer.layers.events.inserted.connect(widget.reset_choices)
+        np_viewer.layers.events.removed.connect(widget.reset_choices)
+        return widget
+
+    img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="images")
+    lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="labels")
+
+    return Container(widgets=[img, lbl])
+
+
+@magic_factory(auto_call=True,
+               labels=False,
+               slider={"widget_type": "Slider", "min": 0, "max": 100, "step": 5, 'value': 60})
+def perc_train_slider(slider: int):
+    pass
+
+
+@magic_factory(auto_call=True,
+               labels=False,
+               slider={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8})
+def batch_size_slider(slider: int):
+    pass
+
+
+class DenoiSegWidget(QWidget):
+
+    def __init__(self, napari_viewer):
+        self.viewer = napari_viewer
+        super().__init__()
+
+        self.setLayout(QVBoxLayout())
+
+        # layer choice widgets
+        self.choice_widget = create_choice_widget(napari_viewer)
+        self.layout().addWidget(self.choice_widget.native)
+
+        # others
+        self.perc_train_slider = perc_train_slider()
+
+        self.n_epochs = QSpinBox()
+        self.n_epochs.setMinimum(1)
+        self.n_epochs.setValue(2)
+
+        self.n_steps = QSpinBox()
+        self.n_steps.setMinimum(1)
+        self.n_steps.setValue(10)
+
+        self.batch_size = batch_size_slider()
+
+        others = QWidget()
+        formLayout = QFormLayout()
+        formLayout.addRow('Train label %', self.perc_train_slider.native)
+        formLayout.addRow('N epochs', self.n_epochs)
+        formLayout.addRow('N steps', self.n_steps)
+        formLayout.addRow('Batch size', self.batch_size.native)
+        others.setLayout(formLayout)
+        self.layout().addWidget(others)
+
+        # progress bars
+        progress_widget = QWidget()
+        progress_widget.setLayout(QVBoxLayout())
+
+        self.pb_epochs = QProgressBar()
+        self.pb_epochs.setValue(0)
+        self.pb_epochs.setMinimum(0)
+        self.pb_epochs.setMaximum(100)
+        self.pb_epochs.setTextVisible(True)
+        self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs.value()}')
+
+        self.pb_steps = QProgressBar()
+        self.pb_steps.setValue(0)
+        self.pb_steps.setMinimum(0)
+        self.pb_steps.setMaximum(100)
+        self.pb_steps.setTextVisible(True)
+        self.pb_steps.setFormat(f'Step ?/{self.n_steps.value()}')
+
+        progress_widget.layout().addWidget(self.pb_epochs)
+        progress_widget.layout().addWidget(self.pb_steps)
+        self.layout().addWidget(progress_widget)
+
+        # train button
+        self.train_button = QPushButton("Train", self)
+        # self.train_button.setEnabled(False)
+        self.layout().addWidget(self.train_button)
+
+        # plot widget
+        self.plot = TBPlotWidget(300, 300)
+        self.layout().addWidget(self.plot.native)
+
+        # worker
+        self.worker = denoiseg_worker()
+        # self.worker.returned.connect(lambda x: w.status.setText(f"worker returned {x}"))
+        self.worker.yielded.connect(lambda x: self.update(x))
+        # self.worker.started.connect(lambda: w.status.setText("worker started..."))
+        self.train_button.clicked.connect(self.worker.start)
+
+    def update(self, i):
+        print(i)
+        self.pb_steps.setValue(i)
+
+
+@thread_worker(start_thread=False)
+def denoiseg_worker():
+    for i in range(10):
+        time.sleep(0.2)
+        yield i
 
 
 # here the call to the progress bar is WRONG, because it creates ProgressBar with ProgressBar value
@@ -117,7 +241,7 @@ def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
     denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size)
 
     # create plot_graph: note clicking on run will create a new one
-    plot_graph = tb_plot_widget.tb_plot_widget
+    plot_graph = TBPlotWidget()
     napari_viewer.window.add_dock_widget(plot_graph)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
@@ -305,11 +429,11 @@ if __name__ == "__main__":
         # create a Viewer and add an image here
         viewer = napari.Viewer()
 
+        # custom code to add data here
+        viewer.window.add_dock_widget(DenoiSegWidget(viewer))
+
         # add images
         viewer.add_image(images)
         viewer.add_labels(labels)
-
-        # custom code to add data here
-        viewer.window.add_dock_widget(denoiseg_widget())
 
         napari.run()

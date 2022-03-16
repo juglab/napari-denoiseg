@@ -4,13 +4,18 @@ import pyqtgraph as pg
 import webbrowser
 
 
-class __PlotWidget(Container):
+class TBPlotWidget(Container):
 
     def __setitem__(self, key, value):
         pass
 
-    def __init__(self):
+    def __init__(self, max_width=None, max_height=None):
         super().__init__()
+
+        if max_width:
+            self.native.setMaximumWidth(max_width)
+        if max_height:
+            self.native.setMaximumHeight(max_height)
 
         self.graphics_widget = pg.GraphicsLayoutWidget()
         self.graphics_widget.setBackground(None)
@@ -48,7 +53,7 @@ class __PlotWidget(Container):
             webbrowser.open(self.url)
 
     def update_plot(self, epoch, train_loss, val_loss):
-        self.plot.clear()
+        self.clear_plot()
 
         self.epochs.append(epoch)
         self.train_loss.append(train_loss)
@@ -57,5 +62,5 @@ class __PlotWidget(Container):
         self.plot.plot(self.epochs, self.train_loss, pen=pg.mkPen(color=(204, 221, 255)), symbol='o', symbolSize=2)
         self.plot.plot(self.epochs, self.val_loss, pen=pg.mkPen(color=(244, 173, 173)), symbol='o', symbolSize=2)
 
-
-tb_plot_widget = __PlotWidget()
+    def clear_plot(self):
+        self.plot.clear()
