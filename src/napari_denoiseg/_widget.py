@@ -53,6 +53,34 @@ class Updater(Callback):
         self.queue.put(Updates.DONE)
 
 
+def create_choice_widget(napari_viewer):
+    def layer_choice_widget(np_viewer, annotation, **kwargs):
+        widget = create_widget(annotation=annotation, **kwargs)
+        widget.reset_choices()
+        np_viewer.layers.events.inserted.connect(widget.reset_choices)
+        np_viewer.layers.events.removed.connect(widget.reset_choices)
+        return widget
+
+    img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="imgs")
+    lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="lbls")
+
+    return Container(widgets=[img, lbl])
+
+
+@magic_factory(auto_call=True,
+               labels=False,
+               slider={"widget_type": "Slider", "min": 0, "max": 100, "step": 5, 'value': 60})
+def get_perc_train_slider(slider: int):
+    pass
+
+
+@magic_factory(auto_call=True,
+               labels=False,
+               slider={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8})
+def get_batch_size_slider(slider: int):
+    pass
+
+
 class DenoiSegWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
@@ -137,31 +165,6 @@ class DenoiSegWidget(QWidget):
         # will be deprecated. Hopefully until then a on_window_closing event
         # will be available.
         napari_viewer.window.qt_viewer.destroyed.connect(self.quit)
-
-    def create_choice_widget(self, napari_viewer):
-        def layer_choice_widget(np_viewer, annotation, **kwargs):
-            widget = create_widget(annotation=annotation, **kwargs)
-            widget.reset_choices()
-            np_viewer.layers.events.inserted.connect(widget.reset_choices)
-            np_viewer.layers.events.removed.connect(widget.reset_choices)
-            return widget
-
-        img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="imgs")
-        lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="lbls")
-
-        return Container(widgets=[img, lbl])
-
-    @magic_factory(auto_call=True,
-                   labels=False,
-                   slider={"widget_type": "Slider", "min": 0, "max": 100, "step": 5, 'value': 60})
-    def get_perc_train_slider(self, slider: int):
-        pass
-
-    @magic_factory(auto_call=True,
-                   labels=False,
-                   slider={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8})
-    def get_batch_size_slider(self, slider: int):
-        pass
 
     def quit(self):
         self.state = State.STOPPED
