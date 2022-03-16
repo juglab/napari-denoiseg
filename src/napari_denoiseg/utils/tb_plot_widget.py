@@ -38,6 +38,7 @@ class TBPlotWidget(Container):
         self.tb = None
 
     def stop_tb(self):
+        # haven't found any good way to stop the tb process, there's currently no API for it
         pass
 
     def open_tb(self):
@@ -64,3 +65,6 @@ class TBPlotWidget(Container):
 
     def clear_plot(self):
         self.plot.clear()
+        self.epochs = []
+        self.train_loss = []
+        self.val_loss = []
