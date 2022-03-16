@@ -4,128 +4,262 @@ import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory
-from magicgui.widgets import ProgressBar
+from magicgui.widgets import create_widget, Container
 from queue import Queue
 import numpy as np
-from utils import tb_plot_widget
+from utils import TBPlotWidget
+from qtpy.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QProgressBar,
+    QSpinBox,
+    QFormLayout
+)
+from enum import Enum
 
 
-# should probably refactor this, what would be a pythonic way?
-# java way would be to create an object with member indicating
-# whether the update is an "epoch end" update. This would allow
-# more elegant check than the size of the list.
+class State(Enum):
+    IDLE = 0
+    RUNNING = 1
+    STOPPED = 2
+
+
+class Updates(Enum):
+    EPOCH = 'epoch'
+    BATCH = 'batch'
+    LOSS = 'loss'
+    DONE = 'done'
+
+
 class Updater(Callback):
     def __init__(self):
         self.queue = Queue(10)
         self.epoch = 0
         self.batch = 0
-        self.training_running = True
 
-    def is_running(self):
-        return self.training_running
-
-    def training_done(self):
-        self.training_running = False
-
-    def update_epoch(self, epoch, train_loss, val_loss):
+    def on_epoch_begin(self, epoch, logs=None):
         self.epoch = epoch
-        self.queue.put((self.epoch, self.batch, train_loss, val_loss))
-
-    def update_batch(self, batch):
-        self.batch = batch
-        self.queue.put((self.epoch, self.batch))
-
-    def get_queue_len(self):
-        return self.queue.qsize()
+        self.queue.put({Updates.EPOCH: self.epoch + 1})
 
     def on_epoch_end(self, epoch, logs=None):
-        self.update_epoch(epoch, logs['loss'], logs['val_loss'])
+        self.queue.put({Updates.LOSS: (self.epoch, logs['loss'], logs['val_loss'])})
 
-    def on_train_batch_end(self, batch, logs=None):
-        self.update_batch(batch)
+    def on_train_batch_begin(self, batch, logs=None):
+        self.batch = batch
+        self.queue.put({Updates.BATCH: self.batch + 1})
 
     def on_train_end(self, logs=None):
-        self.training_done()
+        self.queue.put(Updates.DONE)
 
 
-# here the call to the progress bar is WRONG, because it creates ProgressBar with ProgressBar value
-@magic_factory(perc_train_labels={"widget_type": "FloatSlider", "min": 0.1, "max": 1., "step": 0.05, 'value': 0.6},
-               n_epochs={"widget_type": "SpinBox", "step": 1, 'value': 20},  # 10
-               n_steps={"widget_type": "SpinBox", "step": 1, 'value': 4},  # 400
-               batch_size={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8},  # 64
-               epoch_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'epochs'},
-               step_prog={'visible': True, 'min': 0, 'max': 100, 'step': 1, 'value': 0, 'label': 'steps'})
-def denoiseg_widget(napari_viewer: 'napari.viewer.Viewer',
-                    data: 'napari.layers.Image',
-                    ground_truth: 'napari.layers.Labels',
-                    perc_train_labels: float,
-                    n_epochs: int,
-                    n_steps: int,
-                    batch_size: int,
-                    epoch_prog: ProgressBar,
-                    step_prog: ProgressBar):
-    def started():
+class DenoiSegWidget(QWidget):
+    def __init__(self, napari_viewer):
+        super().__init__()
+
+        self.state = State.IDLE
+        self.viewer = napari_viewer
+
+        self.setLayout(QVBoxLayout())
+
+        # layer choice widgets
+        self.choice_widget = self.create_choice_widget(napari_viewer)
+        self.images = self.choice_widget.imgs
+        self.labels = self.choice_widget.lbls
+        self.layout().addWidget(self.choice_widget.native)
+
+        # others
+        self.perc_train_slider = self.get_perc_train_slider()
+
+        self.n_epochs_spin = QSpinBox()
+        self.n_epochs_spin.setMinimum(1)
+        self.n_epochs_spin.setValue(2)
+        self.n_epochs = self.n_epochs_spin.value()
+
+        self.n_steps_spin = QSpinBox()
+        self.n_steps_spin.setMinimum(1)
+        self.n_steps_spin.setValue(10)
+        self.n_steps = self.n_steps_spin.value()
+
+        self.batch_size_slider = self.get_batch_size_slider()
+
+        others = QWidget()
+        formLayout = QFormLayout()
+        formLayout.addRow('Train label %', self.perc_train_slider.native)
+        formLayout.addRow('N epochs', self.n_epochs_spin)
+        formLayout.addRow('N steps', self.n_steps_spin)
+        formLayout.addRow('Batch size', self.batch_size_slider.native)
+        others.setLayout(formLayout)
+        self.layout().addWidget(others)
+
+        # progress bars
+        progress_widget = QWidget()
+        progress_widget.setLayout(QVBoxLayout())
+
+        self.pb_epochs = QProgressBar()
+        self.pb_epochs.setValue(0)
+        self.pb_epochs.setMinimum(0)
+        self.pb_epochs.setMaximum(100)
+        self.pb_epochs.setTextVisible(True)
+        self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
+
+        self.pb_steps = QProgressBar()
+        self.pb_steps.setValue(0)
+        self.pb_steps.setMinimum(0)
+        self.pb_steps.setMaximum(100)
+        self.pb_steps.setTextVisible(True)
+        self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
+
+        progress_widget.layout().addWidget(self.pb_epochs)
+        progress_widget.layout().addWidget(self.pb_steps)
+        self.layout().addWidget(progress_widget)
+
+        # train button
+        self.train_button = QPushButton("Train", self)
+        # self.train_button.setEnabled(False)
+        self.layout().addWidget(self.train_button)
+
+        # plot widget
+        self.plot = TBPlotWidget(300, 300)
+        self.layout().addWidget(self.plot.native)
+
+        # worker
+        self.worker = None
+        self.train_button.clicked.connect(self.start_training)
+
+        # actions
+        self.n_epochs_spin.valueChanged.connect(self.update_epochs)
+        self.n_steps_spin.valueChanged.connect(self.update_steps)
+
+        # this allows stopping the thread when the napari window is closed,
+        # including reducing the risk that an update comes after closing the
+        # window and appearing as a new Qt view. But the call to qt_viewer
+        # will be deprecated. Hopefully until then a on_window_closing event
+        # will be available.
+        napari_viewer.window.qt_viewer.destroyed.connect(self.quit)
+
+    def create_choice_widget(self, napari_viewer):
+        def layer_choice_widget(np_viewer, annotation, **kwargs):
+            widget = create_widget(annotation=annotation, **kwargs)
+            widget.reset_choices()
+            np_viewer.layers.events.inserted.connect(widget.reset_choices)
+            np_viewer.layers.events.removed.connect(widget.reset_choices)
+            return widget
+
+        img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="imgs")
+        lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="lbls")
+
+        return Container(widgets=[img, lbl])
+
+    @magic_factory(auto_call=True,
+                   labels=False,
+                   slider={"widget_type": "Slider", "min": 0, "max": 100, "step": 5, 'value': 60})
+    def get_perc_train_slider(self, slider: int):
         pass
 
-    def finished():
+    @magic_factory(auto_call=True,
+                   labels=False,
+                   slider={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8})
+    def get_batch_size_slider(self, slider: int):
         pass
 
-    def update_progress(update):
-        epoch_prog.native.setValue(update[0])
-        epoch_prog.native.setFormat(update[1])
-        step_prog.native.setValue(update[2])
-        step_prog.native.setFormat(update[3])
+    def quit(self):
+        self.state = State.STOPPED
+        if self.worker:
+            self.worker.quit()
 
-        if update[4][1]:
-            plot_graph.update_plot(*update[4])
+    def start_training(self):
+        if self.state == State.IDLE:
+            self.state = State.RUNNING
 
-    @thread_worker(connect={'yielded': update_progress, 'started': started, 'finished': finished})
-    def process(config, X_train, Y_train, X_val, Y_val):
-        import threading
+            self.plot.clear_plot()
+            self.train_button.setText('Stop')
 
-        # create updater
-        denoiseg_updater = Updater()
+            self.worker = denoiseg_worker(self)
+            self.worker.yielded.connect(lambda x: self.update_all(x))
+            self.worker.returned.connect(self.done)
+            self.worker.start()
+        elif self.state == State.RUNNING:
+            self.state = State.IDLE
+            self.quit()
 
-        train_args = prepare_training(config, X_train, Y_train, X_val, Y_val, denoiseg_updater)
+            self.train_button.setText('Train again')
 
-        training = threading.Thread(target=train, args=train_args)
-        training.start()
+    def done(self):
+        self.state = State.IDLE
+        self.train_button.setText('Train again')
 
-        while True:
-            el = denoiseg_updater.queue.get(True)
-            e, s = el[0] + 1, el[1] + 1  # 1-indexed
-            perc_e = int(100 * e / n_epochs + 0.5)
-            perc_s = int(100 * s / n_steps + 0.5)
+    def update_epochs(self):
+        if self.state == State.IDLE:
+            self.n_epochs = self.n_epochs_spin.value()
+            self.pb_epochs.setValue(0)
+            self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
 
-            if len(el) > 2:
-                tl, vl = el[2], el[3]
-            else:
-                tl, vl = None, None
+    def update_steps(self):
+        if self.state == State.IDLE:
+            self.n_steps = self.n_steps_spin.value()
+            self.pb_steps.setValue(0)
+            self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
 
-            yield perc_e, f'Epoch {e}/{n_epochs}', perc_s, f'Step {s}/{n_steps}', (e, tl, vl)
+    def update_all(self, updates):
+        if self.state == State.RUNNING:
+            if Updates.EPOCH in updates:
+                val = updates[Updates.EPOCH]
+                e_perc = int(100 * updates[Updates.EPOCH] / self.n_epochs + 0.5)
+                self.pb_epochs.setValue(e_perc)
+                self.pb_epochs.setFormat(f'Epoch {val}/{self.n_epochs}')
 
-            if e == n_epochs and s == n_steps:
-                print('Training done')
-                break
+            if Updates.BATCH in updates:
+                val = updates[Updates.BATCH]
+                s_perc = int(100 * val / self.n_steps + 0.5)
+                self.pb_steps.setValue(s_perc)
+                self.pb_steps.setFormat(f'Epoch {val}/{self.n_steps}')
+
+            if Updates.LOSS in updates:
+                self.plot.update_plot(*updates[Updates.LOSS])
+
+
+@thread_worker(start_thread=False)
+def denoiseg_worker(widget: DenoiSegWidget):
+    import threading
+
+    # get images and labels
+    image_data = widget.images.value.data
+    label_data = widget.labels.value.data
 
     # split train and val
-    print(f'Data shape: data {data.data.shape}, gt {ground_truth.data.shape}')
-    X_t, Y_t, X_v, Y_v = prepare_data(data.data, ground_truth.data, perc_train_labels)
-    print(f'Data shape: X {X_t.shape}, Y {Y_t.shape}, X_val {X_v.shape} and Y {Y_v.shape}')
+    perc_labels = widget.perc_train_slider.slider.get_value()
+    X_t, Y_t, X_v, Y_v = prepare_data(image_data, label_data, perc_labels)
 
     # create DenoiSeg configuration
+    n_epochs = widget.n_epochs
+    n_steps = widget.n_steps
+    batch_size = widget.batch_size_slider.slider.get_value()
     denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size)
-
-    # create plot_graph: note clicking on run will create a new one
-    plot_graph = tb_plot_widget.tb_plot_widget
-    napari_viewer.window.add_dock_widget(plot_graph)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
     # I keep here for reference since I haven't found a good way to stop the tb (they have no closing API)
     # napari_viewer.window.qt_viewer.destroyed.connect(plot_graph.stop_tb)
 
-    # start process
-    process(denoiseg_conf, X_t, Y_t, X_v, Y_v)
+    # create updater
+    denoiseg_updater = Updater()
+
+    train_args = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+
+    training = threading.Thread(target=train, args=train_args)
+    training.start()
+
+    while True:
+        try:
+            update = denoiseg_updater.queue.get(True, 1)
+        except:
+            if widget.state != State.RUNNING:
+                break
+
+        if Updates.DONE == update:
+            break
+        else:
+            yield update
 
 
 # refactor with prepare_training
@@ -155,7 +289,8 @@ def prepare_data(data, gt, perc_labels):
     # remaining images. The training gt is then the remaining labeled frames and empty frames.
 
     # get indices of labeled frames
-    n_labels = int(0.5 + perc_labels * gt.data.shape[0])
+    dec_perc_labels = 0.01 * perc_labels
+    n_labels = int(0.5 + dec_perc_labels * gt.data.shape[0])
     ind = zero_sum(gt)
     assert n_labels < len(ind)
 
@@ -305,11 +440,11 @@ if __name__ == "__main__":
         # create a Viewer and add an image here
         viewer = napari.Viewer()
 
-        # add images
-        viewer.add_image(images)
-        viewer.add_labels(labels)
-
         # custom code to add data here
-        viewer.window.add_dock_widget(denoiseg_widget())
+        viewer.window.add_dock_widget(DenoiSegWidget(viewer))
+
+        # add images
+        viewer.add_image(images, name='Images')
+        viewer.add_labels(labels, name='Labels')
 
         napari.run()
