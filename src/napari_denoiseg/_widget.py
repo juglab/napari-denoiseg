@@ -22,7 +22,6 @@ from enum import Enum
 class State(Enum):
     IDLE = 0
     RUNNING = 1
-    STOPPED = 2
 
 
 class Updates(Enum):
@@ -51,6 +50,10 @@ class Updater(Callback):
 
     def on_train_end(self, logs=None):
         self.queue.put(Updates.DONE)
+
+    def stop_training(self):
+        print('try stopping denoiseg')
+        self.model.stop_training = True
 
 
 def create_choice_widget(napari_viewer):
@@ -91,13 +94,13 @@ class DenoiSegWidget(QWidget):
         self.setLayout(QVBoxLayout())
 
         # layer choice widgets
-        self.choice_widget = self.create_choice_widget(napari_viewer)
+        self.choice_widget = create_choice_widget(napari_viewer)
         self.images = self.choice_widget.imgs
         self.labels = self.choice_widget.lbls
         self.layout().addWidget(self.choice_widget.native)
 
         # others
-        self.perc_train_slider = self.get_perc_train_slider()
+        self.perc_train_slider = get_perc_train_slider()
 
         self.n_epochs_spin = QSpinBox()
         self.n_epochs_spin.setMinimum(1)
@@ -109,7 +112,7 @@ class DenoiSegWidget(QWidget):
         self.n_steps_spin.setValue(10)
         self.n_steps = self.n_steps_spin.value()
 
-        self.batch_size_slider = self.get_batch_size_slider()
+        self.batch_size_slider = get_batch_size_slider()
 
         others = QWidget()
         formLayout = QFormLayout()
@@ -164,12 +167,10 @@ class DenoiSegWidget(QWidget):
         # window and appearing as a new Qt view. But the call to qt_viewer
         # will be deprecated. Hopefully until then a on_window_closing event
         # will be available.
-        napari_viewer.window.qt_viewer.destroyed.connect(self.quit)
+        napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
-    def quit(self):
-        self.state = State.STOPPED
-        if self.worker:
-            self.worker.quit()
+    def interrupt(self):
+        self.worker.quit()
 
     def start_training(self):
         if self.state == State.IDLE:
@@ -184,11 +185,9 @@ class DenoiSegWidget(QWidget):
             self.worker.start()
         elif self.state == State.RUNNING:
             self.state = State.IDLE
-            self.quit()
-
-            self.train_button.setText('Train again')
 
     def done(self):
+        print('Is done')
         self.state = State.IDLE
         self.train_button.setText('Train again')
 
@@ -253,13 +252,14 @@ def denoiseg_worker(widget: DenoiSegWidget):
     training.start()
 
     while True:
-        try:
-            update = denoiseg_updater.queue.get(True, 1)
-        except:
-            if widget.state != State.RUNNING:
-                break
+        update = denoiseg_updater.queue.get(True)
 
         if Updates.DONE == update:
+            break
+        elif widget.state != State.RUNNING:
+            print('Will quit')
+            denoiseg_updater.stop_training()
+            yield Updates.DONE
             break
         else:
             yield update
