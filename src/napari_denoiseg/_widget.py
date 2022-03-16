@@ -52,7 +52,6 @@ class Updater(Callback):
         self.queue.put(Updates.DONE)
 
     def stop_training(self):
-        print('try stopping denoiseg')
         self.model.stop_training = True
 
 
@@ -187,7 +186,6 @@ class DenoiSegWidget(QWidget):
             self.state = State.IDLE
 
     def done(self):
-        print('Is done')
         self.state = State.IDLE
         self.train_button.setText('Train again')
 
@@ -257,7 +255,6 @@ def denoiseg_worker(widget: DenoiSegWidget):
         if Updates.DONE == update:
             break
         elif widget.state != State.RUNNING:
-            print('Will quit')
             denoiseg_updater.stop_training()
             yield Updates.DONE
             break

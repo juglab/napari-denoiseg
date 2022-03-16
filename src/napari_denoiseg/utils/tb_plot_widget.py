@@ -54,7 +54,7 @@ class TBPlotWidget(Container):
             webbrowser.open(self.url)
 
     def update_plot(self, epoch, train_loss, val_loss):
-        self.clear_plot()
+        self.plot.clear()
 
         self.epochs.append(epoch)
         self.train_loss.append(train_loss)
