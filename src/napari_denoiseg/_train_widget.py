@@ -1,11 +1,9 @@
 """
 """
-from pathlib import Path
-
 import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
-from magicgui import magic_factory, magicgui
+from magicgui import magic_factory
 from magicgui.widgets import create_widget, Container
 from queue import Queue
 import numpy as np
@@ -19,7 +17,8 @@ from qtpy.QtWidgets import (
     QSpinBox,
     QFormLayout,
     QComboBox,
-    QFileDialog
+    QFileDialog,
+    QLabel
 )
 from enum import Enum
 
@@ -97,7 +96,7 @@ def get_batch_size_slider(slider: int):
     pass
 
 
-class DenoiSegWidget(QWidget):
+class TrainWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
 
@@ -162,6 +161,10 @@ class DenoiSegWidget(QWidget):
         self.train_button = QPushButton("Train", self)
         self.layout().addWidget(self.train_button)
 
+        self.threshold_label = QLabel()
+        self.threshold_label.setText("Best threshold: ?")
+        self.layout().addWidget(self.threshold_label)
+
         # Save button
         save_widget = QWidget()
         save_widget.setLayout(QHBoxLayout())
@@ -196,7 +199,7 @@ class DenoiSegWidget(QWidget):
         napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
         # placeholder for the trained model
-        self.model = None
+        self.model, self.X_val, self.threshold = None, None, None
         self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
@@ -208,6 +211,8 @@ class DenoiSegWidget(QWidget):
 
             self.plot.clear_plot()
             self.train_button.setText('Stop')
+
+            self.threshold_label.setText("Best threshold: ?")
 
             self.save_button.setEnabled(False)
 
@@ -221,6 +226,8 @@ class DenoiSegWidget(QWidget):
     def done(self):
         self.state = State.IDLE
         self.train_button.setText('Train again')
+
+        self.threshold_label.setText("Best threshold: " + str(self.threshold))
 
         self.save_button.setEnabled(True)
 
@@ -260,19 +267,20 @@ class DenoiSegWidget(QWidget):
 
                 export_type = self.save_choice.currentText()
                 if SaveMode.MODELZOO.value == export_type:
-                    self.model[0].export_TF(name='DenoiSeg',
-                                            description='Trained DenoiSeg model',
-                                            authors=["Tim-Oliver Buchholz", "Mangal Prakash", "Alexander Krull",
-                                                     "Florian Jug"],
-                                            test_img=self.model[2][0, ..., 0], axes='YX',
-                                            patch_shape=(128, 128), fname=where+'.bioimage.io.zip')
+                    self.model.export_TF(name='DenoiSeg',
+                                         description='Trained DenoiSeg model',
+                                         authors=["Tim-Oliver Buchholz", "Mangal Prakash", "Alexander Krull",
+                                                  "Florian Jug"],
+                                         test_img=self.X_val[0, ..., 0], axes='YX',
+                                         patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
                 else:
-                    self.model[0].keras_model.save_weights(where+'.h5')
+                    self.model.keras_model.save_weights(where + '.h5')
 
 
 @thread_worker(start_thread=False)
-def denoiseg_worker(widget: DenoiSegWidget):
+def denoiseg_worker(widget: TrainWidget):
     import threading
+    from denoiseg.utils.compute_precision_threshold import measure_precision
 
     # get images and labels
     image_data = widget.images.value.data
@@ -280,7 +288,7 @@ def denoiseg_worker(widget: DenoiSegWidget):
 
     # split train and val
     perc_labels = widget.perc_train_slider.slider.get_value()
-    X_t, Y_t, X_v, Y_v = prepare_data(image_data, label_data, perc_labels)
+    X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data(image_data, label_data, perc_labels)
 
     # create DenoiSeg configuration
     n_epochs = widget.n_epochs
@@ -314,7 +322,15 @@ def denoiseg_worker(widget: DenoiSegWidget):
             yield update
 
     # training done, keep model in memory
-    widget.model = train_args
+    widget.model, widget.X_val = train_args[0], train_args[2]
+
+    # threshold validation data to estimate the best threshold
+    threshold, val_score = widget.model.optimize_thresholds(validation_x,
+                                                            validation_y,
+                                                            measure=measure_precision())
+
+    print("The highest score of {} is achieved with threshold = {}.".format(np.round(val_score, 3), threshold))
+    widget.threshold = threshold
 
 
 # refactor with prepare_training
@@ -364,7 +380,7 @@ def prepare_data(data, gt, perc_labels):
     X_val = x_val[..., np.newaxis]
     Y_val = convert_to_oneHot(y_val)
 
-    return X, Y, X_val, Y_val
+    return X, Y, X_val, Y_val, x_val, y_val
 
 
 def generate_config(X, n_epochs, n_steps, batch_size):
@@ -494,7 +510,7 @@ if __name__ == "__main__":
         viewer = napari.Viewer()
 
         # custom code to add data here
-        viewer.window.add_dock_widget(DenoiSegWidget(viewer))
+        viewer.window.add_dock_widget(TrainWidget(viewer))
 
         # add images
         viewer.add_image(images, name='Images')
