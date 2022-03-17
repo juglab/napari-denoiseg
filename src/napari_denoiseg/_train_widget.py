@@ -38,7 +38,7 @@ class Updates(Enum):
 
 class SaveMode(Enum):
     TF = 'TensorFlow'
-    MODELZOO = 'ModelZoo'
+    MODELZOO = 'Bioimage.io'
 
     @classmethod
     def list(cls):
