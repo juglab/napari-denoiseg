@@ -1,9 +1,11 @@
 """
 """
+from pathlib import Path
+
 import napari
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
-from magicgui import magic_factory
+from magicgui import magic_factory, magicgui
 from magicgui.widgets import create_widget, Container
 from queue import Queue
 import numpy as np
@@ -11,10 +13,13 @@ from utils import TBPlotWidget
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QPushButton,
     QProgressBar,
     QSpinBox,
-    QFormLayout
+    QFormLayout,
+    QComboBox,
+    QFileDialog
 )
 from enum import Enum
 
@@ -29,6 +34,15 @@ class Updates(Enum):
     BATCH = 'batch'
     LOSS = 'loss'
     DONE = 'done'
+
+
+class SaveMode(Enum):
+    TF = 'TensorFlow'
+    MODELZOO = 'ModelZoo'
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class Updater(Callback):
@@ -93,10 +107,10 @@ class DenoiSegWidget(QWidget):
         self.setLayout(QVBoxLayout())
 
         # layer choice widgets
-        self.choice_widget = create_choice_widget(napari_viewer)
-        self.images = self.choice_widget.Images
-        self.labels = self.choice_widget.Masks
-        self.layout().addWidget(self.choice_widget.native)
+        self.layer_choice = create_choice_widget(napari_viewer)
+        self.images = self.layer_choice.Images
+        self.labels = self.layer_choice.Masks
+        self.layout().addWidget(self.layer_choice.native)
 
         # others
         self.perc_train_slider = get_perc_train_slider()
@@ -146,8 +160,21 @@ class DenoiSegWidget(QWidget):
 
         # train button
         self.train_button = QPushButton("Train", self)
-        # self.train_button.setEnabled(False)
         self.layout().addWidget(self.train_button)
+
+        # Save button
+        save_widget = QWidget()
+        save_widget.setLayout(QHBoxLayout())
+
+        self.save_choice = QComboBox()
+        self.save_choice.addItems(SaveMode.list())
+
+        self.save_button = QPushButton("Save model", self)
+        self.save_button.setEnabled(False)
+
+        save_widget.layout().addWidget(self.save_button)
+        save_widget.layout().addWidget(self.save_choice)
+        self.layout().addWidget(save_widget)
 
         # plot widget
         self.plot = TBPlotWidget(300, 300)
@@ -164,9 +191,13 @@ class DenoiSegWidget(QWidget):
         # this allows stopping the thread when the napari window is closed,
         # including reducing the risk that an update comes after closing the
         # window and appearing as a new Qt view. But the call to qt_viewer
-        # will be deprecated. Hopefully until then a on_window_closing event
+        # will be deprecated. Hopefully until then an on_window_closing event
         # will be available.
         napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+
+        # placeholder for the trained model
+        self.model = None
+        self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
         self.worker.quit()
@@ -178,6 +209,8 @@ class DenoiSegWidget(QWidget):
             self.plot.clear_plot()
             self.train_button.setText('Stop')
 
+            self.save_button.setEnabled(False)
+
             self.worker = denoiseg_worker(self)
             self.worker.yielded.connect(lambda x: self.update_all(x))
             self.worker.returned.connect(self.done)
@@ -188,6 +221,8 @@ class DenoiSegWidget(QWidget):
     def done(self):
         self.state = State.IDLE
         self.train_button.setText('Train again')
+
+        self.save_button.setEnabled(True)
 
     def update_epochs(self):
         if self.state == State.IDLE:
@@ -217,6 +252,22 @@ class DenoiSegWidget(QWidget):
 
             if Updates.LOSS in updates:
                 self.plot.update_plot(*updates[Updates.LOSS])
+
+    def save_model(self):
+        if self.state == State.IDLE:
+            if self.model:
+                where = QFileDialog.getSaveFileName(caption='Save model')[0]
+
+                export_type = self.save_choice.currentText()
+                if SaveMode.MODELZOO.value == export_type:
+                    self.model[0].export_TF(name='DenoiSeg',
+                                            description='Trained DenoiSeg model',
+                                            authors=["Tim-Oliver Buchholz", "Mangal Prakash", "Alexander Krull",
+                                                     "Florian Jug"],
+                                            test_img=self.model[2][0, ..., 0], axes='YX',
+                                            patch_shape=(128, 128), fname=where+'.bioimage.io.zip')
+                else:
+                    self.model[0].keras_model.save_weights(where+'.h5')
 
 
 @thread_worker(start_thread=False)
@@ -249,6 +300,7 @@ def denoiseg_worker(widget: DenoiSegWidget):
     training = threading.Thread(target=train, args=train_args)
     training.start()
 
+    # loop looking for update events
     while True:
         update = denoiseg_updater.queue.get(True)
 
@@ -260,6 +312,9 @@ def denoiseg_worker(widget: DenoiSegWidget):
             break
         else:
             yield update
+
+    # training done, keep model in memory
+    widget.model = train_args
 
 
 # refactor with prepare_training
@@ -409,9 +464,9 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
 
 
 def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
-    history = model.keras_model.fit(training_data, validation_data=(validation_X, validation_Y),
-                                    epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                    callbacks=model.callbacks, verbose=1)
+    model.keras_model.fit(training_data, validation_data=(validation_X, validation_Y),
+                          epochs=epochs, steps_per_epoch=steps_per_epoch,
+                          callbacks=model.callbacks, verbose=1)
 
     if model.basedir is not None:
         model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
@@ -424,8 +479,6 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
                 (model.logdir / 'weights_now.h5').unlink()
             except FileNotFoundError:
                 pass
-
-    return history
 
 
 if __name__ == "__main__":
