@@ -198,7 +198,7 @@ class TrainWidget(QWidget):
         # will be available.
         napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
-        # placeholder for the trained model
+        # place-holder for the trained model
         self.model, self.X_val, self.threshold = None, None, None
         self.save_button.clicked.connect(self.save_model)
 
@@ -216,7 +216,7 @@ class TrainWidget(QWidget):
 
             self.save_button.setEnabled(False)
 
-            self.worker = denoiseg_worker(self)
+            self.worker = train_worker(self)
             self.worker.yielded.connect(lambda x: self.update_all(x))
             self.worker.returned.connect(self.done)
             self.worker.start()
@@ -278,7 +278,7 @@ class TrainWidget(QWidget):
 
 
 @thread_worker(start_thread=False)
-def denoiseg_worker(widget: TrainWidget):
+def train_worker(widget: TrainWidget):
     import threading
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
