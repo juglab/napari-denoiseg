@@ -1,32 +1,29 @@
 """
 """
+from pathlib import Path
 import napari
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory
-from magicgui.widgets import create_widget, FloatSpinBox
-from queue import Queue
+from magicgui.widgets import create_widget
 import numpy as np
-from utils import TBPlotWidget
 from _train_widget import State
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
     QPushButton,
-    QProgressBar,
-    QSpinBox,
-    QFormLayout,
-    QComboBox,
-    QFileDialog,
-    QLabel
+    QProgressBar
 )
 from enum import Enum
 
 
 @magic_factory(auto_call=True,
-               labels=False,
-               slider={"widget_type": "FloatSpinBox", "min": 0, "max": 1., "step": 0.1, 'value': 0.6})
-def get_threshold_spin(slider: int):
+               Threshold={"widget_type": "FloatSpinBox", "min": 0, "max": 1., "step": 0.1, 'value': 0.6})
+def get_threshold_spin(Threshold: int):
+    pass
+
+
+@magic_factory(auto_call=True, Model={'mode': 'r', 'filter': '*.h5 *.bioimage.io.zip'})
+def get_load_button(Model: Path):
     pass
 
 
@@ -39,24 +36,9 @@ def layer_choice_widget(np_viewer, annotation, **kwargs):
 
 
 class Updates(Enum):
+    N_IMAGES = 'number of images'
     IMAGE = 'image'
     DONE = 'done'
-
-
-class Updater():
-    def __init__(self):
-        self.queue = Queue(10)
-        self.image = 0
-
-    def on_predict_begin(self, image):
-        self.image = image
-        self.queue.put({Updates.IMAGE: self.image + 1})
-
-    def on_predict_end(self):
-        self.queue.put(Updates.DONE)
-
-    def stop_prediction(self):
-        pass
 
 
 class PredictWidget(QWidget):
@@ -69,9 +51,8 @@ class PredictWidget(QWidget):
         self.setLayout(QVBoxLayout())
 
         # load model button
-        self.load_button = QPushButton("Load model", self)
-        self.load_button.clicked.connect(self.load_model)
-        self.layout().addWidget(self.load_button)
+        self.load_button = get_load_button()
+        self.layout().addWidget(self.load_button.native)
 
         # image layer
         self.images = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
@@ -79,11 +60,7 @@ class PredictWidget(QWidget):
 
         # threshold slider
         self.threshold_spin = get_threshold_spin()
-        others = QWidget()
-        formLayout = QFormLayout()
-        formLayout.addRow('Threshold', self.threshold_spin.native)
-        others.setLayout(formLayout)
-        self.layout().addWidget(others)
+        self.layout().addWidget(self.threshold_spin.native)
 
         # progress bar
         self.pb_prediction = QProgressBar()
@@ -99,6 +76,16 @@ class PredictWidget(QWidget):
         self.predict_button.clicked.connect(self.start_prediction)
         self.layout().addWidget(self.predict_button)
 
+        # this allows stopping the thread when the napari window is closed,
+        # including reducing the risk that an update comes after closing the
+        # window and appearing as a new Qt view. But the call to qt_viewer
+        # will be deprecated. Hopefully until then an on_window_closing event
+        # will be available.
+        napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+
+    def interrupt(self):
+        self.worker.quit()
+
     def start_prediction(self):
         if self.state == State.IDLE:
             self.state = State.RUNNING
@@ -112,15 +99,24 @@ class PredictWidget(QWidget):
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
-    def load_model(self):
-        if self.state == State.IDLE:
-            where = QFileDialog.getSaveFileName(caption='Load model', filter="Models (*.h5 *.bioimage.io.zip)")[0]
-            print(where)
+    def done(self):
+        self.state = State.IDLE
+        self.train_button.setText('Predict again')
 
 
 @thread_worker(start_thread=False)
 def prediction_worker(widget: PredictWidget):
-    import threading
+
+    # get number of images (2D slices)
+    # yield total number of images
+    # instantiate model
+    # set weight using load
+    # create label layer
+    # loop over slices
+        # yield image number + 1
+        # predict
+        # add prediction to layers
+    # update done
     pass
 
 
