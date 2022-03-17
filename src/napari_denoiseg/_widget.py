@@ -63,8 +63,8 @@ def create_choice_widget(napari_viewer):
         np_viewer.layers.events.removed.connect(widget.reset_choices)
         return widget
 
-    img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="imgs")
-    lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="lbls")
+    img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
+    lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="Masks")
 
     return Container(widgets=[img, lbl])
 
@@ -94,8 +94,8 @@ class DenoiSegWidget(QWidget):
 
         # layer choice widgets
         self.choice_widget = create_choice_widget(napari_viewer)
-        self.images = self.choice_widget.imgs
-        self.labels = self.choice_widget.lbls
+        self.images = self.choice_widget.Images
+        self.labels = self.choice_widget.Masks
         self.layout().addWidget(self.choice_widget.native)
 
         # others
