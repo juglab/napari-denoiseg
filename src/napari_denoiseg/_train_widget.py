@@ -7,7 +7,6 @@ from magicgui import magic_factory
 from magicgui.widgets import create_widget, Container
 from queue import Queue
 import numpy as np
-from utils import TBPlotWidget
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -21,6 +20,7 @@ from qtpy.QtWidgets import (
     QLabel
 )
 from enum import Enum
+from napari_denoiseg._tbplot_widget import TBPlotWidget
 
 
 class State(Enum):
