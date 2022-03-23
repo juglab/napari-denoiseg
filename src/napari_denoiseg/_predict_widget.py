@@ -6,7 +6,7 @@ from napari.qt.threading import thread_worker
 from magicgui import magic_factory
 from magicgui.widgets import create_widget
 import numpy as np
-from _train_widget import State
+from ._train_widget import State
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
