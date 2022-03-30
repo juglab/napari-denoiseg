@@ -101,33 +101,33 @@ class PredictWidget(QWidget):
 
     def done(self):
         self.state = State.IDLE
-        self.train_button.setText('Predict again')
+        self.load_button.native.setText('Predict again')
 
 
 @thread_worker(start_thread=False)
 def prediction_worker(widget: PredictWidget):
-    from datetime import date
     from denoiseg.models import DenoiSeg
+    from napari_denoiseg._train_widget import generate_config
 
     # get images
     imgs = widget.images.value.data
+    X = imgs[..., np.newaxis]
 
     # yield total number of images
     n_img = imgs.shape[2]  # this will break down
     yield {Updates.N_IMAGES: n_img}
 
     # instantiate model
-    #config = generate_config(imgs)  # here no way to tell if the network size corresponds to the one saved...
-    today = date.today().strftime("%b-%d-%Y")
-    model_name = 'DenoiSeg_' + today
+    config = generate_config(X)  # here no way to tell if the network size corresponds to the one saved...
     basedir = 'models'
-    model = DenoiSeg(None)
-
-    print(widget.load_button.value)
+    name = widget.load_button.Model.value.name[:-3]
+    model = DenoiSeg(config, name, basedir)
 
     # set weight using load
+    model.keras_model.load_weights(widget.load_button.Model.value)
 
     # create label layer
+
     # loop over slices
         # yield image number + 1
         # predict

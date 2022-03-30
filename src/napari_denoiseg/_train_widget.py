@@ -276,6 +276,7 @@ class TrainWidget(QWidget):
                                          patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
+                    # here should save the config as well
 
 
 @thread_worker(start_thread=False)
