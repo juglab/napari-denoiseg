@@ -83,3 +83,6 @@ venv/
 # written by setuptools_scm
 **/_version.py
 
+# denoiseg
+src/napari_denoiseg/data
+src/napari_denoiseg/models
