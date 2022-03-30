@@ -6,7 +6,7 @@ from napari.qt.threading import thread_worker
 from magicgui import magic_factory
 from magicgui.widgets import create_widget
 import numpy as np
-from ._train_widget import State
+from napari_denoiseg._train_widget import State
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -106,11 +106,27 @@ class PredictWidget(QWidget):
 
 @thread_worker(start_thread=False)
 def prediction_worker(widget: PredictWidget):
+    from datetime import date
+    from denoiseg.models import DenoiSeg
 
-    # get number of images (2D slices)
+    # get images
+    imgs = widget.images.value.data
+
     # yield total number of images
+    n_img = imgs.shape[2]  # this will break down
+    yield {Updates.N_IMAGES: n_img}
+
     # instantiate model
+    #config = generate_config(imgs)  # here no way to tell if the network size corresponds to the one saved...
+    today = date.today().strftime("%b-%d-%Y")
+    model_name = 'DenoiSeg_' + today
+    basedir = 'models'
+    model = DenoiSeg(None)
+
+    print(widget.load_button.value)
+
     # set weight using load
+
     # create label layer
     # loop over slices
         # yield image number + 1

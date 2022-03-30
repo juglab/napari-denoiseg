@@ -20,7 +20,7 @@ from qtpy.QtWidgets import (
     QLabel
 )
 from enum import Enum
-from ._tbplot_widget import TBPlotWidget
+from napari_denoiseg._tbplot_widget import TBPlotWidget
 
 
 class State(Enum):
