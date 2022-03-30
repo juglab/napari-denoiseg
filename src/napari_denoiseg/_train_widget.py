@@ -203,7 +203,8 @@ class TrainWidget(QWidget):
         self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
-        self.worker.quit()
+        if self.worker:
+            self.worker.quit()
 
     def start_training(self):
         if self.state == State.IDLE:
@@ -383,7 +384,7 @@ def prepare_data(data, gt, perc_labels):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
-def generate_config(X, n_epochs, n_steps, batch_size):
+def generate_config(X, n_epochs=20, n_steps=400, batch_size=16):
     from denoiseg.models import DenoiSegConfig
 
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
