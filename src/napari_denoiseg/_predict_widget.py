@@ -157,6 +157,8 @@ def prediction_worker(widget: PredictWidget):
     prediction = np.zeros(imgs.shape, dtype=np.int16)
     viewer.add_labels(prediction, name='segmentation', opacity=0.5, visible=True)
 
+    # TODO: add denoised images as well
+
     # loop over slices
     for i in range(imgs.shape[0]):
         # yield image number + 1
@@ -165,8 +167,11 @@ def prediction_worker(widget: PredictWidget):
         # predict
         pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
 
+        # threshold
+        pred = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
+
         # add prediction to layers
-        prediction[i, :, :] = pred[0, :, :, 0]
+        prediction[i, :, :] = pred
 
         # check if stop requested
         if widget.state != State.RUNNING:

@@ -116,10 +116,12 @@ class TrainWidget(QWidget):
 
         self.n_epochs_spin = QSpinBox()
         self.n_epochs_spin.setMinimum(1)
+        self.n_epochs_spin.setMaximum(1000)
         self.n_epochs_spin.setValue(2)
         self.n_epochs = self.n_epochs_spin.value()
 
         self.n_steps_spin = QSpinBox()
+        self.n_steps_spin.setMaximum(1000)
         self.n_steps_spin.setMinimum(1)
         self.n_steps_spin.setValue(10)
         self.n_steps = self.n_steps_spin.value()
@@ -275,8 +277,12 @@ class TrainWidget(QWidget):
                                          test_img=self.X_val[0, ..., 0], axes='YX',
                                          patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
                 else:
-                    self.model.keras_model.save_weights(where + '.h5')
-                    # here should save the config as well
+                    if where[-3:] != '.h5':
+                        self.model.keras_model.save_weights(where)
+                    else:
+                        self.model.keras_model.save_weights(where + '.h5')
+
+                    # TODO: here should save the config as well
 
 
 @thread_worker(start_thread=False)
