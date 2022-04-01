@@ -411,6 +411,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
     model_name = 'DenoiSeg_' + today
     basedir = 'models'
 
+    # this is to prevent the memory from saturating on the gpu on my machine
     if tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     model = DenoiSeg(conf, model_name, basedir)

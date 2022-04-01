@@ -6,7 +6,7 @@ from napari.qt.threading import thread_worker
 from magicgui import magic_factory
 from magicgui.widgets import create_widget
 import numpy as np
-from napari_denoiseg._train_widget import State
+from napari_denoiseg._train_widget import State, generate_config
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -69,6 +69,7 @@ class PredictWidget(QWidget):
         self.pb_prediction.setMaximum(100)
         self.pb_prediction.setTextVisible(True)
         self.pb_prediction.setFormat(f'Images ?/?')
+        self.layout().addWidget(self.pb_prediction)
 
         # predict button
         self.worker = None
@@ -76,12 +77,31 @@ class PredictWidget(QWidget):
         self.predict_button.clicked.connect(self.start_prediction)
         self.layout().addWidget(self.predict_button)
 
+        self.n_im = 0
+
         # this allows stopping the thread when the napari window is closed,
         # including reducing the risk that an update comes after closing the
         # window and appearing as a new Qt view. But the call to qt_viewer
         # will be deprecated. Hopefully until then an on_window_closing event
         # will be available.
         napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+
+    def update(self, updates):
+        if Updates.N_IMAGES in updates:
+            self.n_im = updates[Updates.N_IMAGES]
+            self.pb_prediction.setValue(0)
+            self.pb_prediction.setFormat(f'Prediction 0/{self.n_im}')
+
+        if Updates.IMAGE in updates:
+            val = updates[Updates.IMAGE]
+            perc = int(100 * val / self.n_im + 0.5)
+            self.pb_prediction.setValue(perc)
+            self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
+            self.viewer.layers['segmentation'].refresh()
+
+        if Updates.DONE in updates:
+            self.pb_prediction.setValue(100)
+            self.pb_prediction.setFormat(f'Prediction done')
 
     def interrupt(self):
         self.worker.quit()
@@ -92,8 +112,10 @@ class PredictWidget(QWidget):
 
             self.predict_button.setText('Stop')
 
+            # TODO: remove 'segmentation' layer?
+
             self.worker = prediction_worker(self)
-            self.worker.yielded.connect(lambda x: self.update_all(x))
+            self.worker.yielded.connect(lambda x: self.update(x))
             self.worker.returned.connect(self.done)
             self.worker.start()
         elif self.state == State.RUNNING:
@@ -101,39 +123,57 @@ class PredictWidget(QWidget):
 
     def done(self):
         self.state = State.IDLE
-        self.load_button.native.setText('Predict again')
+        self.predict_button.setText('Predict again')
 
 
 @thread_worker(start_thread=False)
 def prediction_worker(widget: PredictWidget):
     from denoiseg.models import DenoiSeg
-    from napari_denoiseg._train_widget import generate_config
+    import tensorflow as tf
 
     # get images
     imgs = widget.images.value.data
-    X = imgs[..., np.newaxis]
+    X = imgs[np.newaxis, 0, :, :, np.newaxis]
+    print(X.shape)
 
     # yield total number of images
-    n_img = imgs.shape[2]  # this will break down
+    n_img = imgs.shape[0]  # this will break down
     yield {Updates.N_IMAGES: n_img}
 
     # instantiate model
-    config = generate_config(X)  # here no way to tell if the network size corresponds to the one saved...
+    config = generate_config(X, 1, 1, 1)  # here no way to tell if the network size corresponds to the one saved...
     basedir = 'models'
     name = widget.load_button.Model.value.name[:-3]
+
+    # this is to prevent the memory from saturating on the gpu on my machine
+    if tf.config.list_physical_devices('GPU'):
+        tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     model = DenoiSeg(config, name, basedir)
 
     # set weight using load
     model.keras_model.load_weights(widget.load_button.Model.value)
 
-    # create label layer
+    # create label object and layer
+    prediction = np.zeros(imgs.shape, dtype=np.int16)
+    viewer.add_labels(prediction, name='segmentation', opacity=0.5, visible=True)
 
     # loop over slices
+    for i in range(imgs.shape[0]):
         # yield image number + 1
+        yield {Updates.IMAGE: i + 1}
+
         # predict
+        pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
+
         # add prediction to layers
+        prediction[i, :, :] = pred[0, :, :, 0]
+
+        # check if stop requested
+        if widget.state != State.RUNNING:
+            break
+
     # update done
-    pass
+    yield {Updates.DONE}
 
 
 if __name__ == "__main__":
