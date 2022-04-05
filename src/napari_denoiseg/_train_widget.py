@@ -198,7 +198,7 @@ class TrainWidget(QWidget):
         # window and appearing as a new Qt view. But the call to qt_viewer
         # will be deprecated. Hopefully until then an on_window_closing event
         # will be available.
-        napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+        #napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
         # place-holder for the trained model
         self.model, self.X_val, self.threshold = None, None, None
@@ -277,10 +277,7 @@ class TrainWidget(QWidget):
                                          test_img=self.X_val[0, ..., 0], axes='YX',
                                          patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
                 else:
-                    if where[-3:] != '.h5':
-                        self.model.keras_model.save_weights(where)
-                    else:
-                        self.model.keras_model.save_weights(where + '.h5')
+                    self.model.keras_model.save_weights(where + '.h5')
 
                     # TODO: here should save the config as well
 

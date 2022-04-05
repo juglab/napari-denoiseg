@@ -79,12 +79,7 @@ class PredictWidget(QWidget):
 
         self.n_im = 0
 
-        # this allows stopping the thread when the napari window is closed,
-        # including reducing the risk that an update comes after closing the
-        # window and appearing as a new Qt view. But the call to qt_viewer
-        # will be deprecated. Hopefully until then an on_window_closing event
-        # will be available.
-        napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+        #napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
     def update(self, updates):
         if Updates.N_IMAGES in updates:
