@@ -15,6 +15,7 @@ from qtpy.QtWidgets import (
 )
 from enum import Enum
 
+SEGMENTATION = 'segmentation'
 
 @magic_factory(auto_call=True,
                Threshold={"widget_type": "FloatSpinBox", "min": 0, "max": 1., "step": 0.1, 'value': 0.6})
@@ -73,6 +74,7 @@ class PredictWidget(QWidget):
 
         # predict button
         self.worker = None
+        self.prediction = None
         self.predict_button = QPushButton("Predict", self)
         self.predict_button.clicked.connect(self.start_prediction)
         self.layout().addWidget(self.predict_button)
@@ -107,7 +109,11 @@ class PredictWidget(QWidget):
 
             self.predict_button.setText('Stop')
 
-            # TODO: remove 'segmentation' layer?
+            if SEGMENTATION in self.viewer.layers:
+                self.viewer.layers.remove(SEGMENTATION)
+
+            self.prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+            viewer.add_labels(self.prediction, name=SEGMENTATION, opacity=0.5, visible=True)
 
             self.worker = prediction_worker(self)
             self.worker.yielded.connect(lambda x: self.update(x))
@@ -148,10 +154,6 @@ def prediction_worker(widget: PredictWidget):
     # set weight using load
     model.keras_model.load_weights(widget.load_button.Model.value)
 
-    # create label object and layer
-    prediction = np.zeros(imgs.shape, dtype=np.int16)
-    viewer.add_labels(prediction, name='segmentation', opacity=0.5, visible=True)
-
     # TODO: add denoised images as well
 
     # loop over slices
@@ -166,7 +168,7 @@ def prediction_worker(widget: PredictWidget):
         pred = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
 
         # add prediction to layers
-        prediction[i, :, :] = pred
+        widget.prediction[i, :, :] = pred
 
         # check if stop requested
         if widget.state != State.RUNNING:
