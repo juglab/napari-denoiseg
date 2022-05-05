@@ -79,7 +79,7 @@ class PredictWidget(QWidget):
 
         self.n_im = 0
 
-        #napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+        # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
     def update(self, updates):
         if Updates.N_IMAGES in updates:

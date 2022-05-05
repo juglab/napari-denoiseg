@@ -128,6 +128,7 @@ class TrainWidget(QWidget):
 
         self.batch_size_slider = get_batch_size_slider()
 
+        # TODO add tooltips
         others = QWidget()
         formLayout = QFormLayout()
         formLayout.addRow('Train label %', self.perc_train_slider.native)
@@ -198,7 +199,7 @@ class TrainWidget(QWidget):
         # window and appearing as a new Qt view. But the call to qt_viewer
         # will be deprecated. Hopefully until then an on_window_closing event
         # will be available.
-        #napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+        # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
         # place-holder for the trained model
         self.model, self.X_val, self.threshold = None, None, None
@@ -258,7 +259,7 @@ class TrainWidget(QWidget):
                 val = updates[Updates.BATCH]
                 s_perc = int(100 * val / self.n_steps + 0.5)
                 self.pb_steps.setValue(s_perc)
-                self.pb_steps.setFormat(f'Epoch {val}/{self.n_steps}')
+                self.pb_steps.setFormat(f'Step {val}/{self.n_steps}')
 
             if Updates.LOSS in updates:
                 self.plot.update_plot(*updates[Updates.LOSS])
