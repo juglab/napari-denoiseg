@@ -17,6 +17,7 @@ from enum import Enum
 
 SEGMENTATION = 'segmentation'
 
+
 @magic_factory(auto_call=True,
                Threshold={"widget_type": "FloatSpinBox", "min": 0, "max": 1., "step": 0.1, 'value': 0.6})
 def get_threshold_spin(Threshold: int):
