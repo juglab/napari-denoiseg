@@ -180,20 +180,19 @@ def prediction_worker(widget: PredictWidget):
 
 
 if __name__ == "__main__":
-    with napari.gui_qt():
-        noise_level = 'n0'
+    noise_level = 'n0'
 
-        # Loading of the training images
-        train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
-        images = train_data['X_train'].astype(np.float32)[0:30, :, :]
+    # Loading of the training images
+    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
+    images = train_data['X_train'].astype(np.float32)[0:30, :, :]
 
-        # create a Viewer and add an image here
-        viewer = napari.Viewer()
+    # create a Viewer and add an image here
+    viewer = napari.Viewer()
 
-        # custom code to add data here
-        viewer.window.add_dock_widget(PredictWidget(viewer))
+    # custom code to add data here
+    viewer.window.add_dock_widget(PredictWidget(viewer))
 
-        # add images
-        viewer.add_image(images, name='Images')
+    # add images
+    viewer.add_image(images, name='Images')
 
-        napari.run()
+    napari.run()
