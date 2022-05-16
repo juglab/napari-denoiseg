@@ -339,7 +339,7 @@ def train_worker(widget: TrainWidget):
     widget.threshold = threshold
 
 
-# refactor with prepare_training
+# TODO refactor with prepare_training
 def prepare_data(data, gt, perc_labels):
     from denoiseg.utils.misc_utils import augment_data
     from denoiseg.utils.seg_utils import convert_to_oneHot
@@ -415,12 +415,11 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
     model_name = 'DenoiSeg_' + today
     basedir = 'models'
 
-    # this is to prevent the memory from saturating on the gpu on my machine
+    # TODO: this is to prevent the memory from saturating on the gpu on my machine
     if tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     model = DenoiSeg(conf, model_name, basedir)
 
-    # training loop
     n_train, n_val = len(X_train), len(X_val)
     frac_val = (1.0 * n_val) / (n_train + n_val)
     frac_warn = 0.05
