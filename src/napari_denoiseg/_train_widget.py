@@ -204,6 +204,7 @@ class TrainWidget(QWidget):
 
         # place-holder for the trained model
         self.model, self.X_val, self.threshold = None, None, None
+        self.inputs, self.outputs = [], []
         self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
@@ -272,41 +273,34 @@ class TrainWidget(QWidget):
 
                 export_type = self.save_choice.currentText()
                 if SaveMode.MODELZOO.value == export_type:
-                    self.model.export_TF(name='DenoiSeg',
-                                         description='Trained DenoiSeg model',
-                                         authors=["Tim-Oliver Buchholz", "Mangal Prakash", "Alexander Krull",
-                                                  "Florian Jug"],
-                                         test_img=self.X_val[0, ..., 0], axes='YX',
-                                         patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
-
-                new_model_raw = build_model(
-                    weight_uri=self.model.log_dir / "weights_best.h5",
-                    test_inputs=model_resource.test_inputs,
-                    test_outputs=[new_output_path],
-                    input_axes=["yx"],
-                    output_axes=["yxc"],
-                    output_path=where + '.bioimage.io.zip',
-                    name='DenoiSeg',
-                    description="Super awesome DenoiSeg model. The best.",
-                    authors=[{"name": "Tim-Oliver Buchholz"},{"name": "Mangal Prakash"},{"name": "Alexander Krull"},{"name": "Florian Jug"}],
-                    license="BSD 3-Clause",
-                    documentation="..README.md",
-                    #covers=[str(cover) for cover in model_resource.covers],
-                    tags=["denoising","segmentation"],
-                    cite=[{"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
-                    #parent=parent,
-                    #architecture=model_source,
-                    #model_kwargs=model_resource.weights["pytorch_state_dict"].kwargs,
-                    preprocessing=[[{
-                        "name":"zero_mean_unit_variance",
-                        "kwargs":{
-                            "axes":"yx",
-                            "mode":"per_dataset"
-                        }
-                    }]],
-                    #postprocessing=postprocessing,
-                    #training_data=training_data,
-                )
+                    new_model_raw = build_model(
+                        weight_uri=self.model.logdir / "weights_best.h5",
+                        test_inputs=self.inputs,
+                        test_outputs=self.outputs,
+                        input_axes=["byxc"],
+                        output_axes=["byxc"],
+                        output_path=where + '.bioimage.io.zip',
+                        name='DenoiSeg',
+                        description="Super awesome DenoiSeg model. The best.",
+                        authors=[{"name": "Tim-Oliver Buchholz"},{"name": "Mangal Prakash"},{"name": "Alexander Krull"},{"name": "Florian Jug"}],
+                        license="BSD-3-Clause",
+                        documentation="/home/joran.deschamps/git/napari-denoiseg/README.md",
+                        #covers=[str(cover) for cover in model_resource.covers],
+                        tags=["denoising","segmentation"],
+                        cite=[{"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                        #parent=parent,
+                        #architecture=model_source,
+                        #model_kwargs=model_resource.weights["pytorch_state_dict"].kwargs,
+                        preprocessing=[[{
+                            "name":"zero_mean_unit_variance",
+                            "kwargs":{
+                                "axes":"yx",
+                                "mode":"per_dataset"
+                            }
+                        }]],
+                        #postprocessing=postprocessing,
+                        #training_data=training_data,
+                    )
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
 
@@ -315,6 +309,7 @@ class TrainWidget(QWidget):
 
 @thread_worker(start_thread=False)
 def train_worker(widget: TrainWidget):
+    import os
     import threading
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
@@ -367,6 +362,12 @@ def train_worker(widget: TrainWidget):
 
     print("The highest score of {} is achieved with threshold = {}.".format(np.round(val_score, 3), threshold))
     widget.threshold = threshold
+
+    # save input/output for bioimage.io
+    widget.inputs = [os.path.join(widget.model.basedir, 'inputs.npy')]
+    widget.outputs = [os.path.join(widget.model.basedir, 'outputs.npy')]
+    np.save(widget.inputs[0], validation_x[np.newaxis, 0, ..., np.newaxis])
+    np.save(widget.outputs[0], widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
 
 
 # TODO refactor with prepare_training
@@ -545,7 +546,7 @@ if __name__ == "__main__":
     viewer.window.add_dock_widget(TrainWidget(viewer))
 
     # add images
-    viewer.add_image(data[0][0], name=data[0][1]['name'])
-    viewer.add_labels(data[1][0], name=data[1][1]['name'])
+    viewer.add_image(data[0][0][0:60], name=data[0][1]['name'])
+    viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
 
     napari.run()
