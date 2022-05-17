@@ -11,6 +11,12 @@ contributions:
     - id: napari-denoiseg.denoiseg_data_n0
       python_name: napari_denoiseg._sample_data:denoiseg_data_n0
       title: DenoiSeg sample data n0
+    - id: napari-denoiseg.denoiseg_data_n10
+      python_name: napari_denoiseg._sample_data:denoiseg_data_n10
+      title: DenoiSeg sample data n10
+    - id: napari-denoiseg.denoiseg_data_n20
+      python_name: napari_denoiseg._sample_data:denoiseg_data_n20
+      title: DenoiSeg sample data n20
   widgets:
     - command: napari-denoiseg.make_train_widget
       display_name: DenoiSeg train
@@ -18,5 +24,11 @@ contributions:
       display_name: DenoiSeg predict
   sample_data:
     - command: napari-denoiseg.denoiseg_data_n0
-      display_name: Sample data (n0 noise)
+      display_name: Download data (n0 noise)
       key: denoiseg_data_n0
+    - command: napari-denoiseg.denoiseg_data_n10
+      display_name: Download data (n10 noise)
+      key: denoiseg_data_n10
+    - command: napari-denoiseg.denoiseg_data_n20
+      display_name: Download data (n20 noise)
+      key: denoiseg_data_n20
