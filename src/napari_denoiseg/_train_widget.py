@@ -1,6 +1,7 @@
 """
 """
 import napari
+from bioimageio.core.build_spec import build_model
 from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory
@@ -277,6 +278,35 @@ class TrainWidget(QWidget):
                                                   "Florian Jug"],
                                          test_img=self.X_val[0, ..., 0], axes='YX',
                                          patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
+
+                new_model_raw = build_model(
+                    weight_uri=self.model.log_dir / "weights_best.h5",
+                    test_inputs=model_resource.test_inputs,
+                    test_outputs=[new_output_path],
+                    input_axes=["yx"],
+                    output_axes=["yxc"],
+                    output_path=where + '.bioimage.io.zip',
+                    name='DenoiSeg',
+                    description="Super awesome DenoiSeg model. The best.",
+                    authors=[{"name": "Tim-Oliver Buchholz"},{"name": "Mangal Prakash"},{"name": "Alexander Krull"},{"name": "Florian Jug"}],
+                    license="BSD 3-Clause",
+                    documentation="..README.md",
+                    #covers=[str(cover) for cover in model_resource.covers],
+                    tags=["denoising","segmentation"],
+                    cite=[{"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                    #parent=parent,
+                    #architecture=model_source,
+                    #model_kwargs=model_resource.weights["pytorch_state_dict"].kwargs,
+                    preprocessing=[[{
+                        "name":"zero_mean_unit_variance",
+                        "kwargs":{
+                            "axes":"yx",
+                            "mode":"per_dataset"
+                        }
+                    }]],
+                    #postprocessing=postprocessing,
+                    #training_data=training_data,
+                )
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
 
