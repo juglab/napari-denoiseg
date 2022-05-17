@@ -15,7 +15,8 @@ from qtpy.QtWidgets import (
 )
 from enum import Enum
 
-SEGMENTATION = 'segmentation'
+SEGMENTATION = 'segmented'
+DENOISING = 'denoised'
 
 
 @magic_factory(auto_call=True,
@@ -75,7 +76,8 @@ class PredictWidget(QWidget):
 
         # predict button
         self.worker = None
-        self.prediction = None
+        self.seg_prediction = None
+        self.denoi_prediction = None
         self.predict_button = QPushButton("Predict", self)
         self.predict_button.clicked.connect(self.start_prediction)
         self.layout().addWidget(self.predict_button)
@@ -113,8 +115,10 @@ class PredictWidget(QWidget):
             if SEGMENTATION in self.viewer.layers:
                 self.viewer.layers.remove(SEGMENTATION)
 
-            self.prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
-            viewer.add_labels(self.prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+            self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+            viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+            self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+            viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
             self.worker = prediction_worker(self)
             self.worker.yielded.connect(lambda x: self.update(x))
@@ -155,8 +159,6 @@ def prediction_worker(widget: PredictWidget):
     # set weight using load
     model.keras_model.load_weights(widget.load_button.Model.value)
 
-    # TODO: add denoised images as well
-
     # loop over slices
     for i in range(imgs.shape[0]):
         # yield image number + 1
@@ -166,10 +168,11 @@ def prediction_worker(widget: PredictWidget):
         pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
 
         # threshold
-        pred = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
+        pred_seg = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
 
         # add prediction to layers
-        widget.prediction[i, :, :] = pred
+        widget.seg_prediction[i, :, :] = pred_seg
+        widget.denoi_prediction[i, :, :] = pred[0, :, :, 0]
 
         # check if stop requested
         if widget.state != State.RUNNING:
@@ -191,6 +194,6 @@ if __name__ == "__main__":
     viewer.window.add_dock_widget(PredictWidget(viewer))
 
     # add images
-    viewer.add_image(data[0][0], name=data[0][1]['name'])
+    viewer.add_image(data[0][0][0:30], name=data[0][1]['name'])
 
     napari.run()
