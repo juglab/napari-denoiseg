@@ -180,19 +180,17 @@ def prediction_worker(widget: PredictWidget):
 
 
 if __name__ == "__main__":
-    noise_level = 'n0'
+    from napari_denoiseg._sample_data import denoiseg_data_n0
 
-    # Loading of the training images
-    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
-    images = train_data['X_train'].astype(np.float32)[0:30, :, :]
+    data = denoiseg_data_n0()
 
-    # create a Viewer and add an image here
+    # create a Viewer
     viewer = napari.Viewer()
 
-    # custom code to add data here
+    # add our plugin
     viewer.window.add_dock_widget(PredictWidget(viewer))
 
     # add images
-    viewer.add_image(images, name='Images')
+    viewer.add_image(data[0][0], name=data[0][1]['name'])
 
     napari.run()

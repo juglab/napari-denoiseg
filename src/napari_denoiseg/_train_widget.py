@@ -504,21 +504,18 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
 
 
 if __name__ == "__main__":
-    noise_level = 'n0'
+    from napari_denoiseg._sample_data import denoiseg_data_n0
 
-    # Loading of the training images
-    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
-    images = train_data['X_train'].astype(np.float32)[0:30, :, :]
-    labels = train_data['Y_train'].astype(np.int32)[0:16, :, :]
+    data = denoiseg_data_n0()
 
-    # create a Viewer and add an image here
+    # create a Viewer
     viewer = napari.Viewer()
 
-    # custom code to add data here
+    # add our plugin
     viewer.window.add_dock_widget(TrainWidget(viewer))
 
     # add images
-    viewer.add_image(images, name='Images')
-    viewer.add_labels(labels, name='Labels')
+    viewer.add_image(data[0][0], name=data[0][1]['name'])
+    viewer.add_labels(data[1][0], name=data[1][1]['name'])
 
     napari.run()
