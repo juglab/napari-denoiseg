@@ -1,8 +1,4 @@
 """
-This module is an example of a barebones sample data provider for napari.
-It implements the "sample data" specification.
-see: https://napari.org/plugins/stable/npe2_manifest_specification.html
-Replace code below according to your needs.
 """
 from __future__ import annotations
 
@@ -16,6 +12,7 @@ from napari.types import LayerDataTuple
 
 
 def _download_data(noise_level):
+    assert noise_level in ['n0', 'n10', 'n20']
 
     if noise_level == 'n0':
         link = 'https://zenodo.org/record/5156969/files/DSB2018_n0.zip?download=1'
@@ -23,18 +20,14 @@ def _download_data(noise_level):
         link = 'https://zenodo.org/record/5156977/files/DSB2018_n10.zip?download=1'
     elif noise_level == 'n20':
         link = 'https://zenodo.org/record/5156983/files/DSB2018_n20.zip?download=1'
-    else:
-        link = None
-        warnings.warn(f'Noise level {noise_level} does not exists.')
 
-    if link:
-        # check if data has been downloaded already
-        zipPath = "data/DSB2018_{}.zip".format(noise_level)
-        if not os.path.exists(zipPath):
-            # download and unzip data
-            data = urllib.request.urlretrieve(link, zipPath)
-            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
-                zip_ref.extractall("data")
+    # check if data has been downloaded already
+    zipPath = "data/DSB2018_{}.zip".format(noise_level)
+    if not os.path.exists(zipPath):
+        # download and unzip data
+        data = urllib.request.urlretrieve(link, zipPath)
+        with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+            zip_ref.extractall("data")
 
 
 def _load_data(noise_level):
