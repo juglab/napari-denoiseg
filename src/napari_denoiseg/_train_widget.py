@@ -275,8 +275,8 @@ class TrainWidget(QWidget):
                 if SaveMode.MODELZOO.value == export_type:
                     build_model(
                         weight_uri=self.model.logdir / "weights_best.h5",
-                        test_inputs=self.inputs,
-                        test_outputs=self.outputs,
+                        test_inputs=[self.inputs],
+                        test_outputs=[self.outputs],
                         input_axes=["byxc"],
                         output_axes=["byxc"],
                         output_path=where + '.bioimage.io.zip',
@@ -359,10 +359,10 @@ def train_worker(widget: TrainWidget):
     widget.threshold = threshold
 
     # save input/output for bioimage.io
-    widget.inputs = [os.path.join(widget.model.basedir, 'inputs.npy')]
-    widget.outputs = [os.path.join(widget.model.basedir, 'outputs.npy')]
-    np.save(widget.inputs[0], validation_x[np.newaxis, 0, ..., np.newaxis])
-    np.save(widget.outputs[0], widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
+    widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
+    widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
+    np.save(widget.inputs, validation_x[np.newaxis, 0, ..., np.newaxis])
+    np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
 
 
 # TODO refactor with prepare_training
