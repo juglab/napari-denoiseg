@@ -1,5 +1,7 @@
 """
 """
+import os.path
+
 import napari
 from bioimageio.core.build_spec import build_model
 from tensorflow.keras.callbacks import Callback
@@ -287,7 +289,7 @@ class TrainWidget(QWidget):
                                  {"name": "Alexander Krull"},
                                  {"name": "Florian Jug"}],
                         license="BSD-3-Clause",
-                        documentation="/home/joran.deschamps/git/napari-denoiseg/README.md",
+                        documentation=os.path.abspath('../resources/documentation.md'),
                         tags=["2d", "tensorflow", "unet", "denoising", "semantic-segmentation"],
                         cite=[
                             {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
@@ -550,3 +552,4 @@ if __name__ == "__main__":
     viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
 
     napari.run()
+
