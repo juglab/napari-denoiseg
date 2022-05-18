@@ -288,7 +288,7 @@ class TrainWidget(QWidget):
                                  {"name": "Florian Jug"}],
                         license="BSD-3-Clause",
                         documentation="/home/joran.deschamps/git/napari-denoiseg/README.md",
-                        tags=["denoising", "segmentation"],
+                        tags=["2d", "tensorflow", "unet", "denoising", "semantic-segmentation"],
                         cite=[
                             {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
                         preprocessing=[[{
