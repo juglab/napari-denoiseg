@@ -37,8 +37,8 @@ class Updates(Enum):
 
 
 class SaveMode(Enum):
-    TF = 'TensorFlow'
     MODELZOO = 'Bioimage.io'
+    TF = 'TensorFlow'
 
     @classmethod
     def list(cls):
@@ -202,8 +202,10 @@ class TrainWidget(QWidget):
         # will be available.
         # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
-        # place-holder for the trained model
+        # place-holder for models and parameters (bioimage.io)
         self.model, self.X_val, self.threshold = None, None, None
+        self.inputs, self.outputs = [], []
+        self.tf_version = None
         self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
@@ -272,41 +274,32 @@ class TrainWidget(QWidget):
 
                 export_type = self.save_choice.currentText()
                 if SaveMode.MODELZOO.value == export_type:
-                    self.model.export_TF(name='DenoiSeg',
-                                         description='Trained DenoiSeg model',
-                                         authors=["Tim-Oliver Buchholz", "Mangal Prakash", "Alexander Krull",
-                                                  "Florian Jug"],
-                                         test_img=self.X_val[0, ..., 0], axes='YX',
-                                         patch_shape=(128, 128), fname=where + '.bioimage.io.zip')
-
-                new_model_raw = build_model(
-                    weight_uri=self.model.log_dir / "weights_best.h5",
-                    test_inputs=model_resource.test_inputs,
-                    test_outputs=[new_output_path],
-                    input_axes=["yx"],
-                    output_axes=["yxc"],
-                    output_path=where + '.bioimage.io.zip',
-                    name='DenoiSeg',
-                    description="Super awesome DenoiSeg model. The best.",
-                    authors=[{"name": "Tim-Oliver Buchholz"},{"name": "Mangal Prakash"},{"name": "Alexander Krull"},{"name": "Florian Jug"}],
-                    license="BSD 3-Clause",
-                    documentation="..README.md",
-                    #covers=[str(cover) for cover in model_resource.covers],
-                    tags=["2d","tensorflow","unet","denoising","semantic-segmentation"],
-                    cite=[{"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
-                    #parent=parent,
-                    #architecture=model_source,
-                    #model_kwargs=model_resource.weights["pytorch_state_dict"].kwargs,
-                    preprocessing=[[{
-                        "name":"zero_mean_unit_variance",
-                        "kwargs":{
-                            "axes":"yx",
-                            "mode":"per_dataset"
-                        }
-                    }]],
-                    #postprocessing=postprocessing,
-                    #training_data=training_data,
-                )
+                    build_model(
+                        weight_uri=self.model.logdir / "weights_best.h5",
+                        test_inputs=[self.inputs],
+                        test_outputs=[self.outputs],
+                        input_axes=["byxc"],
+                        output_axes=["byxc"],
+                        output_path=where + '.bioimage.io.zip',
+                        name='DenoiSeg',
+                        description="Super awesome DenoiSeg model. The best.",
+                        authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                                 {"name": "Alexander Krull"},
+                                 {"name": "Florian Jug"}],
+                        license="BSD-3-Clause",
+                        documentation="/home/joran.deschamps/git/napari-denoiseg/README.md",
+                        tags=["denoising", "segmentation"],
+                        cite=[
+                            {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                        preprocessing=[[{
+                            "name": "zero_mean_unit_variance",
+                            "kwargs": {
+                                "axes": "yx",
+                                "mode": "per_dataset"
+                            }
+                        }]],
+                        tensorflow_version=self.tf_version
+                    )
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
 
@@ -315,6 +308,7 @@ class TrainWidget(QWidget):
 
 @thread_worker(start_thread=False)
 def train_worker(widget: TrainWidget):
+    import os
     import threading
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
@@ -339,7 +333,8 @@ def train_worker(widget: TrainWidget):
     # create updater
     denoiseg_updater = Updater()
 
-    train_args = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+    train_args, tf_version = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+    widget.tf_version = tf_version
 
     training = threading.Thread(target=train, args=train_args)
     training.start()
@@ -368,9 +363,15 @@ def train_worker(widget: TrainWidget):
     print("The highest score of {} is achieved with threshold = {}.".format(np.round(val_score, 3), threshold))
     widget.threshold = threshold
 
+    # save input/output for bioimage.io
+    widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
+    widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
+    np.save(widget.inputs, validation_x[np.newaxis, 0, ..., np.newaxis])
+    np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
+
 
 # TODO refactor with prepare_training
-def prepare_data(data, gt, perc_labels):
+def prepare_data(raw, gt, perc_labels):
     from denoiseg.utils.misc_utils import augment_data
     from denoiseg.utils.seg_utils import convert_to_oneHot
 
@@ -407,8 +408,8 @@ def prepare_data(data, gt, perc_labels):
     assert len(ind_train) + len(ind_val) == len(ind)
 
     # create train and val sets
-    x_train, y_train = create_train_set(data, gt, ind_val)
-    x_val, y_val = create_val_set(data, gt, ind_val)
+    x_train, y_train = create_train_set(raw, gt, ind_val)
+    x_val, y_val = create_val_set(raw, gt, ind_val)
 
     # add channel dim and one-hot encoding
     X = x_train[..., np.newaxis]
@@ -512,7 +513,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
     # add callbacks
     model.callbacks.append(updater)
 
-    return model, training_data, validation_X, validation_Y, epochs, steps_per_epoch
+    return (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch), tf.__version__
 
 
 def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
@@ -545,7 +546,7 @@ if __name__ == "__main__":
     viewer.window.add_dock_widget(TrainWidget(viewer))
 
     # add images
-    viewer.add_image(data[0][0], name=data[0][1]['name'])
-    viewer.add_labels(data[1][0], name=data[1][1]['name'])
+    viewer.add_image(data[0][0][0:60], name=data[0][1]['name'])
+    viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
 
     napari.run()
