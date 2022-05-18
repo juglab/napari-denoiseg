@@ -202,9 +202,10 @@ class TrainWidget(QWidget):
         # will be available.
         # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
-        # place-holder for the trained model
+        # place-holder for models and parameters (bioimage.io)
         self.model, self.X_val, self.threshold = None, None, None
         self.inputs, self.outputs = [], []
+        self.tf_version = None
         self.save_button.clicked.connect(self.save_model)
 
     def interrupt(self):
@@ -282,19 +283,22 @@ class TrainWidget(QWidget):
                         output_path=where + '.bioimage.io.zip',
                         name='DenoiSeg',
                         description="Super awesome DenoiSeg model. The best.",
-                        authors=[{"name": "Tim-Oliver Buchholz"},{"name": "Mangal Prakash"},{"name": "Alexander Krull"},
+                        authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                                 {"name": "Alexander Krull"},
                                  {"name": "Florian Jug"}],
                         license="BSD-3-Clause",
                         documentation="/home/joran.deschamps/git/napari-denoiseg/README.md",
-                        tags=["denoising","segmentation"],
-                        cite=[{"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                        tags=["denoising", "segmentation"],
+                        cite=[
+                            {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
                         preprocessing=[[{
-                            "name":"zero_mean_unit_variance",
-                            "kwargs":{
-                                "axes":"yx",
-                                "mode":"per_dataset"
+                            "name": "zero_mean_unit_variance",
+                            "kwargs": {
+                                "axes": "yx",
+                                "mode": "per_dataset"
                             }
                         }]],
+                        tensorflow_version=self.tf_version
                     )
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
@@ -329,7 +333,8 @@ def train_worker(widget: TrainWidget):
     # create updater
     denoiseg_updater = Updater()
 
-    train_args = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+    train_args, tf_version = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+    widget.tf_version = tf_version
 
     training = threading.Thread(target=train, args=train_args)
     training.start()
@@ -508,7 +513,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
     # add callbacks
     model.callbacks.append(updater)
 
-    return model, training_data, validation_X, validation_Y, epochs, steps_per_epoch
+    return (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch), tf.__version__
 
 
 def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
