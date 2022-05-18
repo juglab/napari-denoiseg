@@ -366,7 +366,7 @@ def train_worker(widget: TrainWidget):
 
 
 # TODO refactor with prepare_training
-def prepare_data(data, gt, perc_labels):
+def prepare_data(raw, gt, perc_labels):
     from denoiseg.utils.misc_utils import augment_data
     from denoiseg.utils.seg_utils import convert_to_oneHot
 
@@ -403,8 +403,8 @@ def prepare_data(data, gt, perc_labels):
     assert len(ind_train) + len(ind_val) == len(ind)
 
     # create train and val sets
-    x_train, y_train = create_train_set(data, gt, ind_val)
-    x_val, y_val = create_val_set(data, gt, ind_val)
+    x_train, y_train = create_train_set(raw, gt, ind_val)
+    x_val, y_val = create_val_set(raw, gt, ind_val)
 
     # add channel dim and one-hot encoding
     X = x_train[..., np.newaxis]
