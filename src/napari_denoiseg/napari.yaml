@@ -8,6 +8,9 @@ contributions:
     - id: napari-denoiseg.make_predict_widget
       python_name: napari_denoiseg._predict_widget:PredictWidget
       title: DenoiSeg predict
+    - id: napari-denoiseg.make_batch_predict_widget
+      python_name: napari_denoiseg._batch_predict_widget:BatchPredictWidget
+      title: DenoiSeg predict from disk
     - id: napari-denoiseg.denoiseg_data_n0
       python_name: napari_denoiseg._sample_data:denoiseg_data_n0
       title: DenoiSeg sample data n0
@@ -22,6 +25,8 @@ contributions:
       display_name: DenoiSeg train
     - command: napari-denoiseg.make_predict_widget
       display_name: DenoiSeg predict
+    - command: napari-denoiseg.make_batch_predict_widget
+      display_name: DenoiSeg predict from disk
   sample_data:
     - command: napari-denoiseg.denoiseg_data_n0
       display_name: Download data (n0 noise)
