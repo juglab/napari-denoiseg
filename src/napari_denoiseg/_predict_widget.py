@@ -1,6 +1,8 @@
 """
 """
 from pathlib import Path
+
+import bioimageio.core
 import napari
 from napari.qt.threading import thread_worker
 from magicgui import magic_factory
@@ -25,7 +27,7 @@ def get_threshold_spin(Threshold: int):
     pass
 
 
-@magic_factory(auto_call=True, Model={'mode': 'r', 'filter': '*.h5 *.bioimage.io.zip'})
+@magic_factory(auto_call=True, Model={'mode': 'r', 'filter': '*.h5 *.zip'})
 def get_load_button(Model: Path):
     pass
 
@@ -136,7 +138,7 @@ class PredictWidget(QWidget):
 def prediction_worker(widget: PredictWidget):
     from denoiseg.models import DenoiSeg
     import tensorflow as tf
-
+    from os.path import splitext, basename
     # get images
     imgs = widget.images.value.data
     X = imgs[np.newaxis, 0, :, :, np.newaxis]
@@ -149,7 +151,13 @@ def prediction_worker(widget: PredictWidget):
     # instantiate model
     config = generate_config(X, 1, 1, 1)  # here no way to tell if the network size corresponds to the one saved...
     basedir = 'models'
-    name = widget.load_button.Model.value.name[:-3]
+    weight_name = widget.load_button.Model.value
+    name = weight_name.stem
+
+    if widget.load_button.Model.value.suffix == ".zip":
+        # we assume we got a modelzoo file
+        rdf = bioimageio.core.load_resource_description(widget.load_button.Model.value)
+        weight_name = rdf.weights['keras_hdf5'].source
 
     # this is to prevent the memory from saturating on the gpu on my machine
     if tf.config.list_physical_devices('GPU'):
@@ -157,7 +165,7 @@ def prediction_worker(widget: PredictWidget):
     model = DenoiSeg(config, name, basedir)
 
     # set weight using load
-    model.keras_model.load_weights(widget.load_button.Model.value)
+    model.keras_model.load_weights(weight_name)
 
     # loop over slices
     for i in range(imgs.shape[0]):
