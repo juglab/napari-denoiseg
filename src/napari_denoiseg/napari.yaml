@@ -5,6 +5,9 @@ contributions:
     - id: napari-denoiseg.make_train_widget
       python_name: napari_denoiseg._train_widget:TrainWidget
       title: DenoiSeg train
+    - id: napari-denoiseg.make_batch_train_widget
+      python_name: napari_denoiseg._batch_train_widget:BatchTrainWidget
+      title: DenoiSeg train from disk
     - id: napari-denoiseg.make_predict_widget
       python_name: napari_denoiseg._predict_widget:PredictWidget
       title: DenoiSeg predict
@@ -23,6 +26,8 @@ contributions:
   widgets:
     - command: napari-denoiseg.make_train_widget
       display_name: DenoiSeg train
+    - command: napari-denoiseg.make_batch_train_widget
+      display_name: DenoiSeg train from disk
     - command: napari-denoiseg.make_predict_widget
       display_name: DenoiSeg predict
     - command: napari-denoiseg.make_batch_predict_widget
