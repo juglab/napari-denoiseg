@@ -116,6 +116,8 @@ class PredictWidget(QWidget):
 
             if SEGMENTATION in self.viewer.layers:
                 self.viewer.layers.remove(SEGMENTATION)
+            if DENOISING in self.viewer.layers:
+                self.viewer.layers.remove(DENOISING)
 
             self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
             viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)

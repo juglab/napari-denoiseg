@@ -117,6 +117,8 @@ class BatchPredictWidget(QWidget):
 
             if SEGMENTATION in self.viewer.layers:
                 self.viewer.layers.remove(SEGMENTATION)
+            if DENOISING in self.viewer.layers:
+                self.viewer.layers.remove(DENOISING)
 
             # load images # TODO: wouldn't it be better to have it in the predict thread?
             img_paths = self.load_img_button.Images.value
