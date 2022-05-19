@@ -92,13 +92,6 @@ def get_perc_train_slider(slider: int):
     pass
 
 
-@magic_factory(auto_call=True,
-               labels=False,
-               slider={"widget_type": "Slider", "min": 8, "max": 512, "step": 16, 'value': 8})
-def get_batch_size_slider(slider: int):
-    pass
-
-
 class TrainWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
@@ -129,7 +122,12 @@ class TrainWidget(QWidget):
         self.n_steps_spin.setValue(10)
         self.n_steps = self.n_steps_spin.value()
 
-        self.batch_size_slider = get_batch_size_slider()
+        # batch size
+        self.batch_size_spin = QSpinBox()
+        self.batch_size_spin.setMaximum(512)
+        self.batch_size_spin.setMinimum(0)
+        self.batch_size_spin.setSingleStep(8)
+        self.batch_size_spin.setValue(16)
 
         # TODO add tooltips
         others = QWidget()
@@ -137,7 +135,7 @@ class TrainWidget(QWidget):
         formLayout.addRow('Train label %', self.perc_train_slider.native)
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
-        formLayout.addRow('Batch size', self.batch_size_slider.native)
+        formLayout.addRow('Batch size', self.batch_size_spin)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
@@ -325,7 +323,7 @@ def train_worker(widget: TrainWidget):
     # create DenoiSeg configuration
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
-    batch_size = widget.batch_size_slider.slider.get_value()
+    batch_size = widget.batch_size_spin.slider.get_value()
     denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
