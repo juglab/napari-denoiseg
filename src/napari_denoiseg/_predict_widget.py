@@ -99,7 +99,7 @@ class PredictWidget(QWidget):
             perc = int(100 * val / self.n_im + 0.5)
             self.pb_prediction.setValue(perc)
             self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
-            self.viewer.layers['segmentation'].refresh()
+            self.viewer.layers[SEGMENTATION].refresh()
 
         if Updates.DONE in updates:
             self.pb_prediction.setValue(100)
