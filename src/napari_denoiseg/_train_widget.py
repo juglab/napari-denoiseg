@@ -357,8 +357,13 @@ def train_worker(widget: TrainWidget):
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
-    patch_shape = widget.patch_XY_spin.value()
-    denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_shape)
+    patch_XY = widget.patch_XY_spin.value()
+    patch_Z = widget.patch_Z_spin.value()
+
+    if widget.checkbox_3d.isChecked():
+        denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_XY, patch_Z)
+    else:
+        denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_XY)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
     # I keep here for reference since I haven't found a good way to stop the tb (they have no closing API)
@@ -454,9 +459,14 @@ def prepare_data(raw, gt, perc_labels):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
-def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
+def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_XY=64, patch_Z=None):
     from denoiseg.models import DenoiSegConfig
-    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])
+
+    if patch_Z:
+        patch_shape = tuple([int(x) for x in np.repeat(patch_XY, len(X.shape) - 3)].append(patch_Z))
+    else:
+        patch_shape = tuple([int(x) for x in np.repeat(patch_XY, len(X.shape) - 2)])
+
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps, train_epochs=n_epochs,
                           batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
