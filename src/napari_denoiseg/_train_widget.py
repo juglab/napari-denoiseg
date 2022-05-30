@@ -170,9 +170,19 @@ class TrainWidget(QWidget):
         self.layout().addWidget(progress_widget)
 
         # train button
-        self.train_button = QPushButton("Train", self)
-        self.layout().addWidget(self.train_button)
+        train_buttons = QWidget()
+        train_buttons.setLayout(QHBoxLayout())
 
+        self.train_button = QPushButton("Train", self)
+        self.retrain_button = QPushButton("", self)
+        self.retrain_button.setEnabled(False)
+
+        train_buttons.layout().addWidget(self.retrain_button)
+        train_buttons.layout().addWidget(self.train_button)
+
+        self.layout().addWidget(train_buttons)
+
+        # Threshold
         self.threshold_label = QLabel()
         self.threshold_label.setText("Best threshold: ?")
         self.layout().addWidget(self.threshold_label)
@@ -198,6 +208,7 @@ class TrainWidget(QWidget):
         # worker
         self.worker = None
         self.train_button.clicked.connect(self.start_training)
+        self.retrain_button.clicked.connect(self.continue_training)
 
         # actions
         self.n_epochs_spin.valueChanged.connect(self.update_epochs)
@@ -220,7 +231,7 @@ class TrainWidget(QWidget):
         if self.worker:
             self.worker.quit()
 
-    def start_training(self):
+    def start_training(self, pretrained_model=None):
         if self.state == State.IDLE:
             self.state = State.RUNNING
 
@@ -231,18 +242,24 @@ class TrainWidget(QWidget):
 
             self.save_button.setEnabled(False)
 
-            self.worker = train_worker(self)
+            self.worker = train_worker(self, pretrained_model=pretrained_model)
             self.worker.yielded.connect(lambda x: self.update_all(x))
             self.worker.returned.connect(self.done)
             self.worker.start()
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
+    def continue_training(self):
+        if self.state == State.IDLE:
+            self.start_training(pretrained_model=self.model)
+
     def done(self):
         self.state = State.IDLE
         self.train_button.setText('Train again')
+        self.retrain_button.setText('Retrain')
+        self.retrain_button.setEnabled(True)
 
-        self.threshold_label.setText("Best threshold: " + str(self.threshold))
+        self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
 
         self.save_button.setEnabled(True)
 
@@ -315,7 +332,7 @@ class TrainWidget(QWidget):
 
 
 @thread_worker(start_thread=False)
-def train_worker(widget: TrainWidget):
+def train_worker(widget: TrainWidget, pretrained_model=None):
     import os
     import threading
     from denoiseg.utils.compute_precision_threshold import measure_precision
@@ -342,7 +359,8 @@ def train_worker(widget: TrainWidget):
     # create updater
     denoiseg_updater = Updater()
 
-    train_args, tf_version = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater)
+    train_args, tf_version = prepare_training(denoiseg_conf, X_t, Y_t, X_v, Y_v, denoiseg_updater,
+                                              pretrained_model=pretrained_model)
     widget.tf_version = tf_version
 
     training = threading.Thread(target=train, args=train_args)
@@ -440,7 +458,7 @@ def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
     return conf
 
 
-def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
+def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater, pretrained_model=None):
     from datetime import date
     import tensorflow as tf
     import warnings
@@ -459,6 +477,9 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater):
     if tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     model = DenoiSeg(conf, model_name, basedir)
+
+    if pretrained_model:
+        model.keras_model.set_weights(pretrained_model.keras_model.get_weights())
 
     n_train, n_val = len(X_train), len(X_val)
     frac_val = (1.0 * n_val) / (n_train + n_val)
