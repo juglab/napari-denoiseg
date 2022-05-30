@@ -20,7 +20,8 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QComboBox,
     QFileDialog,
-    QLabel
+    QLabel,
+    QCheckBox
 )
 from enum import Enum
 from napari_denoiseg._tbplot_widget import TBPlotWidget
@@ -107,6 +108,10 @@ class TrainWidget(QWidget):
         self.labels = self.layer_choice.Masks
         self.layout().addWidget(self.layer_choice.native)
 
+        # 3D checkbox
+        self.checkbox_3d = QCheckBox('3D')
+        self.layout().addWidget(self.checkbox_3d)
+
         # others
         self.perc_train_slider = get_perc_train_slider()
 
@@ -130,20 +135,31 @@ class TrainWidget(QWidget):
         self.batch_size_spin.setValue(16)
 
         # patch size
-        self.patch_size_spin = QSpinBox()
-        self.patch_size_spin.setMaximum(512)
-        self.patch_size_spin.setMinimum(16)
-        self.patch_size_spin.setSingleStep(8)
-        self.patch_size_spin.setValue(16)
+        self.patch_XY_spin = QSpinBox()
+        self.patch_XY_spin.setMaximum(512)
+        self.patch_XY_spin.setMinimum(16)
+        self.patch_XY_spin.setSingleStep(8)
+        self.patch_XY_spin.setValue(16)
+
+        # patch Z size
+        self.patch_Z_spin = QSpinBox()
+        self.patch_Z_spin.setMaximum(512)
+        self.patch_Z_spin.setMinimum(4)
+        self.patch_Z_spin.setSingleStep(8)
+        self.patch_Z_spin.setValue(32)
+        self.patch_Z_spin.setEnabled(False)
+        self.patch_Z_spin.setVisible(False)
 
         # TODO add tooltips
         others = QWidget()
         formLayout = QFormLayout()
+        formLayout.addRow('', self.checkbox_3d)
         formLayout.addRow('Train label %', self.perc_train_slider.native)
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
-        formLayout.addRow('Patch XY', self.patch_size_spin)
+        formLayout.addRow('Patch XY', self.patch_XY_spin)
+        formLayout.addRow('Patch Z', self.patch_Z_spin)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
@@ -202,6 +218,7 @@ class TrainWidget(QWidget):
         # actions
         self.n_epochs_spin.valueChanged.connect(self.update_epochs)
         self.n_steps_spin.valueChanged.connect(self.update_steps)
+        self.checkbox_3d.stateChanged.connect(self.update_patch)
 
         # this allows stopping the thread when the napari window is closed,
         # including reducing the risk that an update comes after closing the
@@ -257,6 +274,14 @@ class TrainWidget(QWidget):
             self.n_steps = self.n_steps_spin.value()
             self.pb_steps.setValue(0)
             self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
+
+    def update_patch(self):
+        if self.checkbox_3d.isChecked():
+            self.patch_Z_spin.setEnabled(True)
+            self.patch_Z_spin.setVisible(True)
+        else:
+            self.patch_Z_spin.setEnabled(False)
+            self.patch_Z_spin.setVisible(False)
 
     def update_all(self, updates):
         if self.state == State.RUNNING:
@@ -332,7 +357,7 @@ def train_worker(widget: TrainWidget):
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
-    patch_shape = widget.patch_size_spin.value()
+    patch_shape = widget.patch_XY_spin.value()
     denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_shape)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
