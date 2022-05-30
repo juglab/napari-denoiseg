@@ -127,6 +127,13 @@ class BatchTrainWidget(QWidget):
         self.batch_size_spin.setSingleStep(8)
         self.batch_size_spin.setValue(16)
 
+        # patch size
+        self.patch_size_spin = QSpinBox()
+        self.patch_size_spin.setMaximum(512)
+        self.patch_size_spin.setMinimum(16)
+        self.patch_size_spin.setSingleStep(8)
+        self.patch_size_spin.setValue(16)
+
         # TODO add tooltips
         others = QWidget()
         formLayout = QFormLayout()
@@ -134,6 +141,7 @@ class BatchTrainWidget(QWidget):
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
+        formLayout.addRow('Patch XY', self.patch_size_spin)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
@@ -335,7 +343,8 @@ def train_worker(widget: BatchTrainWidget):
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
-    denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size)
+    patch_shape = widget.patch_size_spin.value()
+    denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_shape)
 
     # to stop the tensorboard, but this yields a warning because we access a hidden member
     # I keep here for reference since I haven't found a good way to stop the tb (they have no closing API)
@@ -431,12 +440,14 @@ def prepare_data(raw, gt, perc_labels):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
-def generate_config(X, n_epochs=20, n_steps=400, batch_size=16):
+def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
     from denoiseg.models import DenoiSegConfig
+
+    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])
 
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps, train_epochs=n_epochs,
-                          batch_norm=True, train_batch_size=batch_size,
+                          batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
                           unet_n_first=32, unet_n_depth=4, denoiseg_alpha=0.5, train_tensorboard=True)
 
     return conf
