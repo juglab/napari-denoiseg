@@ -143,7 +143,7 @@ class TrainWidget(QWidget):
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
-        formLayout.addRow('Patch size', self.patch_size_spin)
+        formLayout.addRow('Patch XY', self.patch_size_spin)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
