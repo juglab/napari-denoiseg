@@ -237,6 +237,8 @@ class TrainWidget(QWidget):
 
             self.plot.clear_plot()
             self.train_button.setText('Stop')
+            self.retrain_button.setText('')
+            self.retrain_button.setEnabled(False)
 
             self.threshold_label.setText("Best threshold: ?")
 
@@ -255,7 +257,7 @@ class TrainWidget(QWidget):
 
     def done(self):
         self.state = State.IDLE
-        self.train_button.setText('Train again')
+        self.train_button.setText('Train new')
         self.retrain_button.setText('Retrain')
         self.retrain_button.setEnabled(True)
 
@@ -473,12 +475,13 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, updater, pretrained_m
     model_name = 'DenoiSeg_' + today
     basedir = 'models'
 
-    # TODO: this is to prevent the memory from saturating on the gpu on my machine
+    # TODO: prevent the memory from saturating on the gpu, should be kept?
     if tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     model = DenoiSeg(conf, model_name, basedir)
 
     if pretrained_model:
+        # TODO: the day there will be 3D, this could lead to incompatible models
         model.keras_model.set_weights(pretrained_model.keras_model.get_weights())
 
     n_train, n_val = len(X_train), len(X_val)
