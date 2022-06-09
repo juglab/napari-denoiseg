@@ -161,6 +161,7 @@ def prediction_worker(widget: PredictWidget):
         rdf = bioimageio.core.load_resource_description(widget.load_button.Model.value)
         weight_name = rdf.weights['keras_hdf5'].source
 
+    # TODO remove?
     # this is to prevent the memory from saturating on the gpu on my machine
     if tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
@@ -175,6 +176,7 @@ def prediction_worker(widget: PredictWidget):
         yield {Updates.IMAGE: i + 1}
 
         # predict
+        # TODO: axes make sure it is compatible with time, channel, z
         pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
 
         # threshold

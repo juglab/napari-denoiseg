@@ -1,6 +1,7 @@
 """
 """
 import os.path
+from pathlib import Path
 
 import napari
 from bioimageio.core.build_spec import build_model
@@ -20,10 +21,12 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QComboBox,
     QFileDialog,
-    QLabel
+    QLabel,
+    QTabWidget
 )
 from enum import Enum
 from napari_denoiseg._tbplot_widget import TBPlotWidget
+from napari_denoiseg._folder_widget import FolderWidget
 
 
 class State(Enum):
@@ -101,15 +104,54 @@ class TrainWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-        # layer choice widgets
+        ###############################
+        # QTabs
+        tabs = QTabWidget()
+        tab_layers = QWidget()
+        tab_layers.setLayout(QVBoxLayout())
+
+        tab_disk = QWidget()
+        tab_disk.setLayout(QVBoxLayout())
+
+        # add tabs
+        self.tabs.addTab(tab_layers, 'From layers')
+        self.tabs.addTab(tab_disk, 'From disk')
+        self.tabs.setMaximumHeight(200)
+
+        # layer tabs
         self.layer_choice = create_choice_widget(napari_viewer)
-        self.images = self.layer_choice.Images
+        self.images = self.layer_choice.Images  # TODO remove that
         self.labels = self.layer_choice.Masks
-        self.layout().addWidget(self.layer_choice.native)
+        self.tab_layers.layout().addWidget(self.layer_choice.native)
 
-        # others
         self.perc_train_slider = get_perc_train_slider()
+        perc_widget = QWidget()
+        perc_widget.setLayout(QFormLayout())
+        perc_widget.layout().addRow('Train label %', self.perc_train_slider.native)
+        tab_layers.layout().addWidget(perc_widget)
 
+        # disk tab
+        self.train_images_folder = FolderWidget('Choose')
+        self.train_labels_folder = FolderWidget('Choose')
+        self.val_images_folder = FolderWidget('Choose')
+        self.val_labels_folder = FolderWidget('Choose')
+
+        buttons = QWidget()
+        form = QFormLayout()
+
+        form.addRow('Train images', self.train_images_folder)
+        form.addRow('Train labels', self.train_labels_folder)
+        form.addRow('Val images', self.val_images_folder)
+        form.addRow('Val labels', self.val_labels_folder)
+
+        buttons.setLayout(form)
+        tab_disk.layout().addWidget(buttons)
+
+        # add to main layout
+        self.layout().addWidget(self.tabs)
+
+        ###############################
+        # others
         self.n_epochs_spin = QSpinBox()
         self.n_epochs_spin.setMinimum(1)
         self.n_epochs_spin.setMaximum(1000)
@@ -139,7 +181,6 @@ class TrainWidget(QWidget):
         # TODO add tooltips
         others = QWidget()
         formLayout = QFormLayout()
-        formLayout.addRow('Train label %', self.perc_train_slider.native)
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
@@ -202,7 +243,7 @@ class TrainWidget(QWidget):
         self.layout().addWidget(save_widget)
 
         # plot widget
-        self.plot = TBPlotWidget(300, 300)
+        self.plot = TBPlotWidget(max_width=300, max_height=300)
         self.layout().addWidget(self.plot.native)
 
         # worker
@@ -213,6 +254,7 @@ class TrainWidget(QWidget):
         # actions
         self.n_epochs_spin.valueChanged.connect(self.update_epochs)
         self.n_steps_spin.valueChanged.connect(self.update_steps)
+        self.save_button.clicked.connect(self.save_model)
 
         # this allows stopping the thread when the napari window is closed,
         # including reducing the risk that an update comes after closing the
@@ -225,7 +267,7 @@ class TrainWidget(QWidget):
         self.model, self.X_val, self.threshold = None, None, None
         self.inputs, self.outputs = [], []
         self.tf_version = None
-        self.save_button.clicked.connect(self.save_model)
+        self.load_from_disk = False
 
     def interrupt(self):
         if self.worker:
@@ -235,15 +277,19 @@ class TrainWidget(QWidget):
         if self.state == State.IDLE:
             self.state = State.RUNNING
 
+            # register which data tab: layers or disk
+            self.load_from_disk = self.tabs.currentIndex() == 1
+
+            # modify UI
             self.plot.clear_plot()
+
+            self.threshold_label.setText("Best threshold: ?")
             self.train_button.setText('Stop')
             self.retrain_button.setText('')
             self.retrain_button.setEnabled(False)
-
-            self.threshold_label.setText("Best threshold: ?")
-
             self.save_button.setEnabled(False)
 
+            # instantiate worker and start training
             self.worker = train_worker(self, pretrained_model=pretrained_model)
             self.worker.yielded.connect(lambda x: self.update_all(x))
             self.worker.returned.connect(self.done)
@@ -340,12 +386,29 @@ def train_worker(widget: TrainWidget, pretrained_model=None):
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
     # get images and labels
-    image_data = widget.images.value.data
-    label_data = widget.labels.value.data
+    if widget.load_from_disk:
+        from napari_denoiseg._raw_data_loader import from_folder
 
-    # split train and val
-    perc_labels = widget.perc_train_slider.slider.get_value()
-    X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data(image_data, label_data, perc_labels)
+        # folders
+        path_train_X = Path(widget.train_images_folder.get_folder())
+        path_train_Y = Path(widget.train_labels_folder.get_folder())
+        path_val_X = Path(widget.val_images_folder.get_folder())
+        path_val_Y = Path(widget.val_labels_folder.get_folder())
+
+        # create data generators
+        train_XY = from_folder(path_train_X.parents, path_train_X.name, path_train_Y.name, axes='CYX', check_exists=False)
+        val_XY = from_folder(path_val_X.parents, path_val_X.name, path_val_Y.name, axes='CYX')
+
+        X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data_layers(train_XY, val_XY)
+
+    else:
+        # get layers
+        image_data = widget.images.value.data
+        label_data = widget.labels.value.data
+
+        # split train and val
+        perc_labels = widget.perc_train_slider.slider.get_value()
+        X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data_layers(image_data, label_data, perc_labels)
 
     # create DenoiSeg configuration
     n_epochs = widget.n_epochs
@@ -399,8 +462,12 @@ def train_worker(widget: TrainWidget, pretrained_model=None):
     np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
 
 
+def prepare_data_disk(train_generator, val_generator):
+    #return X, Y, X_val, Y_val, x_val, y_val
+    pass
+
 # TODO refactor with prepare_training
-def prepare_data(raw, gt, perc_labels):
+def prepare_data_layers(raw, gt, perc_labels):
     from denoiseg.utils.misc_utils import augment_data
     from denoiseg.utils.seg_utils import convert_to_oneHot
 

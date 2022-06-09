@@ -1,5 +1,5 @@
 from magicgui.widgets import Container
-from qtpy.QtWidgets import QPushButton
+from qtpy.QtWidgets import QPushButton, QLabel, QWidget, QHBoxLayout
 import pyqtgraph as pg
 import webbrowser
 
@@ -9,13 +9,17 @@ class TBPlotWidget(Container):
     def __setitem__(self, key, value):
         pass
 
-    def __init__(self, max_width=None, max_height=None):
+    def __init__(self, min_width=None, min_height=None, max_width=None, max_height=None):
         super().__init__()
 
         if max_width:
             self.native.setMaximumWidth(max_width)
         if max_height:
             self.native.setMaximumHeight(max_height)
+        if min_width:
+            self.native.setMinimumWidth(min_width)
+        if min_height:
+            self.native.setMinimumHeight(min_height)
 
         self.graphics_widget = pg.GraphicsLayoutWidget()
         self.graphics_widget.setBackground(None)
@@ -29,8 +33,15 @@ class TBPlotWidget(Container):
         # tensorboard button
         tb_button = QPushButton("Open in tensorboard")
         tb_button.clicked.connect(self.open_tb)
-        self.native.layout().addWidget(tb_button)
 
+        # add to layout on the bottom left
+        button_widget = QWidget()
+        button_widget.setLayout(QHBoxLayout())
+        button_widget.layout().addWidget(tb_button)
+        button_widget.layout().addWidget(QLabel(''))
+        self.native.layout().addWidget(button_widget)
+
+        # set empty references
         self.epochs = []
         self.train_loss = []
         self.val_loss = []
