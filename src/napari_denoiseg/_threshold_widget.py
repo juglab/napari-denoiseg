@@ -54,14 +54,14 @@ class ThresholdWiget(QWidget):
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         # disk tab
-        self.train_images_folder = FolderWidget('Choose')
-        self.train_labels_folder = FolderWidget('Choose')
+        self.images_folder = FolderWidget('Choose')
+        self.labels_folder = FolderWidget('Choose')
 
         buttons = QWidget()
         form = QFormLayout()
 
-        form.addRow('Images', self.train_images_folder)
-        form.addRow('Labels', self.train_labels_folder)
+        form.addRow('Images', self.images_folder)
+        form.addRow('Labels', self.labels_folder)
 
         buttons.setLayout(form)
         tab_disk.layout().addWidget(buttons)
@@ -129,15 +129,35 @@ def optimizer_worker(widget: ThresholdWiget):
     from denoiseg.models import DenoiSeg
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
-    # images
-    image_data = widget.images.value.data
-    label_data = widget.labels.value.data
+    # get images
+    if widget.load_from_disk:
+        from napari_denoiseg._raw_data_loader import from_folder
+
+        images = Path(widget.images_folder.get_folder())
+        labels = Path(widget.labels_folder.get_folder())
+
+        # use generator to check whether pairs of similarly named images exist
+        pairs = from_folder(images.parent, images.name, labels.name, axes='CYX')
+
+        # load from disk
+        _x_val = []
+        _y_val = []
+        for source_x, target_y, _, _ in pairs.generator():
+            _x_val.append(source_x)
+            _y_val.append(target_y)
+
+        image_data, label_data = np.array(_x_val), np.array(_y_val, dtype=np.int)
+    else:
+        image_data = widget.images.value.data
+        label_data = widget.labels.value.data
     assert image_data.shape == label_data.shape
 
     # instantiate model
     config = generate_config(image_data[np.newaxis, 0, ..., np.newaxis], 1, 1, 1)  # TODO what if model won't fit?
     basedir = 'models'
+
     weight_name = widget.load_button.Model.value
+    assert len(weight_name.name) > 0
     name = weight_name.stem
 
     if widget.load_button.Model.value.suffix == ".zip":
