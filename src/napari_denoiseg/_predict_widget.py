@@ -9,10 +9,13 @@ from magicgui import magic_factory
 from magicgui.widgets import create_widget
 import numpy as np
 from napari_denoiseg._train_widget import State, generate_config
+from napari_denoiseg._folder_widget import FolderWidget
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QPushButton,
+    QTabWidget,
+    QFormLayout,
     QProgressBar
 )
 from enum import Enum
@@ -54,14 +57,40 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
+        self.setMaximumHeight(300)
+
+        ###############################
+        # QTabs
+        self.tabs = QTabWidget()
+        tab_layers = QWidget()
+        tab_layers.setLayout(QVBoxLayout())
+
+        tab_disk = QWidget()
+        tab_disk.setLayout(QVBoxLayout())
+
+        # add tabs
+        self.tabs.addTab(tab_layers, 'From layers')
+        self.tabs.addTab(tab_disk, 'From disk')
+        self.tabs.setMaximumHeight(150)
+
+        # image layer tab
+        self.images = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
+        self.layout().addWidget(self.images.native)
+        tab_layers.layout().addWidget(self.layer_choice.native)
+
+        # disk tab
+        self.images_folder = FolderWidget('Choose')
+        tab_disk.layout().addWidget(self.images_folder)
+
+        # add to main layout
+        self.layout().addWidget(self.tabs)
+
+        ###############################
+        # others
 
         # load model button
         self.load_button = get_load_button()
         self.layout().addWidget(self.load_button.native)
-
-        # image layer
-        self.images = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
-        self.layout().addWidget(self.images.native)
 
         # threshold slider
         self.threshold_spin = get_threshold_spin()
@@ -85,7 +114,7 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.predict_button)
 
         self.n_im = 0
-
+        self.load_from_disk = 0
         # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
     def update(self, updates):
@@ -113,6 +142,9 @@ class PredictWidget(QWidget):
             self.state = State.RUNNING
 
             self.predict_button.setText('Stop')
+
+            # register which data tab: layers or disk
+            self.load_from_disk = self.tabs.currentIndex() == 1
 
             if SEGMENTATION in self.viewer.layers:
                 self.viewer.layers.remove(SEGMENTATION)
@@ -142,9 +174,22 @@ def prediction_worker(widget: PredictWidget):
     import tensorflow as tf
 
     # get images
-    imgs = widget.images.value.data
+    if widget.load_from_disk:
+        from tifffile import imread
+
+        images_path = Path(widget.images_folder.get_folder())
+        image_files = [f for f in images_path.glob('*.tif*')]
+
+        images = []
+        for f in image_files:
+            images.append(imread(str(f)))  # TODO probably doesn't work if different sized images
+            
+        imgs = np.array(images)
+
+    else:
+        imgs = widget.images.value.data
+
     X = imgs[np.newaxis, 0, :, :, np.newaxis]
-    print(X.shape)
 
     # yield total number of images
     n_img = imgs.shape[0]  # this will break down

@@ -132,7 +132,7 @@ def optimizer_worker(widget: ThresholdWiget):
     if widget.load_from_disk:
         from napari_denoiseg._raw_data_loader import from_folder
 
-        images = Path(widget.images_folder.get_folder())
+        images = Path(widget.images_folder.get_folder())  # TODO check if empty path
         labels = Path(widget.labels_folder.get_folder())
 
         # use generator to check whether pairs of similarly named images exist
