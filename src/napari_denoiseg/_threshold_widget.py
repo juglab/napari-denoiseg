@@ -3,7 +3,6 @@ from pathlib import Path
 import bioimageio.core
 import napari
 from napari.qt.threading import thread_worker
-import numpy as np
 from napari_denoiseg._train_widget import State, generate_config, create_choice_widget
 from napari_denoiseg._predict_widget import get_load_button
 from napari_denoiseg._folder_widget import FolderWidget
@@ -12,16 +11,16 @@ import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
     QPushButton,
-    QProgressBar,
-    QSpinBox,
     QFormLayout,
-    QComboBox,
-    QFileDialog,
-    QLabel,
-    QTabWidget
+    QTableWidget,
+    QTabWidget,
+    QTableWidgetItem,
+    QHeaderView
 )
+
+T = 't'
+M = 'metrics'
 
 
 class ThresholdWiget(QWidget):
@@ -32,7 +31,7 @@ class ThresholdWiget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(300)
+        self.setMaximumHeight(600)
 
         ###############################
         # QTabs
@@ -77,6 +76,17 @@ class ThresholdWiget(QWidget):
         self.load_button = get_load_button()
         self.layout().addWidget(self.load_button.native)
 
+        # feedback table to users
+        self.table = QTableWidget()
+        self.table.setRowCount(19)
+        self.table.setColumnCount(2)
+
+        self.table.setHorizontalHeaderLabels([T, M])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.resizeRowsToContents()
+        self.layout().addWidget(self.table)
+
         # predict button
         self.worker = None
         self.seg_prediction = None
@@ -84,19 +94,30 @@ class ThresholdWiget(QWidget):
         self.optimize_button.clicked.connect(self.start_optimization)
         self.layout().addWidget(self.optimize_button)
 
-        # feedback to users
+        self.load_from_disk = 0
+        self. results = None
 
     def start_optimization(self):
         if self.state == State.IDLE:
             self.state = State.RUNNING
 
-            self.optimize_button.setText('Stop') # TODO make sure we actually interrupt the thread
+            # register which data tab: layers or disk
+            self.load_from_disk = self.tabs.currentIndex() == 1
+
+            self.optimize_button.setText('Stop')
+            self.table.clear()
 
             self.worker = optimizer_worker(self)
             self.worker.returned.connect(self.done)
+            self.worker.yielded.connect(lambda x: self.update(x))
             self.worker.start()
         elif self.state == State.RUNNING:
             self.state = State.IDLE
+
+    def update(self, score_tuple):
+        (i, t, m) = score_tuple
+        self.table.setItem(i, 0, QTableWidgetItem("{:.2f}".format(t)))
+        self.table.setItem(i, 1, QTableWidgetItem("{:.2f}".format(m)))
 
     def done(self):
         self.state = State.IDLE
@@ -114,7 +135,7 @@ def optimizer_worker(widget: ThresholdWiget):
     assert image_data.shape == label_data.shape
 
     # instantiate model
-    config = generate_config(image_data, 1, 1, 1)  # TODO what if model won't fit?
+    config = generate_config(image_data[np.newaxis, 0, ..., np.newaxis], 1, 1, 1)  # TODO what if model won't fit?
     basedir = 'models'
     weight_name = widget.load_button.Model.value
     name = weight_name.stem
@@ -128,11 +149,15 @@ def optimizer_worker(widget: ThresholdWiget):
     model = DenoiSeg(config, name, basedir)
     model.keras_model.load_weights(weight_name)
 
-    # threshold validation data to estimate the best threshold
-    threshold, val_score = widget.model.optimize_thresholds(validation_x,
-                                                            validation_y,
-                                                            measure=measure_precision())
+    # threshold data to estimate the best threshold
+    for i, ts in enumerate(np.linspace(0.1, 1, 19)):
+        _, score = model.predict_label_masks(image_data, label_data, ts, measure_precision())
 
+        # check if stop requested
+        if widget.state != State.RUNNING:
+            break
+
+        yield i, ts, score
 
 
 if __name__ == "__main__":
