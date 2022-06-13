@@ -107,7 +107,7 @@ class TrainWidget(QWidget):
 
         ###############################
         # QTabs
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
         tab_layers = QWidget()
         tab_layers.setLayout(QVBoxLayout())
 
@@ -115,9 +115,9 @@ class TrainWidget(QWidget):
         tab_disk.setLayout(QVBoxLayout())
 
         # add tabs
-        tabs.addTab(tab_layers, 'From layers')
-        tabs.addTab(tab_disk, 'From disk')
-        tabs.setMaximumHeight(200)
+        self.tabs.addTab(tab_layers, 'From layers')
+        self.tabs.addTab(tab_disk, 'From disk')
+        self.tabs.setMaximumHeight(200)
 
         # layer tabs
         self.layer_choice = create_choice_widget(napari_viewer)
@@ -149,7 +149,7 @@ class TrainWidget(QWidget):
         tab_disk.layout().addWidget(buttons)
 
         # add to main layout
-        self.layout().addWidget(tabs)
+        self.layout().addWidget(self.tabs)
 
         ###############################
         # others
@@ -397,8 +397,9 @@ def train_worker(widget: TrainWidget, pretrained_model=None):
         path_val_Y = Path(widget.val_labels_folder.get_folder())
 
         # create data generators
-        train_XY = from_folder(path_train_X.parents, path_train_X.name, path_train_Y.name, axes='CYX', check_exists=False)
-        val_XY = from_folder(path_val_X.parents, path_val_X.name, path_val_Y.name, axes='CYX')
+        train_XY = from_folder(path_train_X.parent, path_train_X.name, path_train_Y.name, axes='CYX',
+                               check_exists=False)
+        val_XY = from_folder(path_val_X.parent, path_val_X.name, path_val_Y.name, axes='CYX')
 
         X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data_disk(train_XY, val_XY)
 
@@ -464,24 +465,26 @@ def train_worker(widget: TrainWidget, pretrained_model=None):
 
 
 def prepare_data_disk(train_generator: RawData, val_generator: RawData):
+    from denoiseg.utils.misc_utils import augment_data
+    from denoiseg.utils.seg_utils import convert_to_oneHot
 
-    # load data
-    train_generator.
+    # load train data
+    _x_train = []
+    _y_train = []
+    for source_x, target_y, _, _ in train_generator.generator():
+        _x_train.append(source_x)
+        _y_train.append(target_y)
 
-    # get indices of labeled frames
-    dec_perc_labels = 0.01 * perc_labels
-    n_labels = int(0.5 + dec_perc_labels * gt.data.shape[0])
-    ind = zero_sum(gt)
-    assert n_labels < len(ind)
+    x_train, y_train = augment_data(np.array(_x_train), np.array(_y_train, dtype=np.int))
 
-    # split labeled frames between train and val sets
-    ind_train = np.random.choice(ind, size=n_labels, replace=False).tolist()
-    ind_val = list_diff(ind, ind_train)
-    assert len(ind_train) + len(ind_val) == len(ind)
+    # load val data
+    _x_val = []
+    _y_val = []
+    for source_x, target_y, _, _ in val_generator.generator():
+        _x_val.append(source_x)
+        _y_val.append(target_y)
 
-    # create train and val sets
-    x_train, y_train = create_train_set(raw, gt, ind_val)
-    x_val, y_val = create_val_set(raw, gt, ind_val)
+    x_val, y_val = np.array(_x_val), np.array(_y_val, dtype=np.int)
 
     # add channel dim and one-hot encoding
     X = x_train[..., np.newaxis]
@@ -490,6 +493,7 @@ def prepare_data_disk(train_generator: RawData, val_generator: RawData):
     Y_val = convert_to_oneHot(y_val)
 
     return X, Y, X_val, Y_val, x_val, y_val
+
 
 # TODO refactor with prepare_training
 def prepare_data_layers(raw, gt, perc_labels):
@@ -675,4 +679,3 @@ if __name__ == "__main__":
     viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
 
     napari.run()
-
