@@ -8,6 +8,9 @@ contributions:
     - id: napari-denoiseg.make_predict_widget
       python_name: napari_denoiseg._predict_widget:PredictWidget
       title: DenoiSeg predict
+    - id: napari-denoiseg.make_threshold_widget
+      python_name: napari_denoiseg._threshold_widget:ThresholdWidget
+      title: DenoiSeg threshold predict
     - id: napari-denoiseg.denoiseg_data_n0
       python_name: napari_denoiseg._sample_data:denoiseg_data_n0
       title: DenoiSeg sample data n0
@@ -22,6 +25,8 @@ contributions:
       display_name: DenoiSeg train
     - command: napari-denoiseg.make_predict_widget
       display_name: DenoiSeg predict
+    - command: napari-denoiseg.make_threshold_widget
+      display_name: DenoiSeg threshold predict
   sample_data:
     - command: napari-denoiseg.denoiseg_data_n0
       display_name: Download data (n0 noise)
