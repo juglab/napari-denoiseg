@@ -95,7 +95,6 @@ class ThresholdWiget(QWidget):
         self.layout().addWidget(self.optimize_button)
 
         self.load_from_disk = 0
-        self. results = None
 
     def start_optimization(self):
         if self.state == State.IDLE:
