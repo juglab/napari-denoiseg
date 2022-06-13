@@ -140,7 +140,7 @@ class PredictWidget(QWidget):
 def prediction_worker(widget: PredictWidget):
     from denoiseg.models import DenoiSeg
     import tensorflow as tf
-    from os.path import splitext, basename
+
     # get images
     imgs = widget.images.value.data
     X = imgs[np.newaxis, 0, :, :, np.newaxis]
@@ -151,7 +151,7 @@ def prediction_worker(widget: PredictWidget):
     yield {Updates.N_IMAGES: n_img}
 
     # instantiate model
-    config = generate_config(X, 1, 1, 1)  # here no way to tell if the network size corresponds to the one saved...
+    config = generate_config(X, 1, 1, 1)  # TODO here no way to tell if the network size corresponds to the one saved...
     basedir = 'models'
     weight_name = widget.load_button.Model.value
     name = weight_name.stem

@@ -121,7 +121,7 @@ class TrainWidget(QWidget):
 
         # layer tabs
         self.layer_choice = create_choice_widget(napari_viewer)
-        self.images = self.layer_choice.Images  # TODO remove that?
+        self.images = self.layer_choice.Images
         self.labels = self.layer_choice.Masks
         tab_layers.layout().addWidget(self.layer_choice.native)
 
