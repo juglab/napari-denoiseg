@@ -22,8 +22,6 @@ contributions:
       display_name: DenoiSeg train
     - command: napari-denoiseg.make_predict_widget
       display_name: DenoiSeg predict
-    - command: napari-denoiseg.make_batch_predict_widget
-      display_name: DenoiSeg predict from disk
   sample_data:
     - command: napari-denoiseg.denoiseg_data_n0
       display_name: Download data (n0 noise)
