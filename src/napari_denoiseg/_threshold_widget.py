@@ -1,12 +1,5 @@
 from pathlib import Path
 
-import bioimageio.core
-import napari
-from napari.qt.threading import thread_worker
-from napari_denoiseg._train_widget import State, generate_config, create_choice_widget
-from napari_denoiseg._predict_widget import get_load_button
-from napari_denoiseg.utils.folder_widget import FolderWidget
-
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -18,6 +11,14 @@ from qtpy.QtWidgets import (
     QTableWidgetItem,
     QHeaderView
 )
+
+import bioimageio.core
+import napari
+from napari.qt.threading import thread_worker
+from ._train_widget import State, generate_config, create_choice_widget
+from ._predict_widget import get_load_button
+from .utils import FolderWidget
+
 
 T = 't'
 M = 'metrics'
@@ -130,7 +131,7 @@ def optimizer_worker(widget: ThresholdWiget):
 
     # get images
     if widget.load_from_disk:
-        from napari_denoiseg.utils.raw_data_loader import from_folder
+        from .utils import from_folder
 
         images = Path(widget.images_folder.get_folder())  # TODO check if empty path
         labels = Path(widget.labels_folder.get_folder())
@@ -180,7 +181,7 @@ def optimizer_worker(widget: ThresholdWiget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_n0
+    from ._sample_data import denoiseg_data_n0
 
     data = denoiseg_data_n0()
 

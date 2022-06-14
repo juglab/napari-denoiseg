@@ -2,14 +2,9 @@
 """
 from pathlib import Path
 
+from enum import Enum
 import bioimageio.core
-import napari
-from napari.qt.threading import thread_worker
-from magicgui import magic_factory
-from magicgui.widgets import create_widget
 import numpy as np
-from napari_denoiseg._train_widget import State, generate_config
-from napari_denoiseg._folder_widget import FolderWidget
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -17,7 +12,13 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QProgressBar
 )
-from enum import Enum
+
+import napari
+from napari.qt.threading import thread_worker
+from magicgui import magic_factory
+from magicgui.widgets import create_widget
+from ._train_widget import State, generate_config
+from .utils import FolderWidget
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -241,7 +242,7 @@ def prediction_worker(widget: PredictWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_n0
+    from ._sample_data import denoiseg_data_n0
 
     data = denoiseg_data_n0()
 
