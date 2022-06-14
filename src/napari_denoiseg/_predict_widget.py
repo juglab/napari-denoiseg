@@ -198,7 +198,9 @@ def prediction_worker(widget: PredictWidget):
     # instantiate model
     config = generate_config(X, 1, 1, 1)  # TODO here no way to tell if the network size corresponds to the one saved...
     basedir = 'models'
+
     weight_name = widget.load_button.Model.value
+    assert len(weight_name.name) > 0
     name = weight_name.stem
 
     if widget.load_button.Model.value.suffix == ".zip":
