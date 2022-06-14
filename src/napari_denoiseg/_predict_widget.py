@@ -15,7 +15,6 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QTabWidget,
-    QFormLayout,
     QProgressBar
 )
 from enum import Enum
