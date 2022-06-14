@@ -15,9 +15,8 @@ from qtpy.QtWidgets import (
 import bioimageio.core
 import napari
 from napari.qt.threading import thread_worker
-from ._train_widget import State, generate_config, create_choice_widget
-from ._predict_widget import get_load_button
-from .utils import FolderWidget
+from napari_denoiseg._train_widget import State
+from napari_denoiseg.utils import FolderWidget, two_layers_choice, load_button, generate_config
 
 
 T = 't'
@@ -49,7 +48,7 @@ class ThresholdWiget(QWidget):
         self.tabs.setMaximumHeight(150)
 
         # layer tabs
-        self.layer_choice = create_choice_widget(napari_viewer)
+        self.layer_choice = two_layers_choice()
         self.images = self.layer_choice.Images
         self.labels = self.layer_choice.Masks
         tab_layers.layout().addWidget(self.layer_choice.native)
@@ -74,7 +73,7 @@ class ThresholdWiget(QWidget):
         # others
 
         # load model button
-        self.load_button = get_load_button()
+        self.load_button = load_button()
         self.layout().addWidget(self.load_button.native)
 
         # feedback table to users

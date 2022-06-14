@@ -1,0 +1,201 @@
+from pathlib import Path
+
+from queue import Queue
+from enum import Enum
+import numpy as np
+from tifffile import imread
+
+from tensorflow.keras.callbacks import Callback
+from csbdeep.data import RawData
+from csbdeep.utils import consume, axes_check_and_normalize
+from denoiseg.models import DenoiSeg
+
+
+class ModelSaveMode(Enum):
+    MODELZOO = 'Bioimage.io'
+    TF = 'TensorFlow'
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
+class UpdateType(Enum):
+    EPOCH = 'epoch'
+    BATCH = 'batch'
+    LOSS = 'loss'
+    DONE = 'done'
+
+
+class TrainingCallback(Callback):
+    def __init__(self):
+        self.queue = Queue(10)
+        self.epoch = 0
+        self.batch = 0
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch = epoch
+        self.queue.put({UpdateType.EPOCH: self.epoch + 1})
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs:
+            self.queue.put({UpdateType.LOSS: (self.epoch, logs['loss'], logs['val_loss'])})
+
+    def on_train_batch_begin(self, batch, logs=None):
+        self.batch = batch
+        self.queue.put({UpdateType.BATCH: self.batch + 1})
+
+    def on_train_end(self, logs=None):
+        self.queue.put(UpdateType.DONE)
+
+    def stop_training(self):
+        self.model.stop_training = True
+
+
+# Adapted from:
+# https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
+def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
+    """
+    Builds a generator for pairs of source and target images with same names. `check_exists` = `False` allows inserting
+    empty images when the corresponding target is not found.
+
+    Adapted from RawData.from_folder in CSBDeep.
+
+    :param source_dir: Absolute path to folder containing source images
+    :param target_dir: Absolute path to folder containing target images, with same names than in `source_folder`
+    :param axes: Semantics of axes of loaded images (assumed to be the same for all images).
+    :param check_exists: If `True`, raises an exception if a target is missing, target is set to `None` if `check_exist`
+                        is `False`.
+    :return:`RawData` object, whose `generator` is used to yield all matching TIFF pairs.
+            The generator will return a tuple `(x,y,axes,mask)`, where `x` is from
+            `source_dirs` and `y` is the corresponding image from the `target_dir`;
+            `mask` is set to `None`.
+    """
+
+    def substitute_by_none(tuple_list, ind):
+        """
+        Substitute the second element in tuple `ind` with `None`
+        :param tuple_list: List of tuples
+        :param ind: Index of the tuple in which to substitute the second element with `None`
+        :return:
+        """
+        tuple_list[ind] = (tuple_list[ind][0], None)
+
+    def _raise(e):
+        raise e
+
+    # pattern of images to select
+    pattern = '*.tif*'
+
+    # list of possible pairs based on the file found in the source folder
+    s = Path(source_dir)
+    t = Path(target_dir)
+    pairs = [(f, t / f.name) for f in s.glob(pattern)]
+    if len(pairs) == 0:
+        raise FileNotFoundError("Didn't find any images.")
+
+    # check if the corresponding target exists
+    if check_exists:
+        consume(t.exists() or _raise(FileNotFoundError(t)) for s, t in pairs)
+    else:
+        # alternatively, replace non-existing files with None
+        consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))
+
+    # sanity check on the axes
+    axes = axes_check_and_normalize(axes)
+
+    # generate description
+    n_images = len(pairs)
+    description = "{p}: target='{o}', sources={s}, axes='{a}', pattern='{pt}'".format(p=s.parent,
+                                                                                      s=s.name,
+                                                                                      o=t.name, a=axes,
+                                                                                      pt=pattern)
+
+    def _gen():
+        for fx, fy in pairs:
+            if fy:  # read images
+                x, y = imread(str(fx)), imread(str(fy))
+            else:  # if the target is None, replace by an empty image
+                x = imread(str(fx))
+                y = np.zeros(x.shape)
+
+            len(axes) >= x.ndim or _raise(ValueError())
+            yield x, y, axes[-x.ndim:], None
+
+    return RawData(_gen, n_images, description)
+
+
+def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
+    from denoiseg.models import DenoiSegConfig
+
+    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])  # TODO: works for 3D?
+    conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
+                          train_steps_per_epoch=n_steps, train_epochs=n_epochs,
+                          batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
+                          unet_n_first=32, unet_n_depth=4, denoiseg_alpha=0.5, train_tensorboard=True)
+
+    return conf
+
+
+def load_weights(model: DenoiSeg, weights_path):
+    """
+
+    :param model:
+    :param weights_path:
+    :return:
+    """
+    import bioimageio.core
+
+    if weights_path[-4:] == ".zip":
+        # we assume we got a modelzoo file
+        rdf = bioimageio.core.load_resource_description(weights_path)
+        weight_name = rdf.weights['keras_hdf5'].source
+    else:
+        # we assure we have a path to a .h5
+        weight_name = weights_path
+
+    model.keras_model.load_weights(weight_name)
+
+
+def load_from_disk(path):
+    """
+
+    :param path:
+    :return:
+    """
+    images_path = Path(path)
+    image_files = [f for f in images_path.glob('*.tif*')]
+
+    images = []
+    dims_agree = True
+    for f in image_files:
+        images.append(imread(str(f)))
+        dims_agree = dims_agree and (images[0].shape == images[-1].shape)
+
+    return np.array(images) if dims_agree else images
+
+
+def load_pairs_from_disk(parent, source_path, target_path, axes='CYX', check_exists=False):
+    """
+
+    :param parent:
+    :param source_path:
+    :param target_path:
+    :param axes:
+    :param check_exists:
+    :return:
+    """
+    # create RawData generator
+    pairs = from_folder(parent, source_path, target_path, axes=axes, check_exists=check_exists)
+
+    # load data
+    _source = []
+    _target = []
+    for s, t, _, _ in pairs.generator():
+        _source.append(s)
+        _target.append(t)
+
+    return np.array(_source), np.array(_target, dtype=np.int)
+
+
+

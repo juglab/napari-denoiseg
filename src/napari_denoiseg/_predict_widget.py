@@ -1,9 +1,6 @@
 """
 """
-from pathlib import Path
-
 from enum import Enum
-import bioimageio.core
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -15,32 +12,12 @@ from qtpy.QtWidgets import (
 
 import napari
 from napari.qt.threading import thread_worker
-from magicgui import magic_factory
-from magicgui.widgets import create_widget
-from ._train_widget import State, generate_config
-from .utils import FolderWidget
+from ._train_widget import State
+from .utils import FolderWidget, generate_config
+from .utils import layer_choice, load_button, threshold_spin
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
-
-
-@magic_factory(auto_call=True,
-               Threshold={"widget_type": "FloatSpinBox", "min": 0, "max": 1., "step": 0.1, 'value': 0.6})
-def get_threshold_spin(Threshold: int):
-    pass
-
-
-@magic_factory(auto_call=True, Model={'mode': 'r', 'filter': '*.h5 *.zip'})
-def get_load_button(Model: Path):
-    pass
-
-
-def layer_choice_widget(np_viewer, annotation, **kwargs):
-    widget = create_widget(annotation=annotation, **kwargs)
-    widget.reset_choices()
-    np_viewer.layers.events.inserted.connect(widget.reset_choices)
-    np_viewer.layers.events.removed.connect(widget.reset_choices)
-    return widget
 
 
 class Updates(Enum):
@@ -74,7 +51,7 @@ class PredictWidget(QWidget):
         self.tabs.setMaximumHeight(150)
 
         # image layer tab
-        self.images = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
+        self.images = layer_choice(napari_viewer, annotation=napari.layers.Image, name="Images")
         self.layout().addWidget(self.images.native)
         tab_layers.layout().addWidget(self.layer_choice.native)
 
@@ -89,11 +66,11 @@ class PredictWidget(QWidget):
         # others
 
         # load model button
-        self.load_button = get_load_button()
+        self.load_button = load_button()
         self.layout().addWidget(self.load_button.native)
 
         # threshold slider
-        self.threshold_spin = get_threshold_spin()
+        self.threshold_spin = threshold_spin()
         self.layout().addWidget(self.threshold_spin.native)
 
         # progress bar
@@ -118,6 +95,11 @@ class PredictWidget(QWidget):
         # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
 
     def update(self, updates):
+        """
+
+        :param updates:
+        :return:
+        """
         if Updates.N_IMAGES in updates:
             self.n_im = updates[Updates.N_IMAGES]
             self.pb_prediction.setValue(0)
@@ -129,6 +111,7 @@ class PredictWidget(QWidget):
             self.pb_prediction.setValue(perc)
             self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
             self.viewer.layers[SEGMENTATION].refresh()
+            self.viewer.layers[DENOISING].refresh()
 
         if Updates.DONE in updates:
             self.pb_prediction.setValue(100)
@@ -146,21 +129,25 @@ class PredictWidget(QWidget):
             # register which data tab: layers or disk
             self.load_from_disk = self.tabs.currentIndex() == 1
 
+            # remove seg and denoising layers if they are present
             if SEGMENTATION in self.viewer.layers:
                 self.viewer.layers.remove(SEGMENTATION)
             if DENOISING in self.viewer.layers:
                 self.viewer.layers.remove(DENOISING)
 
+            # create new seg and denoising layers
             self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
             viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
             self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
             viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
+            # start the prediction worker
             self.worker = prediction_worker(self)
             self.worker.yielded.connect(lambda x: self.update(x))
             self.worker.returned.connect(self.done)
             self.worker.start()
         elif self.state == State.RUNNING:
+            # stop requested
             self.state = State.IDLE
 
     def done(self):
@@ -171,54 +158,37 @@ class PredictWidget(QWidget):
 @thread_worker(start_thread=False)
 def prediction_worker(widget: PredictWidget):
     from denoiseg.models import DenoiSeg
-    import tensorflow as tf
+    from .utils import load_from_disk, load_weights
 
-    # get images
+    # grab images
     if widget.load_from_disk:
-        from tifffile import imread
-
-        images_path = Path(widget.images_folder.get_folder())
-        image_files = [f for f in images_path.glob('*.tif*')]
-
-        images = []
-        for f in image_files:
-            images.append(imread(str(f)))  # TODO probably doesn't work if different sized images
-            
-        imgs = np.array(images)
-
+        imgs = load_from_disk(widget.images_folder.get_folder())
     else:
         imgs = widget.images.value.data
-
-    X = imgs[np.newaxis, 0, :, :, np.newaxis]
+    assert len(imgs.shape) > 1
 
     # yield total number of images
-    n_img = imgs.shape[0]  # this will break down
+    n_img = imgs.shape[0]
     yield {Updates.N_IMAGES: n_img}
 
-    # instantiate model
-    config = generate_config(X, 1, 1, 1)  # TODO here no way to tell if the network size corresponds to the one saved...
-    basedir = 'models'
+    # set extra dimensions
+    imgs = [np.newaxis, ..., np.newaxis]
 
-    weight_name = widget.load_button.Model.value
-    assert len(weight_name.name) > 0
-    name = weight_name.stem
+    # instantiate model with dummy values
+    config = generate_config(imgs, 1, 1, 1)
+    model = DenoiSeg(config, 'DenoiSeg', 'models')
 
-    if widget.load_button.Model.value.suffix == ".zip":
-        # we assume we got a modelzoo file
-        rdf = bioimageio.core.load_resource_description(widget.load_button.Model.value)
-        weight_name = rdf.weights['keras_hdf5'].source
-
-    # TODO remove?
     # this is to prevent the memory from saturating on the gpu on my machine
-    if tf.config.list_physical_devices('GPU'):
-        tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-    model = DenoiSeg(config, name, basedir)
+    # if tf.config.list_physical_devices('GPU'):
+    #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
-    # set weight using load
-    model.keras_model.load_weights(weight_name)
+    # set the weights of the model
+    weight_name = widget.load_button.Model.value
+    assert len(weight_name.name) > 0, 'Model path cannot be empty.'
+    load_weights(model, weight_name)
 
     # loop over slices
-    for i in range(imgs.shape[0]):
+    for i in range(n_img):
         # yield image number + 1
         yield {Updates.IMAGE: i + 1}
 
@@ -226,7 +196,7 @@ def prediction_worker(widget: PredictWidget):
         # TODO: axes make sure it is compatible with time, channel, z
         pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
 
-        # threshold
+        # threshold the foreground probability map
         pred_seg = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
 
         # add prediction to layers
