@@ -26,8 +26,8 @@ from qtpy.QtWidgets import (
     QTabWidget
 )
 from enum import Enum
-from napari_denoiseg._tbplot_widget import TBPlotWidget
-from napari_denoiseg._folder_widget import FolderWidget
+from napari_denoiseg.utils.tbplot_widget import TBPlotWidget
+from napari_denoiseg.utils.folder_widget import FolderWidget
 
 
 class State(Enum):
@@ -388,7 +388,7 @@ def train_worker(widget: TrainWidget, pretrained_model=None):
 
     # get images and labels
     if widget.load_from_disk:
-        from napari_denoiseg._raw_data_loader import from_folder
+        from napari_denoiseg.utils.raw_data_loader import from_folder
 
         # folders
         path_train_X = Path(widget.train_images_folder.get_folder())

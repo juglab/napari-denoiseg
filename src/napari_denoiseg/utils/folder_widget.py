@@ -8,7 +8,9 @@ from qtpy.QtWidgets import (
 
 
 class FolderWidget(QWidget):
-
+    """
+    A widget used for selecting an existing folder.
+    """
     def __init__(self, text):
         super().__init__()
 

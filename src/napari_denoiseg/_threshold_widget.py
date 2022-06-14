@@ -5,7 +5,7 @@ import napari
 from napari.qt.threading import thread_worker
 from napari_denoiseg._train_widget import State, generate_config, create_choice_widget
 from napari_denoiseg._predict_widget import get_load_button
-from napari_denoiseg._folder_widget import FolderWidget
+from napari_denoiseg.utils.folder_widget import FolderWidget
 
 import numpy as np
 from qtpy.QtWidgets import (
@@ -130,7 +130,7 @@ def optimizer_worker(widget: ThresholdWiget):
 
     # get images
     if widget.load_from_disk:
-        from napari_denoiseg._raw_data_loader import from_folder
+        from napari_denoiseg.utils.raw_data_loader import from_folder
 
         images = Path(widget.images_folder.get_folder())  # TODO check if empty path
         labels = Path(widget.labels_folder.get_folder())

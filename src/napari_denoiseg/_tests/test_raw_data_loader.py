@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from tifffile import imwrite
 
-from .._raw_data_loader import from_folder
+from src.napari_denoiseg.utils.raw_data_loader import from_folder
 
 
 def save_img(folder_path, n, shape):
