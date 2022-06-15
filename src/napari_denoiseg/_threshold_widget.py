@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -11,19 +8,16 @@ from qtpy.QtWidgets import (
     QTableWidgetItem,
     QHeaderView
 )
-
-import bioimageio.core
 import napari
-from napari.qt.threading import thread_worker
 from napari_denoiseg._train_widget import State
-from napari_denoiseg.utils import FolderWidget, two_layers_choice, load_button, generate_config
-
+from napari_denoiseg.utils import FolderWidget, two_layers_choice, load_button
+from napari_denoiseg.utils import optimizer_worker
 
 T = 't'
 M = 'metrics'
 
 
-class ThresholdWiget(QWidget):
+class ThresholdWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
 
@@ -70,7 +64,7 @@ class ThresholdWiget(QWidget):
         self.layout().addWidget(self.tabs)
 
         ###############################
-        # others
+        # other
 
         # load model button
         self.load_button = load_button()
@@ -87,13 +81,13 @@ class ThresholdWiget(QWidget):
         self.table.resizeRowsToContents()
         self.layout().addWidget(self.table)
 
-        # predict button
-        self.worker = None
-        self.seg_prediction = None
+        # optimize button
         self.optimize_button = QPushButton("Optimize", self)
         self.optimize_button.clicked.connect(self.start_optimization)
         self.layout().addWidget(self.optimize_button)
 
+        # set variables
+        self.worker = None
         self.load_from_disk = 0
 
     def start_optimization(self):
@@ -123,62 +117,6 @@ class ThresholdWiget(QWidget):
         self.optimize_button.setText('Optimize')
 
 
-@thread_worker(start_thread=False)
-def optimizer_worker(widget: ThresholdWiget):
-    from denoiseg.models import DenoiSeg
-    from denoiseg.utils.compute_precision_threshold import measure_precision
-
-    # get images
-    if widget.load_from_disk:
-        from .utils import from_folder
-
-        images = Path(widget.images_folder.get_folder())  # TODO check if empty path
-        labels = Path(widget.labels_folder.get_folder())
-
-        # use generator to check whether pairs of similarly named images exist
-        pairs = from_folder(images.parent, images.name, labels.name, axes='CYX')
-
-        # load from disk
-        _x_val = []
-        _y_val = []
-        for source_x, target_y, _, _ in pairs.generator():
-            _x_val.append(source_x)
-            _y_val.append(target_y)
-
-        image_data, label_data = np.array(_x_val), np.array(_y_val, dtype=np.int)
-    else:
-        image_data = widget.images.value.data
-        label_data = widget.labels.value.data
-    assert image_data.shape == label_data.shape
-
-    # instantiate model
-    config = generate_config(image_data[np.newaxis, 0, ..., np.newaxis], 1, 1, 1)  # TODO what if model won't fit?
-    basedir = 'models'
-
-    weight_name = widget.load_button.Model.value
-    assert len(weight_name.name) > 0
-    name = weight_name.stem
-
-    if widget.load_button.Model.value.suffix == ".zip":
-        # we assume we got a modelzoo file
-        rdf = bioimageio.core.load_resource_description(widget.load_button.Model.value)
-        weight_name = rdf.weights['keras_hdf5'].source
-
-    # create model
-    model = DenoiSeg(config, name, basedir)
-    model.keras_model.load_weights(weight_name)
-
-    # threshold data to estimate the best threshold
-    for i, ts in enumerate(np.linspace(0.1, 1, 19)):
-        _, score = model.predict_label_masks(image_data, label_data, ts, measure_precision())
-
-        # check if stop requested
-        if widget.state != State.RUNNING:
-            break
-
-        yield i, ts, score
-
-
 if __name__ == "__main__":
     from ._sample_data import denoiseg_data_n0
 
@@ -188,7 +126,7 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
 
     # add our plugin
-    viewer.window.add_dock_widget(ThresholdWiget(viewer))
+    viewer.window.add_dock_widget(ThresholdWidget(viewer))
 
     # add images
     viewer.add_image(data[0][0][0:15], name=data[0][1]['name'])

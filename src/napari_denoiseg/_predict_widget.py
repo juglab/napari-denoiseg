@@ -1,6 +1,6 @@
 """
+
 """
-from enum import Enum
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -11,19 +11,13 @@ from qtpy.QtWidgets import (
 )
 
 import napari
-from napari.qt.threading import thread_worker
-from ._train_widget import State
-from .utils import FolderWidget, generate_config
-from .utils import layer_choice, load_button, threshold_spin
+from napari_denoiseg.utils import State, UpdateType
+from napari_denoiseg.utils import FolderWidget
+from napari_denoiseg.utils import layer_choice, load_button, threshold_spin
+from napari_denoiseg.utils import prediction_worker
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
-
-
-class Updates(Enum):
-    N_IMAGES = 'number of images'
-    IMAGE = 'image'
-    DONE = 'done'
 
 
 class PredictWidget(QWidget):
@@ -100,20 +94,20 @@ class PredictWidget(QWidget):
         :param updates:
         :return:
         """
-        if Updates.N_IMAGES in updates:
-            self.n_im = updates[Updates.N_IMAGES]
+        if UpdateType.N_IMAGES in updates:
+            self.n_im = updates[UpdateType.N_IMAGES]
             self.pb_prediction.setValue(0)
             self.pb_prediction.setFormat(f'Prediction 0/{self.n_im}')
 
-        if Updates.IMAGE in updates:
-            val = updates[Updates.IMAGE]
+        if UpdateType.IMAGE in updates:
+            val = updates[UpdateType.IMAGE]
             perc = int(100 * val / self.n_im + 0.5)
             self.pb_prediction.setValue(perc)
             self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
             self.viewer.layers[SEGMENTATION].refresh()
             self.viewer.layers[DENOISING].refresh()
 
-        if Updates.DONE in updates:
+        if UpdateType.DONE in updates:
             self.pb_prediction.setValue(100)
             self.pb_prediction.setFormat(f'Prediction done')
 
@@ -153,62 +147,6 @@ class PredictWidget(QWidget):
     def done(self):
         self.state = State.IDLE
         self.predict_button.setText('Predict again')
-
-
-@thread_worker(start_thread=False)
-def prediction_worker(widget: PredictWidget):
-    from denoiseg.models import DenoiSeg
-    from .utils import load_from_disk, load_weights
-
-    # grab images
-    if widget.load_from_disk:
-        imgs = load_from_disk(widget.images_folder.get_folder())
-    else:
-        imgs = widget.images.value.data
-    assert len(imgs.shape) > 1
-
-    # yield total number of images
-    n_img = imgs.shape[0]
-    yield {Updates.N_IMAGES: n_img}
-
-    # set extra dimensions
-    imgs = [np.newaxis, ..., np.newaxis]
-
-    # instantiate model with dummy values
-    config = generate_config(imgs, 1, 1, 1)
-    model = DenoiSeg(config, 'DenoiSeg', 'models')
-
-    # this is to prevent the memory from saturating on the gpu on my machine
-    # if tf.config.list_physical_devices('GPU'):
-    #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-
-    # set the weights of the model
-    weight_name = widget.load_button.Model.value
-    assert len(weight_name.name) > 0, 'Model path cannot be empty.'
-    load_weights(model, weight_name)
-
-    # loop over slices
-    for i in range(n_img):
-        # yield image number + 1
-        yield {Updates.IMAGE: i + 1}
-
-        # predict
-        # TODO: axes make sure it is compatible with time, channel, z
-        pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
-
-        # threshold the foreground probability map
-        pred_seg = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value
-
-        # add prediction to layers
-        widget.seg_prediction[i, :, :] = pred_seg
-        widget.denoi_prediction[i, :, :] = pred[0, :, :, 0]
-
-        # check if stop requested
-        if widget.state != State.RUNNING:
-            break
-
-    # update done
-    yield {Updates.DONE}
 
 
 if __name__ == "__main__":

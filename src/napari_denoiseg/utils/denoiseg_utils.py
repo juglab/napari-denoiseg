@@ -1,14 +1,17 @@
 from pathlib import Path
 
-from queue import Queue
 from enum import Enum
 import numpy as np
 from tifffile import imread
 
-from tensorflow.keras.callbacks import Callback
 from csbdeep.data import RawData
 from csbdeep.utils import consume, axes_check_and_normalize
 from denoiseg.models import DenoiSeg
+
+
+class State(Enum):
+    IDLE = 0
+    RUNNING = 1
 
 
 class ModelSaveMode(Enum):
@@ -24,32 +27,9 @@ class UpdateType(Enum):
     EPOCH = 'epoch'
     BATCH = 'batch'
     LOSS = 'loss'
+    N_IMAGES = 'number of images'
+    IMAGE = 'image'
     DONE = 'done'
-
-
-class TrainingCallback(Callback):
-    def __init__(self):
-        self.queue = Queue(10)
-        self.epoch = 0
-        self.batch = 0
-
-    def on_epoch_begin(self, epoch, logs=None):
-        self.epoch = epoch
-        self.queue.put({UpdateType.EPOCH: self.epoch + 1})
-
-    def on_epoch_end(self, epoch, logs=None):
-        if logs:
-            self.queue.put({UpdateType.LOSS: (self.epoch, logs['loss'], logs['val_loss'])})
-
-    def on_train_batch_begin(self, batch, logs=None):
-        self.batch = batch
-        self.queue.put({UpdateType.BATCH: self.batch + 1})
-
-    def on_train_end(self, logs=None):
-        self.queue.put(UpdateType.DONE)
-
-    def stop_training(self):
-        self.model.stop_training = True
 
 
 # Adapted from:
@@ -144,9 +124,8 @@ def load_weights(model: DenoiSeg, weights_path):
     :param weights_path:
     :return:
     """
-    import bioimageio.core
-
     if weights_path[-4:] == ".zip":
+        import bioimageio.core
         # we assume we got a modelzoo file
         rdf = bioimageio.core.load_resource_description(weights_path)
         weight_name = rdf.weights['keras_hdf5'].source
@@ -175,10 +154,9 @@ def load_from_disk(path):
     return np.array(images) if dims_agree else images
 
 
-def load_pairs_from_disk(parent, source_path, target_path, axes='CYX', check_exists=False):
+def load_pairs_from_disk(source_path, target_path, axes='CYX', check_exists=True):
     """
 
-    :param parent:
     :param source_path:
     :param target_path:
     :param axes:
@@ -186,7 +164,7 @@ def load_pairs_from_disk(parent, source_path, target_path, axes='CYX', check_exi
     :return:
     """
     # create RawData generator
-    pairs = from_folder(parent, source_path, target_path, axes=axes, check_exists=check_exists)
+    pairs = from_folder(source_path, target_path, axes, check_exists)
 
     # load data
     _source = []
@@ -198,4 +176,33 @@ def load_pairs_from_disk(parent, source_path, target_path, axes='CYX', check_exi
     return np.array(_source), np.array(_target, dtype=np.int)
 
 
+def build_modelzoo(where, weights, inputs, outputs, tf_version):
+    import os
+    from bioimageio.core.build_spec import build_model
 
+    assert where.endswith('.bioimage.io.zip')
+    build_model(weight_uri=weights,
+                test_inputs=[inputs],
+                test_outputs=[outputs],
+                input_axes=["byxc"],
+                output_axes=["byxc"],
+                output_path=where,
+                name='DenoiSeg',
+                description="Super awesome DenoiSeg model. The best.",
+                authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                         {"name": "Alexander Krull"},
+                         {"name": "Florian Jug"}],
+                license="BSD-3-Clause",
+                documentation=os.path.abspath('../resources/documentation.md'),
+                tags=["2d", "tensorflow", "unet", "denoising", "semantic-segmentation"],
+                cite=[
+                    {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                preprocessing=[[{
+                    "name": "zero_mean_unit_variance",
+                    "kwargs": {
+                        "axes": "yx",
+                        "mode": "per_dataset"
+                    }
+                }]],
+                tensorflow_version=tf_version
+                )
