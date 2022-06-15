@@ -8,10 +8,10 @@ import numpy as np
 @magicgui(call_button="Export",
     img_layer={'label': 'Layer for ROI picking'},
                patch_size={"widget_type": "Slider", "min": 16, "max": 512, "step": 8, 'value': 16, 'label': 'Patch size'},
-               active={'widget_type': 'PushButton', 'label': 'Start patch selection', 'visible': True, 'value':True},
+               active={'widget_type': 'CheckBox', 'label': 'Start/Stop patch selection', 'visible': True, 'value': False},
                store_path={'widget_type': 'FileEdit', 'mode':'d', 'label': 'Export path'},
                auto_call=False)
-def patch_creation(img_layer: "napari.layers.Image", patch_size: int = 16, active: bool = True, store_path: str = None):
+def patch_creation(img_layer: "napari.layers.Image", patch_size: int = 16, active: bool = False, store_path: str = None):
     viewer = napari.current_viewer()
     selection_layer = viewer.layers["2dselection"]
     shapes = selection_layer.data
@@ -24,24 +24,23 @@ def patch_creation(img_layer: "napari.layers.Image", patch_size: int = 16, activ
         im.save(str(store_path) + "/" + str(idx)+".tif", format="TIFF")
 
 
-@patch_creation.active.clicked.connect
+@patch_creation.active.changed.connect
 def start_stop_selection(state):
     viewer = napari.current_viewer()
-    #patch_creation.active.value = not patch_creation.active.value
     if "highlight" not in viewer.layers:
         highlight_layer = viewer.add_shapes(name="highlight")
-        viewer.add_shapes(name="2dselection", ndim=3)
+        viewer.add_shapes(name="2dselection", ndim=len(patch_creation.img_layer.value.data.shape))
         viewer.layers.selection.select_only(highlight_layer)
     highlight_layer = viewer.layers["highlight"]
-    if not patch_creation.active.value:
+    if state:
         highlight_layer.mouse_move_callbacks.append(draw_square)
         highlight_layer.mouse_drag_callbacks.append(create_patch)
-        patch_creation.active.label = "Stop patch selection"
+        #patch_creation.active.label = "Stop patch selection"
     else:
         try:
             highlight_layer.mouse_move_callbacks.remove(draw_square)
             highlight_layer.mouse_drag_callbacks.remove(create_patch)
-            patch_creation.active.label = "Start patch selection"
+            #patch_creation.active.label = "Start patch selection"
         except ValueError:
             pass  # do nothing!
 
@@ -59,7 +58,7 @@ def create_patch(layer, event):
         rectangle = np.array([upper_left, upper_right, lower_right, lower_left])
 
         rectangle = sanitize_rectangle(rectangle, patch_creation.img_layer.value.data.shape, patch_creation.patch_size.value)
-        #create_img_layer(rectangle)
+
         current_slice = int(viewer.cursor.position[0])
         rectangle = np.insert(rectangle, 0, current_slice, axis=1)
 
@@ -83,6 +82,7 @@ def draw_square(layer, event):
         face_color='transparent'
     )
 
+
 def sanitize_rectangle(rect:np.array, layer_shape:tuple, edge_length:int):
     shape_array = np.array(layer_shape)
     rect[0] = np.where(rect[0] < 0, 0, rect[0])
@@ -91,6 +91,8 @@ def sanitize_rectangle(rect:np.array, layer_shape:tuple, edge_length:int):
     rect[1] = np.where(rect[1] > edge_length, rect[1], edge_length)
     return rect
 
+
+# Creates an img layer instead of an img
 def create_img_layer(rectangle):
     viewer = napari.current_viewer()
     ixgrid = np.ix_(np.arange(rectangle[0][0], rectangle[1][0], dtype=int),
@@ -101,13 +103,20 @@ def create_img_layer(rectangle):
     image = viewer.add_image(img, name="selection")
     viewer.layers.selection.select_only(viewer.layers["highlight"])
 
+
 def slice_img_patch(rectangle):
-    viewer = napari.current_viewer()
-    ixgrid = np.ix_(np.arange(rectangle[0][1], rectangle[1][1], dtype=int),
-                    np.arange(rectangle[0][2], rectangle[2][2], dtype=int))
-    ixgrid = (int(rectangle[0][0]),) + ixgrid
-    img = patch_creation.img_layer.value.data[ixgrid]
-    return img
+    ndim = len(patch_creation.img_layer.value.data.shape)
+    if ndim == 3:
+        ixgrid = np.ix_(np.arange(rectangle[0][1], rectangle[1][1], dtype=int),
+                        np.arange(rectangle[0][2], rectangle[2][2], dtype=int))
+        ixgrid = (int(rectangle[0][0]),) + ixgrid
+        img = patch_creation.img_layer.value.data[ixgrid]
+        return img
+    if ndim == 2:
+        ixgrid = np.ix_(np.arange(rectangle[0][0], rectangle[1][0], dtype=int),
+                        np.arange(rectangle[0][1], rectangle[2][1], dtype=int))
+        img = patch_creation.img_layer.value.data[ixgrid]
+        return img
 
 
 if __name__ == "__main__":
