@@ -10,20 +10,20 @@ def prediction_worker(widget):
 
     # grab images
     if widget.load_from_disk:
-        imgs = load_from_disk(widget.images_folder.get_folder())
+        images = load_from_disk(widget.images_folder.get_folder())
     else:
-        imgs = widget.images.value.data
-    assert len(imgs.shape) > 1
+        images = widget.images.value.data
+    assert len(images.shape) > 1
 
     # yield total number of images
-    n_img = imgs.shape[0]
+    n_img = images.shape[0]
     yield {UpdateType.N_IMAGES: n_img}
 
     # set extra dimensions
-    imgs = [np.newaxis, ..., np.newaxis]
+    images = [np.newaxis, ..., np.newaxis]
 
     # instantiate model with dummy values
-    config = generate_config(imgs, 1, 1, 1)
+    config = generate_config(images, 1, 1, 1)
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine
@@ -42,7 +42,7 @@ def prediction_worker(widget):
 
         # predict
         # TODO: axes make sure it is compatible with time, channel, z
-        pred = model.predict(imgs[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
+        pred = model.predict(images[np.newaxis, i, :, :, np.newaxis], axes='SYXC')
 
         # threshold the foreground probability map
         pred_seg = pred[0, :, :, 2] >= widget.threshold_spin.Threshold.value

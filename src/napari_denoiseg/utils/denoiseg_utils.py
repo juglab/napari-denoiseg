@@ -108,7 +108,7 @@ def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
 def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
     from denoiseg.models import DenoiSegConfig
 
-    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])  # TODO: works for 3D?
+    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])  # TODO: won't work for 3D
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps, train_epochs=n_epochs,
                           batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
@@ -128,14 +128,18 @@ def load_weights(model: DenoiSeg, weights_path):
         import bioimageio.core
         # we assume we got a modelzoo file
         rdf = bioimageio.core.load_resource_description(weights_path)
-        weight_name = rdf.weights['keras_hdf5'].source
+        weights_name = rdf.weights['keras_hdf5'].source
     else:
         # we assure we have a path to a .h5
-        weight_name = weights_path
+        weights_name = weights_path
 
-    model.keras_model.load_weights(weight_name)
+    if not Path(weights_name).exists():
+        raise FileNotFoundError('Invalid path to weights.')
+
+    model.keras_model.load_weights(weights_name)
 
 
+# TODO: we must make sure that if the function returns a list, then it is handled correctly by prediction
 def load_from_disk(path):
     """
 
@@ -176,24 +180,24 @@ def load_pairs_from_disk(source_path, target_path, axes='CYX', check_exists=True
     return np.array(_source), np.array(_target, dtype=np.int)
 
 
-def build_modelzoo(where, weights, inputs, outputs, tf_version):
+def build_modelzoo(path, weights, inputs, outputs, tf_version, doc='../resources/documentation.md'):
     import os
     from bioimageio.core.build_spec import build_model
 
-    assert where.endswith('.bioimage.io.zip')
+    assert path.endswith('.bioimage.io.zip'), 'Path must end with .bioimage.io.zip'
     build_model(weight_uri=weights,
                 test_inputs=[inputs],
                 test_outputs=[outputs],
                 input_axes=["byxc"],
                 output_axes=["byxc"],
-                output_path=where,
+                output_path=path,
                 name='DenoiSeg',
                 description="Super awesome DenoiSeg model. The best.",
                 authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
                          {"name": "Alexander Krull"},
                          {"name": "Florian Jug"}],
                 license="BSD-3-Clause",
-                documentation=os.path.abspath('../resources/documentation.md'),
+                documentation=os.path.abspath(doc),
                 tags=["2d", "tensorflow", "unet", "denoising", "semantic-segmentation"],
                 cite=[
                     {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],

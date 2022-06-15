@@ -187,10 +187,6 @@ class TrainWidget(QWidget):
         self.tf_version = None
         self.load_from_disk = False
 
-    def interrupt(self):
-        if self.worker:
-            self.worker.quit()
-
     def _start_training(self, pretrained_model=None):
         if self.state == State.IDLE:
             self.state = State.RUNNING

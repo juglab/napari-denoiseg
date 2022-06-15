@@ -88,8 +88,7 @@ def training_worker(widget, pretrained_model=None):
 
 def load_images(widget):
     # get images and labels
-    if widget.load_from_disk:
-        # folders
+    if widget.load_from_disk:  # from local folders
         path_train_X = widget.train_images_folder.get_folder()
         path_train_Y = widget.train_labels_folder.get_folder()
         path_val_X = widget.val_images_folder.get_folder()
@@ -99,8 +98,7 @@ def load_images(widget):
                                                                            path_train_Y,
                                                                            path_val_X,
                                                                            path_val_Y)
-    else:
-        # get layers
+    else:  # from layers
         image_data = widget.images.value.data
         label_data = widget.labels.value.data
 
