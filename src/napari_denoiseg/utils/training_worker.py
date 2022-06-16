@@ -195,6 +195,7 @@ def prepare_data_layers(raw, gt, perc_labels):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
+# TODO: how do warnings show up in napari?
 def sanity_check_validation_fraction(X_train, X_val):
     import warnings
     n_train, n_val = len(X_train), len(X_val)
