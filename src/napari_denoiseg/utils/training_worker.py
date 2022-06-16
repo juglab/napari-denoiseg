@@ -195,53 +195,6 @@ def prepare_data_layers(raw, gt, perc_labels):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
-# TODO: how do warnings show up in napari?
-def sanity_check_validation_fraction(X_train, X_val):
-    import warnings
-    n_train, n_val = len(X_train), len(X_val)
-    frac_val = (1.0 * n_val) / (n_train + n_val)
-    frac_warn = 0.05
-    if frac_val < frac_warn:
-        warnings.warn("small number of validation images (only %.05f%% of all images)" % (100 * frac_val))
-
-
-def sanity_check_training_size(X_train, model, axes):
-    from csbdeep.utils import axes_dict
-
-    ax = axes_dict(axes)
-    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)
-    div_by = 2 ** model.config.unet_n_depth
-    for a in axes_relevant:
-        n = X_train.shape[ax[a]]
-        if n % div_by != 0:
-            raise ValueError(
-                "training images must be evenly divisible by %d along axes %s"
-                " (axis %s has incompatible size %d)" % (div_by, axes_relevant, a, n)
-            )
-
-
-def get_validation_patch_shape(X_val, axes):
-    from csbdeep.utils import axes_dict
-
-    ax = axes_dict(axes)
-    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)
-    val_patch_shape = ()
-    for a in axes_relevant:
-        val_patch_shape += tuple([X_val.shape[ax[a]]])
-
-    return val_patch_shape
-
-
-def normalize_images(model, X_train, X_val):
-    means = np.array([float(mean) for mean in model.config.means], ndmin=len(X_train.shape), dtype=np.float32)
-    stds = np.array([float(std) for std in model.config.stds], ndmin=len(X_train.shape), dtype=np.float32)
-
-    X = model.__normalize__(X_train, means, stds)
-    validation_X = model.__normalize__(X_val, means, stds)
-
-    return X, validation_X
-
-
 def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
     from datetime import date
     import tensorflow as tf
@@ -315,6 +268,53 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
     train_params = (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch)
 
     return train_params, updater, tf.__version__
+
+
+# TODO: how do warnings show up in napari?
+def sanity_check_validation_fraction(X_train, X_val):
+    import warnings
+    n_train, n_val = len(X_train), len(X_val)
+    frac_val = (1.0 * n_val) / (n_train + n_val)
+    frac_warn = 0.05
+    if frac_val < frac_warn:
+        warnings.warn("small number of validation images (only %.05f%% of all images)" % (100 * frac_val))
+
+
+def sanity_check_training_size(X_train, model, axes):
+    from csbdeep.utils import axes_dict
+
+    ax = axes_dict(axes)
+    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)
+    div_by = 2 ** model.config.unet_n_depth
+    for a in axes_relevant:
+        n = X_train.shape[ax[a]]
+        if n % div_by != 0:
+            raise ValueError(
+                "training images must be evenly divisible by %d along axes %s"
+                " (axis %s has incompatible size %d)" % (div_by, axes_relevant, a, n)
+            )
+
+
+def get_validation_patch_shape(X_val, axes):
+    from csbdeep.utils import axes_dict
+
+    ax = axes_dict(axes)
+    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)
+    val_patch_shape = ()
+    for a in axes_relevant:
+        val_patch_shape += tuple([X_val.shape[ax[a]]])
+
+    return val_patch_shape
+
+
+def normalize_images(model, X_train, X_val):
+    means = np.array([float(mean) for mean in model.config.means], ndmin=len(X_train.shape), dtype=np.float32)
+    stds = np.array([float(std) for std in model.config.stds], ndmin=len(X_train.shape), dtype=np.float32)
+
+    X = model.__normalize__(X_train, means, stds)
+    validation_X = model.__normalize__(X_val, means, stds)
+
+    return X, validation_X
 
 
 def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
