@@ -7,10 +7,13 @@ from napari_denoiseg.utils.training_worker import (
     sanity_check_validation_fraction,
     sanity_check_training_size,
     get_validation_patch_shape,
-    normalize_images
+    normalize_images,
+    prepare_data_disk,
+    prepare_data_layers
 )
 from napari_denoiseg._tests.test_utils import (
-    create_model
+    create_model,
+    create_data
 )
 
 
@@ -87,4 +90,54 @@ def test_normalize_images(tmp_path, shape_train, shape_val):
     assert (np.abs(np.std(X_train_norm, axis=0) - 1) < 0.01).all()
     assert (np.abs(np.mean(X_val_norm, axis=0)) < 0.01).all()
     assert (np.abs(np.std(X_val_norm, axis=0) - 1) < 0.01).all()
+
+
+@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
+def test_prepare_data_disk(tmp_path, shape):
+    folders = ['train_x', 'train_y', 'val_x', 'val_y']
+    sizes = [20, 5, 8, 8]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shape)
+
+    # load data
+    X, Y, X_val, Y_val, x_val, y_val = prepare_data_disk(tmp_path / folders[0],
+                                                         tmp_path / folders[1],
+                                                         tmp_path / folders[2],
+                                                         tmp_path / folders[3]
+                                                         )
+
+    assert X.shape[0] == sizes[0]*8  # augmentation
+    assert X.shape[1:-1] == shape
+    assert X.shape[-1] == 1
+    assert Y.shape[0] == sizes[0]*8  # empty frames are added when there is no Y
+    assert Y.shape[1:-1] == shape
+    assert Y.shape[-1] == 3  # one hot-encoding, 3 classes
+
+    assert X_val.shape[0] == sizes[2]  # no augmentation
+    assert X_val.shape[1:-1] == shape
+    assert X_val.shape[-1] == 1
+    assert Y_val.shape[0] == sizes[3]
+    assert Y_val.shape[1:-1] == shape
+    assert Y_val.shape[-1] == 3  # one hot-encoding, 3 classes
+
+    assert x_val.shape == X_val.shape[:-1]
+    assert y_val.shape == Y_val.shape[:-1]
+
+
+@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
+def test_prepare_data_disk_unpaired_val(tmp_path, shape):
+    folders = ['train_x', 'train_y', 'val_x', 'val_y']
+    sizes = [20, 5, 10, 8]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shape)
+
+    # load data
+    with pytest.raises(FileNotFoundError):
+        prepare_data_disk(tmp_path / folders[0],
+                          tmp_path / folders[1],
+                          tmp_path / folders[2],
+                          tmp_path / folders[3]
+                          )
 
