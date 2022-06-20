@@ -105,10 +105,11 @@ def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
     return RawData(_gen, n_images, description)
 
 
-def generate_config(X, n_epochs=20, n_steps=400, batch_size=16, patch_size=64):
+def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
     from denoiseg.models import DenoiSegConfig
 
-    patch_shape = tuple([int(x) for x in np.repeat(patch_size, len(X.shape) - 2)])  # TODO: won't work for 3D
+    # assert len(X.shape)-2 == len(patch_shape)
+
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps, train_epochs=n_epochs,
                           batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
@@ -177,10 +178,14 @@ def load_pairs_from_disk(source_path, target_path, axes='CYX', check_exists=True
         _source.append(s)
         _target.append(t)
 
-    return np.array(_source), np.array(_target, dtype=np.int)
+    _s = np.array(_source)
+    _t = np.array(_target, dtype=np.int)
+    assert _s.shape == _t.shape
+
+    return _s, _t
 
 
-def build_modelzoo(path, weights, inputs, outputs, tf_version, doc='../resources/documentation.md'):
+def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc='../resources/documentation.md'):
     import os
     from bioimageio.core.build_spec import build_model
 
@@ -188,8 +193,9 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, doc='../resources
     build_model(weight_uri=weights,
                 test_inputs=[inputs],
                 test_outputs=[outputs],
-                input_axes=["byxc"],
-                output_axes=["byxc"],
+                input_axes=[axes],
+                # TODO are the axes in and out always the same? (output has 3 seg classes and 1 denoised channels)
+                output_axes=[axes],
                 output_path=path,
                 name='DenoiSeg',
                 description="Super awesome DenoiSeg model. The best.",

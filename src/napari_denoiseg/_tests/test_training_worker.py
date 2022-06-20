@@ -9,6 +9,10 @@ from napari_denoiseg.utils.training_worker import (
     get_validation_patch_shape,
     normalize_images,
     prepare_data_disk,
+    zero_sum,
+    list_diff,
+    create_train_set,
+    create_val_set,
     prepare_data_layers
 )
 from napari_denoiseg._tests.test_utils import (
@@ -138,6 +142,74 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
+                          tmp_path / folders[3])
+
+
+@pytest.mark.parametrize('shape', [(8,), (8, 16, 16, 32), (4, 8, 16, 16, 32)])
+def test_prepare_data_disk_wrong_dims(tmp_path, shape):
+    folders = ['train_x', 'train_y', 'val_x', 'val_y']
+    sizes = [20, 5, 8, 8]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shape)
+
+    # load data
+    with pytest.raises(ValueError):
+        prepare_data_disk(tmp_path / folders[0],
+                          tmp_path / folders[1],
+                          tmp_path / folders[2],
                           tmp_path / folders[3]
                           )
+
+
+@pytest.mark.parametrize('shape', [(8,), (16, 16), (16, 16, 8), (32, 16, 16, 8), (32, 16, 16, 8, 3)])
+def test_zero_sum
+
+
+
+
+
+# TODO make tests to verify that we deal with multiple dimension
+# TODO array mismatch if X!=Y, make test for that
+@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
+@pytest.mark.parametrize('perc', [0, 10, 20, 50, 60, 80, 100])
+def test_prepare_data_layers(make_napari_viewer, shape, perc):
+    sizes = [20, 10]
+    shape_X = (sizes[0],) + shape
+    shape_Y = (sizes[1],) + shape
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(np.random.random(shape_X), name='X')
+    viewer.add_labels(np.random.randint(0, 255, shape_Y, dtype=np.uint16), name='Y')
+
+    # prepare data
+    assert viewer.layers['X'].data.shape == shape_X
+    assert viewer.layers['Y'].data.shape == shape_Y
+    prepare_data_layers(viewer.layers['X'].data, viewer.layers['Y'].data, perc)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -1,4 +1,5 @@
 import os
+import pytest
 from pathlib import Path
 from tifffile import imwrite
 import numpy as np
@@ -21,11 +22,12 @@ def create_data(main_dir, folders, sizes, shape):
         save_img(source, n, shape)
 
 
-def test_create_data(tmp_path):
+@pytest.mark.parametrize('shape', [(16, 16), (8, 16, 16)])
+def test_create_data(tmp_path, shape):
     folders = ['train_X', 'train_Y', 'val_X', 'val_Y']
     sizes = [20, 8, 5, 5]
 
-    create_data(tmp_path, folders, sizes, (1, 8, 16, 16))
+    create_data(tmp_path, folders, sizes, shape)
 
     for n, f in zip(sizes, folders):
         source = tmp_path / f
@@ -38,9 +40,19 @@ def create_model(basedir, shape):
     # create model
     X = np.zeros(shape)
     name = 'myModel'
-    config = generate_config(X)
+    config = generate_config(X, patch_shape=shape[1:-1])
+
+    assert config.is_valid()
 
     return DenoiSeg(config, name, basedir)
+
+
+@pytest.mark.parametrize('shape', [(1, 8, 8, 1),
+                                   (20, 8, 16, 3),
+                                   (1, 8, 16, 16, 1),
+                                   (42, 8, 16, 32, 3)])
+def test_create_model(tmp_path, shape):
+    create_model(tmp_path, shape)
 
 
 def save_weights_h5(model, basedir):
@@ -53,8 +65,12 @@ def save_weights_h5(model, basedir):
     return path_to_weights
 
 
-def test_saved_weights_h5(tmp_path):
-    model = create_model(tmp_path, (1, 16, 16, 1))
+@pytest.mark.parametrize('shape', [(1, 8, 8, 1),
+                                   (1, 8, 16, 1),
+                                   (1, 8, 16, 16, 1),
+                                   (1, 8, 16, 32, 1)])
+def test_saved_weights_h5(tmp_path, shape):
+    model = create_model(tmp_path, shape)
     path_to_weights = save_weights_h5(model, tmp_path)
 
     assert path_to_weights.name.endswith('.h5')
@@ -88,4 +104,12 @@ def create_model_zoo_parameters(folder, shape):
     # tf version
     tf_version = 42
 
-    return path_to_modelzoo, path_to_h5, path_to_input, path_to_output, tf_version, path_to_doc
+    # axes
+    if len(shape) == 4:
+        axes = 'byxc'
+    elif len(shape) == 5:
+        axes = 'bzyxc'
+    else:
+        axes = ''
+
+    return path_to_modelzoo, path_to_h5, path_to_input, path_to_output, tf_version, axes, path_to_doc

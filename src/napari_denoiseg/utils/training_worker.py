@@ -4,6 +4,8 @@ import numpy as np
 from tensorflow.keras.callbacks import Callback
 
 from napari.qt.threading import thread_worker
+from denoiseg.utils.misc_utils import augment_data
+from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import State, UpdateType
 
 
@@ -132,6 +134,52 @@ def prepare_data_disk(train_source, train_target, val_source, val_target):
     return X, Y, X_val, Y_val, x_val, y_val
 
 
+def zero_sum(im):
+    """
+    Detect empty slices.
+    :param im: Image stack
+    :return:
+    """
+    im_reshaped = im.reshape(im.shape[0], -1)
+
+    return np.where(np.sum(im_reshaped != 0, axis=1) != 0)[0]
+
+
+def list_diff(l1, l2):
+    """
+    Return the difference of two lists.
+    :param l1:
+    :param l2:
+    :return: list of elements in l1 that are not in l2.
+    """
+    return list(set(l1) - set(l2))
+
+
+def create_train_set(x, y, ind_exclude):
+    """
+
+    :param x:
+    :param y:
+    :param ind_exclude:
+    :return:
+    """
+    masks = np.zeros(x.shape)
+    masks[0:y.shape[0], 0:y.shape[1], 0:y.shape[2]] = y  # there's probably a more elegant way
+
+    return augment_data(np.delete(x, ind_exclude, axis=0), np.delete(masks, ind_exclude, axis=0))
+
+
+def create_val_set(x, y, ind_include):
+    """
+
+    :param x:
+    :param y:
+    :param ind_include:
+    :return:
+    """
+    return np.take(x, ind_include, axis=0), np.take(y, ind_include, axis=0)
+
+
 def prepare_data_layers(raw, gt, perc_labels):
     """
 
@@ -140,36 +188,6 @@ def prepare_data_layers(raw, gt, perc_labels):
     :param perc_labels:
     :return:
     """
-    from denoiseg.utils.misc_utils import augment_data
-    from denoiseg.utils.seg_utils import convert_to_oneHot
-
-    def zero_sum(im):
-        """
-        Detect empty slices.
-        :param im: Image stack
-        :return:
-        """
-        im_reshaped = im.reshape(im.shape[0], -1)
-
-        return np.where(np.sum(im_reshaped != 0, axis=1) != 0)[0]
-
-    def list_diff(l1, l2):
-        """
-        Return the difference of two lists.
-        :param l1:
-        :param l2:
-        :return: list of elements in l1 that are not in l2.
-        """
-        return list(set(l1) - set(l2))
-
-    def create_train_set(x, y, ind_exclude):
-        masks = np.zeros(x.shape)
-        masks[0:y.shape[0], 0:y.shape[1], 0:y.shape[2]] = y  # there's probably a more elegant way
-
-        return augment_data(np.delete(x, ind_exclude, axis=0), np.delete(masks, ind_exclude, axis=0))
-
-    def create_val_set(x, y, ind_include):
-        return np.take(x, ind_include, axis=0), np.take(y, ind_include, axis=0)
 
     # get indices of labeled frames
     dec_perc_labels = 0.01 * perc_labels
