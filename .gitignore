@@ -86,3 +86,10 @@ venv/
 # denoiseg
 src/napari_denoiseg/data
 src/napari_denoiseg/models
+
+# modelzoo files
+*.zip
+*.png
+*.npy
+*.h5
+src/napari_denoiseg/_tests/*.md
