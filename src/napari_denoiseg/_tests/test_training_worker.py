@@ -45,10 +45,19 @@ def test_sanity_check_low_validation_fraction(fraction):
 
 
 @pytest.mark.parametrize('shape, axes', [((1, 16, 16, 1), 'SXY'),
+                                         ((8, 16, 16, 3), 'SXY'),
                                          ((1, 32, 64, 1), 'SXY'),
                                          ((1, 16, 16, 16, 1), 'SZXY'),
+                                         ((8, 16, 16, 16, 3), 'SZXY'),
                                          ((1, 32, 128, 64, 1), 'SZXY')])
 def test_sanity_check_training_size(tmp_path, shape, axes):
+    """
+    Test sanity check using acceptable shapes (axes XYZ must be divisible by 16).
+    :param tmp_path:
+    :param shape:
+    :param axes:
+    :return:
+    """
     model = create_model(tmp_path, shape)
 
     # run sanity check on training size
@@ -60,7 +69,14 @@ def test_sanity_check_training_size(tmp_path, shape, axes):
                                          ((1, 18, 64, 1), 'SXYC'),
                                          ((1, 16, 16, 8, 1), 'SZXYC'),
                                          ((1, 66, 128, 64, 1), 'SZXYC')])
-def test_sanity_check_training_size(tmp_path, shape, axes):
+def test_sanity_check_training_size_error(tmp_path, shape, axes):
+    """
+    Test sanity check using disallowed shapes (axes XYZ must be divisible by 16).
+    :param tmp_path:
+    :param shape:
+    :param axes:
+    :return:
+    """
     model = create_model(tmp_path, shape)
 
     # run sanity check on training size
@@ -71,13 +87,22 @@ def test_sanity_check_training_size(tmp_path, shape, axes):
 @pytest.mark.parametrize('shape_in, shape_out, axes', [((32, 8, 16, 1), (8, 16), 'SXYC'),
                                                        ((64, 8, 16, 32, 1), (16, 32, 8), 'SZXYC')])
 def test_get_validation_patch_shape(shape_in, shape_out, axes):
+    """
+    Test that the validation patch shape returned corresponds to the dimensions ZXY (in order).
+    :param shape_in:
+    :param shape_out:
+    :param axes:
+    :return:
+    """
     X_val = np.zeros(shape_in)
 
     assert get_validation_patch_shape(X_val, axes) == shape_out
 
 
-@pytest.mark.parametrize('shape_train, shape_val', [((100000, 4, 4, 1), (100000, 4, 4, 1))])
-def test_normalize_images(tmp_path, shape_train, shape_val):
+@pytest.mark.parametrize('shape_train, shape_val, shape_patch',
+                         [((100000, 4, 4, 1), (100000, 4, 4, 1), (16, 16)),
+                          ((100000, 4, 4, 4, 1), (100000, 4, 4, 4, 1), (16, 16, 16))])
+def test_normalize_images(tmp_path, shape_train, shape_val, shape_patch):
     # create data
     np.random.seed(42)
     X_train = np.random.normal(10, 5, shape_train)
@@ -85,7 +110,7 @@ def test_normalize_images(tmp_path, shape_train, shape_val):
 
     # create model
     name = 'myModel'
-    config = generate_config(X_train)
+    config = generate_config(X_train, shape_patch)
     model = DenoiSeg(config, name, tmp_path)
 
     # normalize data
@@ -96,7 +121,7 @@ def test_normalize_images(tmp_path, shape_train, shape_val):
     assert (np.abs(np.std(X_val_norm, axis=0) - 1) < 0.01).all()
 
 
-@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
+@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8), (8, 8, 16, 32)])
 def test_prepare_data_disk(tmp_path, shape):
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 8, 8]
@@ -108,29 +133,67 @@ def test_prepare_data_disk(tmp_path, shape):
     X, Y, X_val, Y_val, x_val, y_val = prepare_data_disk(tmp_path / folders[0],
                                                          tmp_path / folders[1],
                                                          tmp_path / folders[2],
-                                                         tmp_path / folders[3]
-                                                         )
+                                                         tmp_path / folders[3])
 
     assert X.shape[0] == sizes[0]*8  # augmentation
-    assert X.shape[1:-1] == shape
-    assert X.shape[-1] == 1
+    if len(shape) == 4:  # XYZC, then becomes SXYZC
+        assert X.shape[1:] == shape
+    else:
+        assert X.shape[1:-1] == shape
+        assert X.shape[-1] == 1
+
     assert Y.shape[0] == sizes[0]*8  # empty frames are added when there is no Y
     assert Y.shape[1:-1] == shape
     assert Y.shape[-1] == 3  # one hot-encoding, 3 classes
 
     assert X_val.shape[0] == sizes[2]  # no augmentation
-    assert X_val.shape[1:-1] == shape
-    assert X_val.shape[-1] == 1
+    if len(shape) == 4:  # XYZC, then becomes SXYZC
+        assert X_val.shape[1:] == shape
+    else:
+        assert X.shape[1:-1] == shape
+        assert X.shape[-1] == 1
+
     assert Y_val.shape[0] == sizes[3]
     assert Y_val.shape[1:-1] == shape
     assert Y_val.shape[-1] == 3  # one hot-encoding, 3 classes
 
-    assert x_val.shape == X_val.shape[:-1]
+    if len(shape) == 4:  # XYZC, then becomes SXYZC
+        assert x_val.shape == X_val.shape
+    else:
+        assert x_val.shape == X_val.shape[:-1]
     assert y_val.shape == Y_val.shape[:-1]
 
 
-@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
+@pytest.mark.parametrize('shape', [(16, 8), (32, 16, 16), (32, 16, 16, 8)])
+def test_prepare_data_disk_error(tmp_path, shape):
+    """
+    Test that an error is raised if XY dims are different.
+    :param tmp_path:
+    :param shape:
+    :return:
+    """
+    folders = ['train_x', 'train_y', 'val_x', 'val_y']
+    sizes = [20, 5, 8, 8]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shape)
+
+    # load data
+    with pytest.raises(ValueError):
+        prepare_data_disk(tmp_path / folders[0],
+                          tmp_path / folders[1],
+                          tmp_path / folders[2],
+                          tmp_path / folders[3])
+
+
+@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8), (16, 16, 8, 3)])
 def test_prepare_data_disk_unpaired_val(tmp_path, shape):
+    """
+    Test that an error is raised when the number of validation image and labels don't match.
+    :param tmp_path:
+    :param shape:
+    :return:
+    """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 10, 8]
 
@@ -145,8 +208,14 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape):
                           tmp_path / folders[3])
 
 
-@pytest.mark.parametrize('shape', [(8,), (8, 16, 16, 32), (4, 8, 16, 16, 32)])
+@pytest.mark.parametrize('shape', [(8,), (8, 8, 16, 16, 32)])
 def test_prepare_data_disk_wrong_dims(tmp_path, shape):
+    """
+    Test that
+    :param tmp_path:
+    :param shape:
+    :return:
+    """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 8, 8]
 
@@ -158,15 +227,12 @@ def test_prepare_data_disk_wrong_dims(tmp_path, shape):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
-                          tmp_path / folders[3]
-                          )
+                          tmp_path / folders[3])
 
 
 @pytest.mark.parametrize('shape', [(8,), (16, 16), (16, 16, 8), (32, 16, 16, 8), (32, 16, 16, 8, 3)])
-def test_zero_sum
-
-
-
+def test_zero_sum(shape):
+    pass
 
 
 # TODO make tests to verify that we deal with multiple dimension

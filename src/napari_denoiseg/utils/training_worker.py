@@ -110,25 +110,70 @@ def load_images(widget):
     return X_t, Y_t, X_v, Y_v, validation_x, validation_y
 
 
-def prepare_data_disk(train_source, train_target, val_source, val_target):
+def prepare_data_disk(train_images, train_labels, val_images, val_labels):
+    """
+    Load pairs of training and validation images (*.tif) from the disk.
+
+    Training pairs are loaded by replacing missing labels by empty images, while the validation labels corresponding to
+    validation images must exist on the disk.
+
+    Accepted image dimensionalities are XY, XYZ and XYZC, where C stands for channel. Different time points must be
+    saved as independent files.
+
+    :param train_images: Path to the folder containing the training images.
+    :param train_labels: Path to the folder containing the training labels.
+    :param val_images: Path to the folder containing the validation images.
+    :param val_labels: Path to the folder containing the validation labels.
+    :return: np.array, np.array, np.array, np.array, np.array, np.array
+    """
     from denoiseg.utils.misc_utils import augment_data
     from denoiseg.utils.seg_utils import convert_to_oneHot
     from napari_denoiseg.utils import load_pairs_from_disk
 
     # load train data
-    _x_train, _y_train = load_pairs_from_disk(train_source, train_target, check_exists=False)
+    _x_train, _y_train = load_pairs_from_disk(train_images, train_labels, check_exists=False)
 
-    # apply augmentation
+    # TODO: load_pairs will load pairs of data for all dimensions. here we need to make a decision
+    # arbitrary decision on the axis order:
+    # len() == 2: XY
+    # len() == 3: SXY
+    # len() == 4: SXYZ
+    # len() == 5: SXYZC
+    if len(_x_train.shape) == 2:  # XY
+        _x_train = _x_train[np.newaxis, ...]  # add S dimension
+        _y_train = _y_train[np.newaxis, ...]  # add S dimension
+    elif 2 < len(_x_train.shape) < 6:  # SXY, SXYZ, SXYZC
+        pass  # do nothing
+    else:
+        raise ValueError('Wrong training set dimensions, accepted dimensions are XY, XYZ, XYZC.')
+
+    # apply augmentation, first two dimensions must be equal (dim(X) == dim(Y))
     x_train, y_train = augment_data(_x_train, _x_train)
 
-    # load val data
-    x_val, y_val = load_pairs_from_disk(val_source, val_target)  # val sets without one-hot encoding
-
     # add channel dim and one-hot encoding
-    X = x_train[..., np.newaxis]
+    if len(_x_train.shape) < 5:
+        X = x_train[..., np.newaxis]
+    else:  # already has channel dimension
+        X = x_train
     Y = convert_to_oneHot(y_train)
 
-    X_val = x_val[..., np.newaxis]
+    #######################################################
+    # load val data
+    x_val, y_val = load_pairs_from_disk(val_images, val_labels)  # val sets without one-hot encoding
+
+    if len(x_val.shape) == 2:  # XY
+        x_val = x_val[np.newaxis, ...]  # add S dimension
+        y_val = y_val[np.newaxis, ...]  # add S dimension
+    elif 2 < len(x_val.shape) < 6:  # SXY, SXYZ, SXYZC
+        pass  # do nothing
+    else:
+        raise ValueError('Wrong validation set dimensions, accepted dimensions are XY, XYZ, XYZC.')
+
+    # add channel dim and one-hot encoding
+    if len(x_val.shape) < 5:
+        X_val = x_val[..., np.newaxis]
+    else:  # already has channel dimension
+        X_val = x_val
     Y_val = convert_to_oneHot(y_val)
 
     return X, Y, X_val, Y_val, x_val, y_val

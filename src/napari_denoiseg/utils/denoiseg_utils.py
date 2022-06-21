@@ -34,7 +34,7 @@ class UpdateType(Enum):
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
-def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
+def from_folder(source_dir, target_dir, check_exists=True):
     """
     Builds a generator for pairs of source and target images with same names. `check_exists` = `False` allows inserting
     empty images when the corresponding target is not found.
@@ -43,7 +43,6 @@ def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
 
     :param source_dir: Absolute path to folder containing source images
     :param target_dir: Absolute path to folder containing target images, with same names than in `source_folder`
-    :param axes: Semantics of axes of loaded images (assumed to be the same for all images).
     :param check_exists: If `True`, raises an exception if a target is missing, target is set to `None` if `check_exist`
                         is `False`.
     :return:`RawData` object, whose `generator` is used to yield all matching TIFF pairs.
@@ -82,6 +81,18 @@ def from_folder(source_dir, target_dir, axes='CZYX', check_exists=True):
         consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))
 
     # sanity check on the axes
+    # TODO: is it at all useful?
+    _x = imread(str(pairs[0][0]))
+    if len(_x.shape) == 2:
+        axes = 'XY'
+    elif len(_x.shape) == 3:
+        axes = 'XYZ'
+    elif len(_x.shape) == 4:
+        axes = 'XYZC'
+    elif len(_x.shape) == 5:
+        axes = 'XYZTC'
+    else:
+        axes = ''
     axes = axes_check_and_normalize(axes)
 
     # generate description
@@ -159,17 +170,16 @@ def load_from_disk(path):
     return np.array(images) if dims_agree else images
 
 
-def load_pairs_from_disk(source_path, target_path, axes='CYX', check_exists=True):
+def load_pairs_from_disk(source_path, target_path, check_exists=True):
     """
 
     :param source_path:
     :param target_path:
-    :param axes:
     :param check_exists:
     :return:
     """
     # create RawData generator
-    pairs = from_folder(source_path, target_path, axes, check_exists)
+    pairs = from_folder(source_path, target_path, check_exists)
 
     # load data
     _source = []
@@ -177,6 +187,8 @@ def load_pairs_from_disk(source_path, target_path, axes='CYX', check_exists=True
     for s, t, _, _ in pairs.generator():
         _source.append(s)
         _target.append(t)
+
+    # TODO: if single file, make singleton dimension for S
 
     _s = np.array(_source)
     _t = np.array(_target, dtype=np.int)

@@ -92,6 +92,16 @@ def test_from_folder_equal_sizes(tmp_path):
     assert n_empty == sizes[0] - sizes[1]
 
 
+@pytest.mark.parametrize('shape', [(8,), (16, 8), (8, 16, 16), (32, 8, 16, 3), (32, 8, 64, 16, 3), (32, 16, 8, 64, 16, 3)])
+def test_from_folder_dimensions(tmp_path, shape):
+    folders = ['val_X', 'val_Y']
+    sizes = [5, 5]
+
+    create_data(tmp_path, folders, sizes, (3, 16, 16))
+
+    from_folder(tmp_path / folders[0], tmp_path / folders[1])
+
+
 ###################################################################
 # test generate_config
 @pytest.mark.parametrize('shape', [(8, 16, 16), (1, 1, 8, 16, 16, 1)])
@@ -291,7 +301,7 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2):
 
 ###################################################################
 # test load_pairs_from_disk
-@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8)])
+@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8), (16, 8, 32, 3), (16, 8, 16, 32, 3)])
 def test_load_pairs_from_disk_same_shape(tmp_path, shape):
     n = 10
     folders = ['X', 'Y']
@@ -305,7 +315,7 @@ def test_load_pairs_from_disk_same_shape(tmp_path, shape):
     X, Y = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1])
 
 
-@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8)])
+@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8), (16, 8, 32, 3), (16, 8, 16, 32, 3)])
 def test_load_pairs_from_disk_different_numbers(tmp_path, shape):
     n = [15, 5]
     folders = ['X', 'Y']
