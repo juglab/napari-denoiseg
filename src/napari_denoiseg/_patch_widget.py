@@ -16,7 +16,7 @@ def patch_creation(img_layer: "napari.layers.Image", patch_size: int = 16, activ
     viewer = napari.current_viewer()
     selection_layer = viewer.layers["2dselection"]
     shapes = selection_layer.data
-    patches = [slice_img_patch(x, ndim=len(patch_creation.img_layer.value.data.shape)) for x in shapes]
+    patches = [slice_img_patch(patch_creation.img_layer.value.data, x, ndim=len(patch_creation.img_layer.value.data.shape)) for x in shapes]
     from PIL import Image
     for idx, patch in enumerate(patches):
         im = Image.fromarray(patch)
@@ -46,22 +46,25 @@ def create_patch(layer, event):
     if event.type == "mouse_press" and event.button == 1:
         viewer = napari.current_viewer()
         cords = np.round(layer.world_to_data(viewer.cursor.position)).astype(int)
-        upper_left = cords - (patch_creation.patch_size.value / 2)
-        upper_right = copy(upper_left)
-        upper_right[0] += patch_creation.patch_size.value
-        lower_right = cords + (patch_creation.patch_size.value / 2)
-        lower_left = copy(lower_right)
-        lower_left[0] -= patch_creation.patch_size.value
-        rectangle = np.array([upper_left, upper_right, lower_right, lower_left])
-
-        rectangle = sanitize_rectangle(rectangle, patch_creation.img_layer.value.data.shape,
-                                       patch_creation.patch_size.value-1)
-        if len(patch_creation.img_layer.value.data.shape) == 3:
-            current_slice = int(viewer.cursor.position[0])
-            rectangle = np.insert(rectangle, 0, current_slice, axis=1)
-
+        rectangle = create_rectangle(cords, patch_creation.patch_size.value, patch_creation.img_layer.value.data.shape, viewer.cursor.position)
         selection_layer = viewer.layers["2dselection"]
         selection_layer.add_rectangles(rectangle, edge_width=1, edge_color="cyan", face_color='transparent')
+
+
+def create_rectangle(cords, patch_size, img_layer_shape, cursor_pos):
+    upper_left = cords - (patch_size / 2)
+    upper_right = copy(upper_left)
+    upper_right[0] += patch_size
+    lower_right = cords + (patch_size / 2)
+    lower_left = copy(lower_right)
+    lower_left[0] -= patch_size
+    rectangle = np.array([upper_left, upper_right, lower_right, lower_left])
+    rectangle = sanitize_rectangle(rectangle, img_layer_shape,
+                                   patch_size - 1)
+    if len(img_layer_shape) == 3:
+        current_slice = int(cursor_pos[0])
+        rectangle = np.insert(rectangle, 0, current_slice, axis=1)
+    return rectangle
 
 
 def draw_square(layer, event):
@@ -103,29 +106,17 @@ def sanitize_vertex(vertex, low_a, high_a, low_b, high_b):
     return vertex
 
 
-# Creates an img layer instead of an img
-def create_img_layer(rectangle):
-    viewer = napari.current_viewer()
-    ixgrid = np.ix_(np.arange(rectangle[0][0], rectangle[1][0], dtype=int),
-                    np.arange(rectangle[0][1], rectangle[1][1], dtype=int))
-    current_slice = int(viewer.cursor.position[0])
-    ixgrid = (current_slice,) + ixgrid
-    img = patch_creation.img_layer.value.data[ixgrid]
-    viewer.add_image(img, name="selection")
-    viewer.layers.selection.select_only(viewer.layers["highlight"])
-
-
-def slice_img_patch(rectangle, ndim: int):
+def slice_img_patch(data, rectangle, ndim: int):
     if ndim == 3:
         ixgrid = np.ix_(np.arange(rectangle[0][1], rectangle[1][1], dtype=int),
                         np.arange(rectangle[0][2], rectangle[2][2], dtype=int))
         ixgrid = (int(rectangle[0][0]),) + ixgrid
-        img = patch_creation.img_layer.value.data[ixgrid]
+        img = data[ixgrid]
         return img
     if ndim == 2:
         ixgrid = np.ix_(np.arange(rectangle[0][0], rectangle[1][0], dtype=int),
                         np.arange(rectangle[0][1], rectangle[2][1], dtype=int))
-        img = patch_creation.img_layer.value.data[ixgrid]
+        img = data[ixgrid]
         return img
 
 
