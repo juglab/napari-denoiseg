@@ -81,7 +81,7 @@ def from_folder(source_dir, target_dir, check_exists=True):
         consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))
 
     # sanity check on the axes
-    # TODO: is it at all useful?
+    # TODO remove this
     _x = imread(str(pairs[0][0]))
     if len(_x.shape) == 2:
         axes = 'XY'
@@ -188,13 +188,11 @@ def load_pairs_from_disk(source_path, target_path, check_exists=True):
         _source.append(s)
         _target.append(t)
 
-    # TODO: if single file, make singleton dimension for S
-
     _s = np.array(_source)
     _t = np.array(_target, dtype=np.int)
     assert _s.shape == _t.shape
 
-    return _s, _t
+    return _s, _t, pairs.size
 
 
 def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc='../resources/documentation.md'):

@@ -4,7 +4,6 @@ import numpy as np
 from tensorflow.keras.callbacks import Callback
 
 from napari.qt.threading import thread_worker
-from denoiseg.utils.misc_utils import augment_data
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import State, UpdateType
 
@@ -42,7 +41,7 @@ def training_worker(widget, pretrained_model=None):
     from napari_denoiseg.utils import UpdateType, generate_config
 
     # get images and labels
-    X_t, Y_t, X_v, Y_v, validation_x, validation_y = load_images(widget)
+    X_t, Y_t, X_v, Y_v, validation_x, validation_y, widget.new_axes = load_images(widget)
 
     # create DenoiSeg configuration
     n_epochs = widget.n_epochs
@@ -85,10 +84,18 @@ def training_worker(widget, pretrained_model=None):
     widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
     widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
     np.save(widget.inputs, validation_x[np.newaxis, 0, ..., np.newaxis])
-    np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis], axes='SYXC'))
+    np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis],
+                                                 axes=widget.new_axes))
 
 
 def load_images(widget):
+    """
+
+    :param widget:
+    :return:
+    """
+    # TODO make clearer what objects are returned
+
     # get images and labels
     if widget.load_from_disk:  # from local folders
         path_train_X = widget.train_images_folder.get_folder()
@@ -96,87 +103,150 @@ def load_images(widget):
         path_val_X = widget.val_images_folder.get_folder()
         path_val_Y = widget.val_labels_folder.get_folder()
 
-        X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data_disk(path_train_X,
-                                                                           path_train_Y,
-                                                                           path_val_X,
-                                                                           path_val_Y)
+        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, widget.axes)
+
     else:  # from layers
         image_data = widget.images.value.data
         label_data = widget.labels.value.data
 
         # split train and val
         perc_labels = widget.perc_train_slider.slider.get_value()
-        X_t, Y_t, X_v, Y_v, validation_x, validation_y = prepare_data_layers(image_data, label_data, perc_labels)
-    return X_t, Y_t, X_v, Y_v, validation_x, validation_y
+
+        return prepare_data_layers(image_data, label_data, perc_labels, widget.axes)
 
 
-def prepare_data_disk(train_images, train_labels, val_images, val_labels):
+def augment_data(array, axes: str):
     """
-    Load pairs of training and validation images (*.tif) from the disk.
+    Augments the data 8-fold by 90 degree rotations and flipping.
 
-    Training pairs are loaded by replacing missing labels by empty images, while the validation labels corresponding to
-    validation images must exist on the disk.
-
-    Accepted image dimensionalities are XY, XYZ and XYZC, where C stands for channel. Different time points must be
-    saved as independent files.
-
-    :param train_images: Path to the folder containing the training images.
-    :param train_labels: Path to the folder containing the training labels.
-    :param val_images: Path to the folder containing the validation images.
-    :param val_labels: Path to the folder containing the validation labels.
-    :return: np.array, np.array, np.array, np.array, np.array, np.array
+    Takes a dimension S.
     """
-    from denoiseg.utils.misc_utils import augment_data
+    # Adapted from DenoiSeg, in order to work with the following order `SZYXC`
+    ind_x = axes.find('X')
+    ind_y = axes.find('Y')
+
+    # rotations
+    _x = array.copy()
+    X_rot = [np.rot90(_x, i, (ind_y, ind_x)) for i in range(4)]
+    X_rot = np.concatenate(X_rot, axis=0)
+
+    # flip
+    X_flip = np.flip(X_rot, axis=ind_y)
+
+    return np.concatenate([X_rot, X_flip], axis=0)
+
+
+def reshape_data(x, y, axes: str):
+    """
+    Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
+    points are considered independent and stacked along the S dimension.
+
+    :param x: Raw data.
+    :param y: Ground-truth data.
+    :param axes: Current axes order
+    :return: Reshaped x, reshaped y, new axes order
+    """
+    # TODO: the C dimension will probably break down
+    # TODO: add S axis
+    ref_axes = 'TSZYXC'
+
+    # sanity checks
+    assert 'X' in axes and 'Y' in axes
+    assert len(axes) == len(x.shape) == len(y.shape)
+    assert len(list_diff(list(axes), list(ref_axes))) == 0
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in axes:
+        _axes = 'S' + axes
+        _x = x[np.newaxis, ...]
+        _y = y[np.newaxis, ...]
+    else:
+        _axes = axes
+        _x = x
+        _y = y
+
+    # build indices look-up table: indices of each axe in `axes`
+    indices = [_axes.find(k) for k in ref_axes]
+
+    # remove all non-existing axes (index == -1)
+    indices = tuple(filter(lambda k: k != -1, indices))
+    new_axes = [_axes[ind] for ind in indices]
+    new_x_shape = tuple([_x.shape[ind] for ind in indices])
+    new_y_shape = tuple([_y.shape[ind] for ind in indices])
+
+    # remove T if necessary
+    if 'T' in _axes:
+        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
+        new_y_shape = (-1,) + new_y_shape[2:]  # remove T and S
+        new_axes.pop(0)
+
+    # reshape
+    _x = _x.reshape(new_x_shape)
+    _y = _x.reshape(new_y_shape)
+
+    return _x, _y, ''.join(new_axes)
+
+
+def load_data_from_disk(source, target, axes, augmentation=False, check_exists=True):
+    """
+    Load pairs of raw and label images (*.tif) from the disk.
+
+    Accepted dimensions are 'SZYXC'. Different time points will be considered independent and added to the S dimension.
+
+    The `check_exist` parameter allow replacing non-existent label images by empty images if it is set to `False`.
+
+    `augmentation` yields an 8-fold augmentation for both source and target.
+
+    This method returns a tuple (X, Y, X_val, Y_val, x_val, y_val, new_axes), where:
+    X: raw images with dimension SYXC or SZYXC, with S(ample) and C(channel) (channel can be singleton dimension)
+    Y: label images with dimension SYXC or SZYXC, with dimension C of length 3 (one-hot encoding)
+    x: raw images without singleton C(hannel) dimension (if applicable)
+    y: labels without one-hot encoding
+    new_axes: new axes order
+
+    :param source: Path to the folder containing the training images.
+    :param target: Path to the folder containing the training labels.
+    :param axes: Axes order
+    :param augmentation: Augment data 8-fold if True
+    :param check_exists: Check if source images have a target if True. Else it will load an empty image instead.
+    :return:
+    """
     from denoiseg.utils.seg_utils import convert_to_oneHot
     from napari_denoiseg.utils import load_pairs_from_disk
 
     # load train data
-    _x_train, _y_train = load_pairs_from_disk(train_images, train_labels, check_exists=False)
+    _x, _y, n = load_pairs_from_disk(source, target, check_exists=check_exists)
 
-    # TODO: load_pairs will load pairs of data for all dimensions. here we need to make a decision
-    # arbitrary decision on the axis order:
-    # len() == 2: XY
-    # len() == 3: SXY
-    # len() == 4: SXYZ
-    # len() == 5: SXYZC
-    if len(_x_train.shape) == 2:  # XY
-        _x_train = _x_train[np.newaxis, ...]  # add S dimension
-        _y_train = _y_train[np.newaxis, ...]  # add S dimension
-    elif 2 < len(_x_train.shape) < 6:  # SXY, SXYZ, SXYZC
-        pass  # do nothing
+    # reshape data
+    if n > 1:  # if multiple sample
+        _axes = 'S' + axes
     else:
-        raise ValueError('Wrong training set dimensions, accepted dimensions are XY, XYZ, XYZC.')
+        _axes = axes
+    _x, _y, new_axes = reshape_data(_x, _y, _axes)
 
-    # apply augmentation, first two dimensions must be equal (dim(X) == dim(Y))
-    x_train, y_train = augment_data(_x_train, _x_train)
+    # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
+    if augmentation:
+        _x = augment_data(_x, new_axes)
+        _y = augment_data(_y, new_axes)
+        print('Raw image size after augmentation', _x.shape)
+        print('Mask size after augmentation', _y.shape)
 
     # add channel dim and one-hot encoding
-    if len(_x_train.shape) < 5:
-        X = x_train[..., np.newaxis]
+    # TODO how to deal with the C dimension for the target Y is not clear
+    if 'C' not in new_axes:
+        X = _x[..., np.newaxis]
     else:  # already has channel dimension
-        X = x_train
-    Y = convert_to_oneHot(y_train)
+        X = _x
+    Y = convert_to_oneHot(_y)
 
-    #######################################################
-    # load val data
-    x_val, y_val = load_pairs_from_disk(val_images, val_labels)  # val sets without one-hot encoding
+    return X, Y, _x, _y, new_axes
 
-    if len(x_val.shape) == 2:  # XY
-        x_val = x_val[np.newaxis, ...]  # add S dimension
-        y_val = y_val[np.newaxis, ...]  # add S dimension
-    elif 2 < len(x_val.shape) < 6:  # SXY, SXYZ, SXYZC
-        pass  # do nothing
-    else:
-        raise ValueError('Wrong validation set dimensions, accepted dimensions are XY, XYZ, XYZC.')
 
-    # add channel dim and one-hot encoding
-    if len(x_val.shape) < 5:
-        X_val = x_val[..., np.newaxis]
-    else:  # already has channel dimension
-        X_val = x_val
-    Y_val = convert_to_oneHot(y_val)
+def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes):
+    (X, Y, _, _, new_axes) = load_data_from_disk(path_train_X, path_train_Y, axes, True, False)
+    (X_val, Y_val, x_val, y_val, _) = load_data_from_disk(path_val_X, path_val_Y, axes)
 
-    return X, Y, X_val, Y_val, x_val, y_val
+    return X, Y, X_val, Y_val, x_val, y_val, new_axes
 
 
 def zero_sum(im):
@@ -225,19 +295,24 @@ def create_val_set(x, y, ind_include):
     return np.take(x, ind_include, axis=0), np.take(y, ind_include, axis=0)
 
 
-def prepare_data_layers(raw, gt, perc_labels):
+def prepare_data_layers(raw, gt, perc_labels, axes):
     """
 
     :param raw:
     :param gt:
     :param perc_labels:
+    :param axes
     :return:
     """
+    assert raw.shape == gt.shape, 'Images and labels must have the same shape.'
+
+    # reshape data
+    _x, _y, new_axes = reshape_data(raw, gt, axes)
 
     # get indices of labeled frames
     dec_perc_labels = 0.01 * perc_labels
-    n_labels = int(0.5 + dec_perc_labels * gt.data.shape[0])
-    ind = zero_sum(gt)
+    n_labels = int(0.5 + dec_perc_labels * _y.data.shape[0])
+    ind = zero_sum(_y)
     assert n_labels < len(ind)
 
     # split labeled frames between train and val sets
@@ -246,8 +321,8 @@ def prepare_data_layers(raw, gt, perc_labels):
     assert len(ind_train) + len(ind_val) == len(ind)
 
     # create train and val sets
-    x_train, y_train = create_train_set(raw, gt, ind_val)
-    x_val, y_val = create_val_set(raw, gt, ind_val)  # val sets without one-hot encoding
+    x_train, y_train = create_train_set(_x, _y, ind_val)
+    x_val, y_val = create_val_set(_x, _y, ind_val)  # val sets without one-hot encoding
 
     # add channel dim and one-hot encoding
     X = x_train[..., np.newaxis]
@@ -255,7 +330,7 @@ def prepare_data_layers(raw, gt, perc_labels):
     X_val = x_val[..., np.newaxis]
     Y_val = convert_to_oneHot(y_val)
 
-    return X, Y, X_val, Y_val, x_val, y_val
+    return X, Y, X_val, Y_val, x_val, y_val, new_axes
 
 
 def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):

@@ -1,6 +1,8 @@
 import os
 import pytest
 from pathlib import Path
+
+import tifffile
 from tifffile import imwrite
 import numpy as np
 from denoiseg.models import DenoiSeg
@@ -9,10 +11,15 @@ from napari_denoiseg.utils import generate_config
 
 ###################################################################
 # convenience functions: save images
-def save_img(folder_path, n, shape, prefix=''):
+def save_img(folder_path, n, shape, prefix='', axes=None):
     for i in range(n):
         im = np.random.randint(0, 65535, shape, dtype=np.uint16)
-        imwrite(os.path.join(folder_path, prefix + str(i) + '.tif'), im)
+
+        if axes is None:
+            imwrite(os.path.join(folder_path, prefix + str(i) + '.tif'), im)
+        else:
+            assert len(axes) == len(shape)
+            imwrite(os.path.join(folder_path, prefix + str(i) + '.tif'), im, metadata={'axes': axes})
 
 
 def create_data(main_dir, folders, sizes, shape):

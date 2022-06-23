@@ -8,7 +8,10 @@ from napari_denoiseg.utils.training_worker import (
     sanity_check_training_size,
     get_validation_patch_shape,
     normalize_images,
+    reshape_data,
+    augment_data,
     prepare_data_disk,
+    load_data_from_disk,
     zero_sum,
     list_diff,
     create_train_set,
@@ -121,47 +124,122 @@ def test_normalize_images(tmp_path, shape_train, shape_val, shape_patch):
     assert (np.abs(np.std(X_val_norm, axis=0) - 1) < 0.01).all()
 
 
-@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8), (8, 8, 16, 32)])
-def test_prepare_data_disk(tmp_path, shape):
-    folders = ['train_x', 'train_y', 'val_x', 'val_y']
-    sizes = [20, 5, 8, 8]
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 8), 'YX', (1, 16, 8), 'SYX'),
+                          ((16, 8), 'XY', (1, 8, 16), 'SYX'),
+                          ((16, 3, 8), 'XZY', (1, 3, 8, 16), 'SZYX'),
+                          ((16, 3, 12), 'SXY', (16, 12, 3), 'SYX'),
+                          ((5, 5, 1), 'XYZ', (1, 1, 5, 5), 'SZYX'),
+                          ((16, 3, 12, 8), 'XCYS', (8, 12, 16, 3), 'SYXC'),
+                          ((16, 3, 12, 8), 'ZXCY', (1, 16, 8, 3, 12), 'SZYXC'),
+                          ((16, 3, 12, 8), 'XCYZ', (1, 8, 12, 16, 3), 'SZYXC'),
+                          ((16, 3, 12, 8), 'ZYXC', (1, 16, 3, 12, 8), 'SZYXC'),
+                          ((16, 3, 21, 12, 8), 'ZYSXC', (21, 16, 3, 12, 8), 'SZYXC'),
+                          ((16, 3, 21, 12, 8), 'SZYXC', (16, 3, 21, 12, 8), 'SZYXC'),
+                          ((16, 3, 8), 'YXT', (8, 16, 3), 'SYX'),
+                          ((16, 3, 8), 'XTY', (3, 8, 16), 'SYX'),
+                          ((16, 3, 8, 5, 12), 'STZYX', (16 * 3, 8, 5, 12), 'SZYX'),
+                          ((16, 3, 8, 5, 12, 6), 'XCSYTZ', (12 * 8, 6, 5, 16, 3), 'SZYXC')])
+def test_reshape_data(shape, axes, final_shape, final_axes):
+    x = np.zeros(shape)
+    y = np.zeros(shape)
+
+    _x, _y, new_axes = reshape_data(x, y, axes)
+
+    assert _x.shape == final_shape
+    assert _y.shape == final_shape
+    assert new_axes == final_axes
+
+
+def test_augment_data_simple():
+    axes = 'SYX'
+    r = np.array([
+        [[1, 2], [3, 4]],
+        [[5, 6], [7, 8]],
+    ])
+    r1 = np.array([
+        [[2, 4], [1, 3]],
+        [[6, 8], [5, 7]],
+    ])
+    r2 = np.array([
+        [[4, 3], [2, 1]],
+        [[8, 7], [6, 5]],
+    ])
+    r3 = np.array([
+        [[3, 1], [4, 2]],
+        [[7, 5], [8, 6]],
+    ])
+    f0 = np.array([
+        [[3, 4], [1, 2]],
+        [[7, 8], [5, 6]],
+    ])
+    f1 = np.array([
+        [[1, 3], [2, 4]],
+        [[5, 7], [6, 8]],
+    ])
+    f2 = np.array([
+        [[2, 1], [4, 3]],
+        [[6, 5], [8, 7]],
+    ])
+    f3 = np.array([
+        [[4, 2], [3, 1]],
+        [[8, 6], [7, 5]],
+    ])
+    x_final = np.concatenate([r, r1, r2, r3, f0, f1, f2, f3], axis=0)
+
+    x_aug = augment_data(r, axes)
+    assert x_aug.shape == x_final.shape
+    assert (x_aug == x_final).all()
+
+
+@pytest.mark.parametrize('shape, axes', [((1, 16, 16), 'SYX'),
+                                         ((8, 16, 16), 'SYX'),
+                                         ((1, 10, 16, 16), 'SZYX'),
+                                         ((32, 10, 16, 16), 'SZYX'),
+                                         ((1, 10, 16, 16, 3), 'SZYXC'),
+                                         ((32, 10, 16, 16, 3), 'SZYXC')])
+def test_augment_data(shape, axes):
+    x = np.random.randint(0, 65535, shape, dtype=np.uint16)
+    x_aug = augment_data(x, axes)
+
+    assert x_aug.shape == (x.shape[0]*8,) + x.shape[1:]
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 16), 'XY', (16, 16), 'YX'),
+                          ((16, 16, 8), 'XYZ', (8, 16, 16), 'ZYX'),
+                          ((8, 8, 16, 32), 'XYZC', (16, 8, 8, 32), 'ZYXC'),
+                          ((12, 8, 16, 8), 'CYZX', (16, 8, 8, 12), 'ZYXC')])
+def test_load_data_from_disk_train(tmp_path, shape, axes, final_shape, final_axes):
+    folders = ['train_x', 'train_y']
+    sizes = [20, 5]
 
     # create data
     create_data(tmp_path, folders, sizes, shape)
 
     # load data
-    X, Y, X_val, Y_val, x_val, y_val = prepare_data_disk(tmp_path / folders[0],
-                                                         tmp_path / folders[1],
-                                                         tmp_path / folders[2],
-                                                         tmp_path / folders[3])
+    X, Y, x, y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                               tmp_path / folders[1],
+                                               axes,
+                                               augmentation=True,
+                                               check_exists=False)
 
-    assert X.shape[0] == sizes[0]*8  # augmentation
-    if len(shape) == 4:  # XYZC, then becomes SXYZC
-        assert X.shape[1:] == shape
+    assert new_axes == 'S' + final_axes
+
+    assert X.shape[0] == sizes[0] * 8  # augmentation
+    assert Y.shape[0] == sizes[0] * 8
+    assert x.shape[0] == sizes[0] * 8
+    assert y.shape[0] == sizes[0] * 8
+    if 'C' in axes:
+        assert X.shape == (sizes[0] * 8,) + final_shape
+        assert x.shape == (sizes[0] * 8,) + final_shape
+        assert Y.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
+        assert y.shape == (sizes[0] * 8,) + final_shape
     else:
-        assert X.shape[1:-1] == shape
-        assert X.shape[-1] == 1
-
-    assert Y.shape[0] == sizes[0]*8  # empty frames are added when there is no Y
-    assert Y.shape[1:-1] == shape
-    assert Y.shape[-1] == 3  # one hot-encoding, 3 classes
-
-    assert X_val.shape[0] == sizes[2]  # no augmentation
-    if len(shape) == 4:  # XYZC, then becomes SXYZC
-        assert X_val.shape[1:] == shape
-    else:
-        assert X.shape[1:-1] == shape
-        assert X.shape[-1] == 1
-
-    assert Y_val.shape[0] == sizes[3]
-    assert Y_val.shape[1:-1] == shape
-    assert Y_val.shape[-1] == 3  # one hot-encoding, 3 classes
-
-    if len(shape) == 4:  # XYZC, then becomes SXYZC
-        assert x_val.shape == X_val.shape
-    else:
-        assert x_val.shape == X_val.shape[:-1]
-    assert y_val.shape == Y_val.shape[:-1]
+        assert X.shape == (sizes[0] * 8,) + final_shape + (1,)
+        assert x.shape == (sizes[0] * 8,) + final_shape + (1,)
+        assert Y.shape == (sizes[0] * 8,) + final_shape + (3,)
+        assert y.shape == (sizes[0] * 8,) + final_shape + (1,)
 
 
 @pytest.mark.parametrize('shape', [(16, 8), (32, 16, 16), (32, 16, 16, 8)])
@@ -254,28 +332,3 @@ def test_prepare_data_layers(make_napari_viewer, shape, perc):
     assert viewer.layers['X'].data.shape == shape_X
     assert viewer.layers['Y'].data.shape == shape_Y
     prepare_data_layers(viewer.layers['X'].data, viewer.layers['Y'].data, perc)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
