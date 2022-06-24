@@ -85,7 +85,6 @@ def create_choice_widget(napari_viewer):
 
     img = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
     lbl = layer_choice_widget(napari_viewer, annotation=napari.layers.Labels, name="Masks")
-
     return Container(widgets=[img, lbl])
 
 
@@ -150,6 +149,9 @@ class TrainWidget(QWidget):
 
         # add to main layout
         self.layout().addWidget(self.tabs)
+
+        self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
+        self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
         ###############################
         # others
@@ -671,11 +673,11 @@ if __name__ == "__main__":
     # create a Viewer
     viewer = napari.Viewer()
 
-    # add our plugin
-    viewer.window.add_dock_widget(TrainWidget(viewer))
 
     # add images
     viewer.add_image(data[0][0][0:60], name=data[0][1]['name'])
     viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
+    # add our plugin
+    #viewer.window.add_dock_widget(TrainWidget(viewer))
 
     napari.run()

@@ -39,6 +39,7 @@ def layer_choice_widget(np_viewer, annotation, **kwargs):
     widget.reset_choices()
     np_viewer.layers.events.inserted.connect(widget.reset_choices)
     np_viewer.layers.events.removed.connect(widget.reset_choices)
+    np_viewer.layers.events.changed.connect(widget.reset_choices)
     return widget
 
 
@@ -75,7 +76,7 @@ class PredictWidget(QWidget):
         # image layer tab
         self.images = layer_choice_widget(napari_viewer, annotation=napari.layers.Image, name="Images")
         self.layout().addWidget(self.images.native)
-        tab_layers.layout().addWidget(self.layer_choice.native)
+        tab_layers.layout().addWidget(self.images.native)
 
         # disk tab
         self.images_folder = FolderWidget('Choose')
@@ -83,6 +84,7 @@ class PredictWidget(QWidget):
 
         # add to main layout
         self.layout().addWidget(self.tabs)
+        self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
 
         ###############################
         # others
@@ -249,7 +251,7 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
 
     # add our plugin
-    viewer.window.add_dock_widget(PredictWidget(viewer))
+    #viewer.window.add_dock_widget(PredictWidget(viewer))
 
     # add images
     viewer.add_image(data[0][0][0:30], name=data[0][1]['name'])
