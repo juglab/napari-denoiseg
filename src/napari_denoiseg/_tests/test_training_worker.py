@@ -3,6 +3,7 @@ import numpy as np
 from denoiseg.models import DenoiSeg
 
 from napari_denoiseg.utils import generate_config
+from napari_denoiseg.utils.denoiseg_utils import remove_C_dim
 from napari_denoiseg.utils.training_worker import (
     sanity_check_validation_fraction,
     sanity_check_training_size,
@@ -12,7 +13,7 @@ from napari_denoiseg.utils.training_worker import (
     augment_data,
     prepare_data_disk,
     load_data_from_disk,
-    zero_sum,
+    non_zero_sum,
     list_diff,
     create_train_set,
     create_val_set,
@@ -125,29 +126,40 @@ def test_normalize_images(tmp_path, shape_train, shape_val, shape_patch):
 
 
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((16, 8), 'YX', (1, 16, 8), 'SYX'),
-                          ((16, 8), 'XY', (1, 8, 16), 'SYX'),
-                          ((16, 3, 8), 'XZY', (1, 3, 8, 16), 'SZYX'),
-                          ((16, 3, 12), 'SXY', (16, 12, 3), 'SYX'),
-                          ((5, 5, 1), 'XYZ', (1, 1, 5, 5), 'SZYX'),
+                         [((16, 8), 'YX', (1, 16, 8, 1), 'SYXC'),
+                          ((16, 8), 'XY', (1, 8, 16, 1), 'SYXC'),
+                          ((16, 3, 8), 'XZY', (1, 3, 8, 16, 1), 'SZYXC'),
+                          ((16, 3, 12), 'SXY', (16, 12, 3, 1), 'SYXC'),
+                          ((5, 5, 1), 'XYZ', (1, 1, 5, 5, 1), 'SZYXC'),
                           ((16, 3, 12, 8), 'XCYS', (8, 12, 16, 3), 'SYXC'),
                           ((16, 3, 12, 8), 'ZXCY', (1, 16, 8, 3, 12), 'SZYXC'),
                           ((16, 3, 12, 8), 'XCYZ', (1, 8, 12, 16, 3), 'SZYXC'),
                           ((16, 3, 12, 8), 'ZYXC', (1, 16, 3, 12, 8), 'SZYXC'),
                           ((16, 3, 21, 12, 8), 'ZYSXC', (21, 16, 3, 12, 8), 'SZYXC'),
                           ((16, 3, 21, 12, 8), 'SZYXC', (16, 3, 21, 12, 8), 'SZYXC'),
-                          ((16, 3, 8), 'YXT', (8, 16, 3), 'SYX'),
-                          ((16, 3, 8), 'XTY', (3, 8, 16), 'SYX'),
-                          ((16, 3, 8, 5, 12), 'STZYX', (16 * 3, 8, 5, 12), 'SZYX'),
+                          ((16, 3, 8), 'YXT', (8, 16, 3, 1), 'SYXC'),
+                          ((16, 3, 8), 'XTY', (3, 8, 16, 1), 'SYXC'),
+                          ((16, 3, 8, 5, 12), 'STZYX', (16 * 3, 8, 5, 12, 1), 'SZYXC'),
                           ((16, 3, 8, 5, 12, 6), 'XCSYTZ', (12 * 8, 6, 5, 16, 3), 'SZYXC')])
 def test_reshape_data(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
-    y = np.zeros(shape)
+
+    if 'C' in axes:  # if channels, Y has a singleton C dimension
+        ind_c = axes.find('C')
+        shape_y = list(shape)
+        shape_y[ind_c] = 1
+
+        y = np.zeros(shape_y).squeeze()
+
+        final_shape_y = final_shape[:-1]
+    else:
+        y = np.zeros(shape)
+        final_shape_y = final_shape[:-1]
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
     assert _x.shape == final_shape
-    assert _y.shape == final_shape
+    assert _y.shape == final_shape_y
     assert new_axes == final_axes
 
 
@@ -202,15 +214,14 @@ def test_augment_data(shape, axes):
     x = np.random.randint(0, 65535, shape, dtype=np.uint16)
     x_aug = augment_data(x, axes)
 
-    assert x_aug.shape == (x.shape[0]*8,) + x.shape[1:]
+    assert x_aug.shape == (x.shape[0] * 8,) + x.shape[1:]
 
 
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((16, 16), 'XY', (16, 16), 'YX'),
-                          ((16, 16, 8), 'XYZ', (8, 16, 16), 'ZYX'),
-                          ((8, 8, 16, 32), 'XYZC', (16, 8, 8, 32), 'ZYXC'),
-                          ((12, 8, 16, 8), 'CYZX', (16, 8, 8, 12), 'ZYXC')])
-def test_load_data_from_disk_train(tmp_path, shape, axes, final_shape, final_axes):
+                         [((16, 16), 'XY', (16, 16, 1), 'YXC'),
+                          ((16, 16, 8), 'XYZ', (8, 16, 16, 1), 'ZYXC'),
+                          ((8, 16, 8), 'XZY', (16, 8, 8, 1), 'ZYXC')])
+def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final_axes):
     folders = ['train_x', 'train_y']
     sizes = [20, 5]
 
@@ -218,32 +229,73 @@ def test_load_data_from_disk_train(tmp_path, shape, axes, final_shape, final_axe
     create_data(tmp_path, folders, sizes, shape)
 
     # load data
-    X, Y, x, y, new_axes = load_data_from_disk(tmp_path / folders[0],
-                                               tmp_path / folders[1],
-                                               axes,
-                                               augmentation=True,
-                                               check_exists=False)
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False)
 
     assert new_axes == 'S' + final_axes
-
-    assert X.shape[0] == sizes[0] * 8  # augmentation
-    assert Y.shape[0] == sizes[0] * 8
-    assert x.shape[0] == sizes[0] * 8
-    assert y.shape[0] == sizes[0] * 8
-    if 'C' in axes:
-        assert X.shape == (sizes[0] * 8,) + final_shape
-        assert x.shape == (sizes[0] * 8,) + final_shape
-        assert Y.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
-        assert y.shape == (sizes[0] * 8,) + final_shape
-    else:
-        assert X.shape == (sizes[0] * 8,) + final_shape + (1,)
-        assert x.shape == (sizes[0] * 8,) + final_shape + (1,)
-        assert Y.shape == (sizes[0] * 8,) + final_shape + (3,)
-        assert y.shape == (sizes[0] * 8,) + final_shape + (1,)
+    assert X.shape == (sizes[0] * 8,) + final_shape
+    assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
+    assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
 
 
-@pytest.mark.parametrize('shape', [(16, 8), (32, 16, 16), (32, 16, 16, 8)])
-def test_prepare_data_disk_error(tmp_path, shape):
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 16, 8), 'XYT', (8, 16, 16, 1), 'SYXC'),
+                          ((16, 16, 12, 8), 'XYTZ', (12, 8, 16, 16, 1), 'SZYXC'),
+                          ((8, 12, 16, 8), 'XTZY', (12, 16, 8, 8, 1), 'SZYXC')])
+def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_axes):
+    folders = ['train_x', 'train_y']
+    sizes = [20, 5]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shape)
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False)
+
+    assert new_axes == final_axes
+    assert X.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:]
+    assert Y_onehot.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:-1] + (3,)
+    assert Y.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:-1]
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 16, 6), 'XYC', (16, 16, 6), 'YXC'),
+                          ((16, 12, 16, 8), 'XCYZ', (8, 16, 16, 12), 'ZYXC'),
+                          ((5, 8, 16, 8), 'CXZY', (16, 8, 8, 5), 'ZYXC')])
+def test_load_data_from_disk_train_C(tmp_path, shape, axes, final_shape, final_axes):
+    folders = ['train_x', 'train_y']
+    sizes = [20, 5]
+
+    # create data X
+    create_data(tmp_path, [folders[0]], [sizes[0]], shape)
+
+    # create data Y
+    create_data(tmp_path, [folders[1]], [sizes[1]], remove_C_dim(shape, axes))
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False)
+
+    assert new_axes == 'S' + final_axes
+    assert X.shape == (sizes[0] * 8,) + final_shape
+    assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
+    assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
+
+
+@pytest.mark.parametrize('shape, axes', [((16, 8), 'YX'),
+                                         ((16, 16, 17), 'ZYX'),
+                                         ((16, 16, 16, 8), 'ZYCX')])
+def test_prepare_data_disk_error(tmp_path, shape, axes):
     """
     Test that an error is raised if XY dims are different.
     :param tmp_path:
@@ -261,11 +313,14 @@ def test_prepare_data_disk_error(tmp_path, shape):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
-                          tmp_path / folders[3])
+                          tmp_path / folders[3],
+                          axes)
 
 
-@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8), (16, 16, 8, 3)])
-def test_prepare_data_disk_unpaired_val(tmp_path, shape):
+@pytest.mark.parametrize('shape, axes', [((16, 16), 'YX'),
+                                         ((16, 16, 8), 'XYZ'),
+                                         ((16, 16, 8, 3), 'YXZC')])
+def test_prepare_data_disk_unpaired_val(tmp_path, shape, axes):
     """
     Test that an error is raised when the number of validation image and labels don't match.
     :param tmp_path:
@@ -283,11 +338,12 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
-                          tmp_path / folders[3])
+                          tmp_path / folders[3],
+                          axes)
 
 
-@pytest.mark.parametrize('shape', [(8,), (8, 8, 16, 16, 32)])
-def test_prepare_data_disk_wrong_dims(tmp_path, shape):
+@pytest.mark.parametrize('shape, axis', [((8,), 'X'), ((8, 8, 16, 16, 32), 'SZYXC')])
+def test_prepare_data_disk_wrong_dims(tmp_path, shape, axis):
     """
     Test that
     :param tmp_path:
@@ -305,22 +361,127 @@ def test_prepare_data_disk_wrong_dims(tmp_path, shape):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
-                          tmp_path / folders[3])
+                          tmp_path / folders[3],
+                          axis)
 
 
-@pytest.mark.parametrize('shape', [(8,), (16, 16), (16, 16, 8), (32, 16, 16, 8), (32, 16, 16, 8, 3)])
-def test_zero_sum(shape):
-    pass
+@pytest.mark.parametrize('shape', [(10, 16, 8),  # SYX
+                                   (10, 12, 8, 16),  # SZYX
+                                   (10, 8, 16, 3),  # SYXC
+                                   (10, 4, 16, 8, 3),  # SZYXC
+                                   ])
+def test_non_zero_sum(shape):
+    n = 4
+
+    # create images
+    one = np.ones(shape[1:])
+    zero = np.zeros(shape[1:])
+
+    # random indexing of the zeros
+    ind = np.random.choice([i for i in range(shape[0])], shape[0] - n, replace=False)
+
+    # build array
+    X = [one for _ in range(shape[0])]
+    for i in ind:
+        X[i] = zero
+
+    im = np.stack(X)
+    assert im.shape == shape
+    assert len(non_zero_sum(im)) == n
 
 
-# TODO make tests to verify that we deal with multiple dimension
-# TODO array mismatch if X!=Y, make test for that
-@pytest.mark.parametrize('shape', [(16, 16), (16, 16, 8)])
-@pytest.mark.parametrize('perc', [0, 10, 20, 50, 60, 80, 100])
-def test_prepare_data_layers(make_napari_viewer, shape, perc):
-    sizes = [20, 10]
-    shape_X = (sizes[0],) + shape
-    shape_Y = (sizes[1],) + shape
+@pytest.mark.parametrize('shape, axes', [((20, 16, 16, 1), 'SYXC'),
+                                         ((20, 12, 16, 16, 1), 'SZYXC'),
+                                         ((20, 16, 16, 3), 'SYXC'),
+                                         ((20, 4, 16, 16, 3), 'SZYXC')])
+def test_create_train_set(shape, axes):
+    n = 6  # number of labeled frames
+    m = 3  # size difference between x and y along the S dimension
+
+    # random indexing for the split
+    ind = np.random.choice([i for i in range(shape[0] - m)], shape[0] - n, replace=False)
+
+    # create x and y
+    template = np.ones(shape[1:])
+    x = np.stack([i * template for i in range(shape[0])])
+    y = np.stack([i * template[..., 0] for i in range(shape[0] - m)])
+    assert x.shape[1:-1] == y.shape[1:] == shape[1:-1]
+
+    # split
+    X, Y = create_train_set(x, y, ind, axes)
+    assert X.shape == (n * 8,) + shape[1:]
+    assert Y.shape == (n * 8,) + shape[1:-1]
+
+    # check that the right frames were selected
+    ind_x = tuple([0 for i in range(1, len(shape))])
+    vals_x = X[:, ind_x]
+    for v in vals_x:
+        assert v not in ind
+
+    ind_y = tuple([0 for i in range(1, len(shape) - 1)])
+    vals_y = Y[:, ind_y]
+    for v in vals_y:
+        assert v not in ind
+
+
+@pytest.mark.parametrize('shape', [(20, 16, 16, 1),
+                                   (20, 12, 16, 16, 1),
+                                   (20, 16, 16, 3),
+                                   (20, 4, 16, 16, 3)])
+def test_create_val_set(shape):
+    n = 4  # number of labeled frames
+    m = 3  # size difference between x and y along the S dimension
+
+    # random indexing for the split
+    ind = np.random.choice([i for i in range(shape[0] - m)], n, replace=False)
+
+    # create x and y
+    template = np.ones(shape[1:])
+    x = np.stack([i * template for i in range(shape[0])])
+    y = np.stack([i * template[..., 0] for i in range(shape[0] - m)])
+    assert x.shape[1:-1] == y.shape[1:] == shape[1:-1]
+
+    # split
+    X, Y = create_val_set(x, y, ind)
+    assert X.shape == (n,) + shape[1:]
+    assert Y.shape == (n,) + shape[1:-1]
+
+
+@pytest.mark.parametrize('shape, axes', [((20, 16, 16), 'TXY'),
+                                         ((20, 16, 16), 'SXY'),
+                                         ((20, 5, 16, 16), 'SZXY'),
+                                         ((20, 5, 16, 16), 'SCXY'),
+                                         ((20, 5, 16, 16), 'STXY'),
+                                         ((20, 5, 16, 16), 'TZXY'),
+                                         ((20, 5, 16, 16), 'TCXY'),
+                                         ((20, 5, 16, 16), 'ZCXY'),
+                                         ((5, 20, 16, 16), 'TSXY'),
+                                         ((5, 20, 16, 16), 'CSXY'),
+                                         ((5, 20, 16, 16), 'ZSXY'),
+                                         ((20, 3, 5, 16, 16), 'SCZXY'),
+                                         ((3, 20, 5, 16, 16), 'CSZXY'),
+                                         ((5, 3, 20, 16, 16), 'CZSXY'),
+                                         ((10, 3, 20, 16, 16), 'TCSXY'),
+                                         ((20, 3, 5, 16, 16), 'SCTXY'),
+                                         ((20, 3, 5, 16, 16), 'SZTXY'),
+                                         ((20, 8, 3, 5, 16, 16), 'SZTXY')])
+@pytest.mark.parametrize('perc', [30])
+def test_prepare_data_layers(make_napari_viewer, shape, axes, perc):
+    shape_X = shape
+
+    # Y doesn't have C dimension
+    if 'C' in axes:
+        shape_Y = remove_C_dim(shape, axes)
+    else:
+        shape_Y = shape
+
+    # Y can be smaller along S dimension
+    if 'S' in axes:
+        ind_S = axes.find('S')
+        shapes = list(shape_Y)
+        min_perc = int(shapes[ind_S] * perc / 100.)
+        shapes[ind_S] = min(shapes[ind_S], min_perc + 1)
+        shape_Y = tuple(shapes)
 
     # make viewer and add layers
     viewer = make_napari_viewer()
@@ -331,4 +492,4 @@ def test_prepare_data_layers(make_napari_viewer, shape, perc):
     # prepare data
     assert viewer.layers['X'].data.shape == shape_X
     assert viewer.layers['Y'].data.shape == shape_Y
-    prepare_data_layers(viewer.layers['X'].data, viewer.layers['Y'].data, perc)
+    prepare_data_layers(viewer.layers['X'].data, viewer.layers['Y'].data, perc, axes)

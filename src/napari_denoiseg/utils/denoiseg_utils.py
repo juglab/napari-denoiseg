@@ -34,13 +34,14 @@ class UpdateType(Enum):
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
-def from_folder(source_dir, target_dir, check_exists=True):
+def from_folder(source_dir, target_dir, axes, check_exists=True):
     """
     Builds a generator for pairs of source and target images with same names. `check_exists` = `False` allows inserting
     empty images when the corresponding target is not found.
 
     Adapted from RawData.from_folder in CSBDeep.
 
+    :param axes:
     :param source_dir: Absolute path to folder containing source images
     :param target_dir: Absolute path to folder containing target images, with same names than in `source_folder`
     :param check_exists: If `True`, raises an exception if a target is missing, target is set to `None` if `check_exist`
@@ -80,21 +81,6 @@ def from_folder(source_dir, target_dir, check_exists=True):
         # alternatively, replace non-existing files with None
         consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))
 
-    # sanity check on the axes
-    # TODO remove this
-    _x = imread(str(pairs[0][0]))
-    if len(_x.shape) == 2:
-        axes = 'XY'
-    elif len(_x.shape) == 3:
-        axes = 'XYZ'
-    elif len(_x.shape) == 4:
-        axes = 'XYZC'
-    elif len(_x.shape) == 5:
-        axes = 'XYZTC'
-    else:
-        axes = ''
-    axes = axes_check_and_normalize(axes)
-
     # generate description
     n_images = len(pairs)
     description = "{p}: target='{o}', sources={s}, axes='{a}', pattern='{pt}'".format(p=s.parent,
@@ -108,7 +94,14 @@ def from_folder(source_dir, target_dir, check_exists=True):
                 x, y = imread(str(fx)), imread(str(fy))
             else:  # if the target is None, replace by an empty image
                 x = imread(str(fx))
-                y = np.zeros(x.shape)
+
+                if 'C' in axes:
+                    ind = axes.find('C')
+                    new_shape = list(x.shape)
+                    new_shape.pop(ind)
+                    y = np.zeros(new_shape)
+                else:
+                    y = np.zeros(x.shape)
 
             len(axes) >= x.ndim or _raise(ValueError())
             yield x, y, axes[-x.ndim:], None
@@ -170,16 +163,18 @@ def load_from_disk(path):
     return np.array(images) if dims_agree else images
 
 
-def load_pairs_from_disk(source_path, target_path, check_exists=True):
+def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     """
 
+    :param axes:
     :param source_path:
     :param target_path:
     :param check_exists:
     :return:
     """
     # create RawData generator
-    pairs = from_folder(source_path, target_path, check_exists)
+    pairs = from_folder(source_path, target_path, axes, check_exists)
+    n = pairs.size
 
     # load data
     _source = []
@@ -190,9 +185,20 @@ def load_pairs_from_disk(source_path, target_path, check_exists=True):
 
     _s = np.array(_source)
     _t = np.array(_target, dtype=np.int)
-    assert _s.shape == _t.shape
 
-    return _s, _t, pairs.size
+    if 'S' not in axes and n > 1:
+        _axes = 'S' + axes
+    else:
+        _axes = axes
+
+    if 'C' in axes:
+        if remove_C_dim(_s.shape, _axes) != _t.shape:
+            raise ValueError
+    else:
+        if _s.shape != _t.shape:
+            raise ValueError
+
+    return _s, _t, n
 
 
 def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc='../resources/documentation.md'):
@@ -226,3 +232,11 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                 }]],
                 tensorflow_version=tf_version
                 )
+
+
+def remove_C_dim(shape, axes):
+    ind = axes.find('C')
+    new_shape = list(shape)
+    new_shape.pop(ind)
+
+    return tuple(new_shape)

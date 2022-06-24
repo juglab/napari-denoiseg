@@ -1,4 +1,6 @@
 from queue import Queue
+
+import napari_svg.layer_to_xml
 import numpy as np
 
 from tensorflow.keras.callbacks import Callback
@@ -41,17 +43,17 @@ def training_worker(widget, pretrained_model=None):
     from napari_denoiseg.utils import UpdateType, generate_config
 
     # get images and labels
-    X_t, Y_t, X_v, Y_v, validation_x, validation_y, widget.new_axes = load_images(widget)
+    X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
 
     # create DenoiSeg configuration
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
     patch_shape = widget.patch_size_spin.value()
-    denoiseg_conf = generate_config(X_t, n_epochs, n_steps, batch_size, patch_shape)
+    denoiseg_conf = generate_config(X_train, n_epochs, n_steps, batch_size, patch_shape)
 
     # prepare training
-    args = (denoiseg_conf, X_t, Y_t, X_v, Y_v, pretrained_model)
+    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
     train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
 
     # start training
@@ -76,15 +78,15 @@ def training_worker(widget, pretrained_model=None):
 
     # threshold validation data to estimate the best threshold
     # TODO would be better to use the same code base than in the optimizer_worker
-    widget.threshold, val_score = widget.model.optimize_thresholds(validation_x,
-                                                                   validation_y,
+    widget.threshold, val_score = widget.model.optimize_thresholds(X_val[..., 0],
+                                                                   Y_val,
                                                                    measure=measure_precision())
 
     # save input/output for bioimage.io
     widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
     widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
-    np.save(widget.inputs, validation_x[np.newaxis, 0, ..., np.newaxis])
-    np.save(widget.outputs, widget.model.predict(validation_x[np.newaxis, 0, ..., np.newaxis],
+    np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
+    np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
                                                  axes=widget.new_axes))
 
 
@@ -115,45 +117,29 @@ def load_images(widget):
         return prepare_data_layers(image_data, label_data, perc_labels, widget.axes)
 
 
-def augment_data(array, axes: str):
-    """
-    Augments the data 8-fold by 90 degree rotations and flipping.
-
-    Takes a dimension S.
-    """
-    # Adapted from DenoiSeg, in order to work with the following order `SZYXC`
-    ind_x = axes.find('X')
-    ind_y = axes.find('Y')
-
-    # rotations
-    _x = array.copy()
-    X_rot = [np.rot90(_x, i, (ind_y, ind_x)) for i in range(4)]
-    X_rot = np.concatenate(X_rot, axis=0)
-
-    # flip
-    X_flip = np.flip(X_rot, axis=ind_y)
-
-    return np.concatenate([X_rot, X_flip], axis=0)
-
-
 def reshape_data(x, y, axes: str):
     """
     Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
     points are considered independent and stacked along the S dimension.
 
+    Note that if C dimension is present, y will have a singleton dimension
+
     :param x: Raw data.
     :param y: Ground-truth data.
-    :param axes: Current axes order
+    :param axes: Current axes order of X
     :return: Reshaped x, reshaped y, new axes order
     """
-    # TODO: the C dimension will probably break down
-    # TODO: add S axis
     ref_axes = 'TSZYXC'
 
-    # sanity checks
-    assert 'X' in axes and 'Y' in axes
-    assert len(axes) == len(x.shape) == len(y.shape)
-    assert len(list_diff(list(axes), list(ref_axes))) == 0
+    # sanity checks TODO: raise error rather than assert?
+    assert 'X' in axes and 'Y' in axes, 'X or Y dimension missing in axes.'
+
+    if 'C' in axes:
+        assert len(axes) == len(x.shape) == len(y.shape) + 1
+    else:
+        assert len(axes) == len(x.shape) == len(y.shape)
+
+    assert len(list_diff(list(axes), list(ref_axes))) == 0  # all axes are part of ref_axes
 
     # if S is not in the list of axes, then add a singleton S
     if 'S' not in axes:
@@ -174,17 +160,46 @@ def reshape_data(x, y, axes: str):
     new_x_shape = tuple([_x.shape[ind] for ind in indices])
     new_y_shape = tuple([_y.shape[ind] for ind in indices])
 
+    if 'C' in _axes:  # Y does not have a C dimension
+        new_y_shape = new_y_shape[:-1]
+
     # remove T if necessary
     if 'T' in _axes:
         new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
-        new_y_shape = (-1,) + new_y_shape[2:]  # remove T and S
+        new_y_shape = (-1,) + new_y_shape[2:]
         new_axes.pop(0)
 
     # reshape
     _x = _x.reshape(new_x_shape)
-    _y = _x.reshape(new_y_shape)
+    _y = _y.reshape(new_y_shape)
+
+    # add channel
+    if 'C' not in new_axes:
+        _x = _x[..., np.newaxis]
+        new_axes.append('C')
 
     return _x, _y, ''.join(new_axes)
+
+
+def augment_data(array, axes: str):
+    """
+    Augments the data 8-fold by 90 degree rotations and flipping.
+
+    Takes a dimension S.
+    """
+    # Adapted from DenoiSeg, in order to work with the following order `SZYXC`
+    ind_x = axes.find('X')
+    ind_y = axes.find('Y')
+
+    # rotations
+    _x = array.copy()
+    X_rot = [np.rot90(_x, i, (ind_y, ind_x)) for i in range(4)]
+    X_rot = np.concatenate(X_rot, axis=0)
+
+    # flip
+    X_flip = np.flip(X_rot, axis=ind_y)
+
+    return np.concatenate([X_rot, X_flip], axis=0)
 
 
 def load_data_from_disk(source, target, axes, augmentation=False, check_exists=True):
@@ -215,7 +230,7 @@ def load_data_from_disk(source, target, axes, augmentation=False, check_exists=T
     from napari_denoiseg.utils import load_pairs_from_disk
 
     # load train data
-    _x, _y, n = load_pairs_from_disk(source, target, check_exists=check_exists)
+    _x, _y, n = load_pairs_from_disk(source, target, axes, check_exists=check_exists)
 
     # reshape data
     if n > 1:  # if multiple sample
@@ -232,26 +247,22 @@ def load_data_from_disk(source, target, axes, augmentation=False, check_exists=T
         print('Mask size after augmentation', _y.shape)
 
     # add channel dim and one-hot encoding
-    # TODO how to deal with the C dimension for the target Y is not clear
-    if 'C' not in new_axes:
-        X = _x[..., np.newaxis]
-    else:  # already has channel dimension
-        X = _x
     Y = convert_to_oneHot(_y)
 
-    return X, Y, _x, _y, new_axes
+    return _x, Y, _y, new_axes
 
 
 def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes):
-    (X, Y, _, _, new_axes) = load_data_from_disk(path_train_X, path_train_Y, axes, True, False)
-    (X_val, Y_val, x_val, y_val, _) = load_data_from_disk(path_val_X, path_val_Y, axes)
+    (X, Y, _, new_axes) = load_data_from_disk(path_train_X, path_train_Y, axes, True, False)
+    (X_val, Y_val, y_val, _) = load_data_from_disk(path_val_X, path_val_Y, axes)
 
-    return X, Y, X_val, Y_val, x_val, y_val, new_axes
+    return X, Y, X_val, Y_val, y_val, new_axes
 
 
-def zero_sum(im):
+def non_zero_sum(im):
     """
-    Detect empty slices.
+    Detect empty slices along the S dim.
+
     :param im: Image stack
     :return:
     """
@@ -270,18 +281,26 @@ def list_diff(l1, l2):
     return list(set(l1) - set(l2))
 
 
-def create_train_set(x, y, ind_exclude):
+def create_train_set(x, y, ind_exclude, axes):
     """
 
+    :param axes:
     :param x:
     :param y:
     :param ind_exclude:
     :return:
     """
-    masks = np.zeros(x.shape)
-    masks[0:y.shape[0], 0:y.shape[1], 0:y.shape[2]] = y  # there's probably a more elegant way
+    # Different between x and y shapes:
+    # if there are channels in x, there should be none in y
+    # along the S dimension, x can be larger than y
 
-    return augment_data(np.delete(x, ind_exclude, axis=0), np.delete(masks, ind_exclude, axis=0))
+    masks = np.zeros(x.shape[:-1])  # Y does not have channels dim before one hot encoding
+    masks[:y.shape[0], ...] = y
+
+    x_aug = augment_data(np.delete(x, ind_exclude, axis=0), axes)
+    y_aug = augment_data(np.delete(masks, ind_exclude, axis=0), axes)
+
+    return x_aug, y_aug
 
 
 def create_val_set(x, y, ind_include):
@@ -304,16 +323,17 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     :param axes
     :return:
     """
-    assert raw.shape == gt.shape, 'Images and labels must have the same shape.'
 
     # reshape data
     _x, _y, new_axes = reshape_data(raw, gt, axes)
+    # TODO: check that dim(X) and dim(Y) are equal for the augmentation
 
     # get indices of labeled frames
     dec_perc_labels = 0.01 * perc_labels
     n_labels = int(0.5 + dec_perc_labels * _y.data.shape[0])
-    ind = zero_sum(_y)
-    assert n_labels < len(ind)
+    ind = non_zero_sum(_y)
+    if len(ind) < n_labels:
+        raise ValueError('Not enough labeled frames, label more frames or decrease label percentage.')
 
     # split labeled frames between train and val sets
     ind_train = np.random.choice(ind, size=n_labels, replace=False).tolist()
@@ -321,7 +341,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     assert len(ind_train) + len(ind_val) == len(ind)
 
     # create train and val sets
-    x_train, y_train = create_train_set(_x, _y, ind_val)
+    x_train, y_train = create_train_set(_x, _y, ind_val, new_axes)
     x_val, y_val = create_val_set(_x, _y, ind_val)  # val sets without one-hot encoding
 
     # add channel dim and one-hot encoding
@@ -330,7 +350,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     X_val = x_val[..., np.newaxis]
     Y_val = convert_to_oneHot(y_val)
 
-    return X, Y, X_val, Y_val, x_val, y_val, new_axes
+    return X, Y, X_val, Y_val, y_val, new_axes
 
 
 def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):

@@ -27,7 +27,7 @@ def test_from_folder_no_files(tmp_path):
     folders = ['train_X', 'train_Y']
 
     with pytest.raises(FileNotFoundError):
-        from_folder(tmp_path / folders[0], tmp_path / folders[1])
+        from_folder(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
 
 
 def test_from_folder_unequal_sizes(tmp_path):
@@ -42,7 +42,7 @@ def test_from_folder_unequal_sizes(tmp_path):
 
     create_data(tmp_path, folders, sizes, (3, 16, 16))
 
-    data = from_folder(tmp_path / folders[0], tmp_path / folders[1], check_exists=False)
+    data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZYX', check_exists=False)
 
     n = 0
     n_empty = 0
@@ -69,7 +69,7 @@ def test_from_folder_unequal_sizes_exception(tmp_path):
     create_data(tmp_path, folders, sizes, (3, 16, 16))
 
     with pytest.raises(FileNotFoundError):
-        from_folder(tmp_path / folders[0], tmp_path / folders[1])
+        from_folder(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
 
 
 def test_from_folder_equal_sizes(tmp_path):
@@ -78,7 +78,7 @@ def test_from_folder_equal_sizes(tmp_path):
 
     create_data(tmp_path, folders, sizes, (3, 16, 16))
 
-    data = from_folder(tmp_path / folders[0], tmp_path / folders[1])
+    data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
     n = 0
     n_empty = 0
@@ -99,13 +99,13 @@ def test_from_folder_dimensions(tmp_path, shape):
 
     create_data(tmp_path, folders, sizes, (3, 16, 16))
 
-    from_folder(tmp_path / folders[0], tmp_path / folders[1])
+    from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
 
 ###################################################################
 # test generate_config
-@pytest.mark.parametrize('shape', [(8, 16, 16), (1, 1, 8, 16, 16, 1)])
-def test_generate_config__wrong_dims(shape):
+@pytest.mark.parametrize('shape, patch', [((8, 16, 16), (8, 8, 8)), ((1, 1, 8, 16, 16, 1), (8, 8, 8))])
+def test_generate_config_wrong_dims(shape, patch):
     """
     Test assertion error from generating a configuration with invalid dimensions (4 > len(dims) or len(dims) > 5).
 
@@ -113,7 +113,7 @@ def test_generate_config__wrong_dims(shape):
     :return:
     """
     with pytest.raises(AssertionError):
-        generate_config(np.zeros(shape))
+        generate_config(np.zeros(shape), patch)
 
 
 @pytest.mark.parametrize('shape, patch_shape', [((1, 16, 16, 1), (16, 16)),
@@ -301,37 +301,52 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2):
 
 ###################################################################
 # test load_pairs_from_disk
-@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8), (16, 8, 32, 3), (16, 8, 16, 32, 3)])
-def test_load_pairs_from_disk_same_shape(tmp_path, shape):
+@pytest.mark.parametrize('shape, axes', [((8, 8), 'YX'),
+                                         ((4, 8, 8), 'ZYX'),
+                                         ((16, 8, 32, 3), 'ZYXC'),
+                                         ((16, 8, 16, 32, 3), 'TZYXC')])
+def test_load_pairs_from_disk_same_shape(tmp_path, shape, axes):
     n = 10
     folders = ['X', 'Y']
     for f in folders:
         os.mkdir(tmp_path / f)
 
     save_img(tmp_path / folders[0], n, shape)
-    save_img(tmp_path / folders[1], n, shape)
+
+    if 'C' in axes:
+        save_img(tmp_path / folders[1], n, shape[:-1])
+    else:
+        save_img(tmp_path / folders[1], n, shape)
 
     # load images
-    X, Y = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1])
+    load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
 
 
-@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8), (16, 8, 32, 3), (16, 8, 16, 32, 3)])
-def test_load_pairs_from_disk_different_numbers(tmp_path, shape):
+@pytest.mark.parametrize('shape, axes', [((8, 8), 'YX'),
+                                         ((4, 8, 8), 'ZYX'),
+                                         ((16, 8, 32, 3), 'ZYXC'),
+                                         ((16, 8, 16, 32, 3), 'TZYXC')])
+def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
     n = [15, 5]
     folders = ['X', 'Y']
     for f in folders:
         os.mkdir(tmp_path / f)
 
     save_img(tmp_path / folders[0], n[0], shape)
-    save_img(tmp_path / folders[1], n[1], shape)
+
+    if 'C' in axes:
+        save_img(tmp_path / folders[1], n[1], shape[:-1])
+    else:
+        save_img(tmp_path / folders[1], n[1], shape)
 
     # load images, replacing n[1]-n[0] last images with blank frames
-    X, Y = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], check_exists=False)
+    X, Y, n_loaded = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
     assert Y[n[1]:, ...].min() == Y[n[1]:, ...].max() == 0
+    assert n[0] == n_loaded
 
     # load images with the check_exists flag triggers error
     with pytest.raises(FileNotFoundError):
-        load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], check_exists=True)
+        load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=True)
 
 
 @pytest.mark.parametrize('shape1, shape2', [((8, 8), (4, 8, 8)), ((4, 8, 8), (8, 8)), ((8, 8), (8, 9))])
@@ -345,6 +360,22 @@ def test_load_pairs_from_disk_different_shapes(tmp_path, shape1, shape2):
     save_img(tmp_path / folders[1], n, shape2)
 
     # load images
-    with pytest.raises(AssertionError):
-        load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1])
+    with pytest.raises(ValueError):
+        load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], 'YX')
+
+
+@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8, 3), (8, 8), 'YXC'),
+                                                  ((4, 8, 8), (8, 8), 'CYX'),
+                                                  ((8, 6, 8), (8, 8), 'YCX')])
+def test_load_pairs_from_disk_different_shapes_C(tmp_path, shape1, shape2, axes):
+    n = 10
+    folders = ['X', 'Y']
+    for f in folders:
+        os.mkdir(tmp_path / f)
+
+    save_img(tmp_path / folders[0], n, shape1)
+    save_img(tmp_path / folders[1], n, shape2)
+
+    # load images
+    load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
 
