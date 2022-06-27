@@ -22,11 +22,11 @@ def save_img(folder_path, n, shape, prefix='', axes=None):
             imwrite(os.path.join(folder_path, prefix + str(i) + '.tif'), im, metadata={'axes': axes})
 
 
-def create_data(main_dir, folders, sizes, shape):
-    for n, f in zip(sizes, folders):
+def create_data(main_dir, folders, sizes, shapes):
+    for n, f, sh in zip(sizes, folders, shapes):
         source = main_dir / f
         os.mkdir(source)
-        save_img(source, n, shape)
+        save_img(source, n, sh)
 
 
 @pytest.mark.parametrize('shape', [(16, 16), (8, 16, 16)])
@@ -34,7 +34,7 @@ def test_create_data(tmp_path, shape):
     folders = ['train_X', 'train_Y', 'val_X', 'val_Y']
     sizes = [20, 8, 5, 5]
 
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, [shape for _ in sizes])
 
     for n, f in zip(sizes, folders):
         source = tmp_path / f

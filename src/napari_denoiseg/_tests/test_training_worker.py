@@ -2,21 +2,23 @@ import pytest
 import numpy as np
 from denoiseg.models import DenoiSeg
 
-from napari_denoiseg.utils import generate_config
+from napari_denoiseg.utils import generate_config, State, UpdateType, training_worker
 from napari_denoiseg.utils.denoiseg_utils import remove_C_dim
 from napari_denoiseg.utils.training_worker import (
     sanity_check_validation_fraction,
     sanity_check_training_size,
     get_validation_patch_shape,
     normalize_images,
+    get_shape_order,
     reshape_data,
     augment_data,
     prepare_data_disk,
     load_data_from_disk,
-    non_zero_sum,
+    detect_non_zero_frames,
     list_diff,
     create_train_set,
     create_val_set,
+    check_napari_data,
     prepare_data_layers
 )
 from napari_denoiseg._tests.test_utils import (
@@ -126,35 +128,101 @@ def test_normalize_images(tmp_path, shape_train, shape_val, shape_patch):
 
 
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 8), 'XY', (8, 16), 'YX'),
+                          ((16, 12, 8), 'XCY', (8, 16, 12), 'YXC'),
+                          ((16, 8, 12), 'XYZ', (12, 8, 16), 'ZYX'),
+                          ((16, 3, 8, 5, 10, 12), 'XCYSTZ', (10, 5, 12, 8, 16, 3), 'TSZYXC')])
+def test_get_shape_order(shape, axes, final_shape, final_axes):
+    ref_axes = 'TSZYXC'
+    x = np.zeros(shape)
+
+    new_shape, new_axes, _ = get_shape_order(x, ref_axes, axes)
+    assert new_shape == final_shape
+    assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
                          [((16, 8), 'YX', (1, 16, 8, 1), 'SYXC'),
                           ((16, 8), 'XY', (1, 8, 16, 1), 'SYXC'),
                           ((16, 3, 8), 'XZY', (1, 3, 8, 16, 1), 'SZYXC'),
+                          ((16, 3, 8), 'XYZ', (1, 8, 3, 16, 1), 'SZYXC'),
+                          ((16, 3, 8), 'ZXY', (1, 16, 8, 3, 1), 'SZYXC'),
                           ((16, 3, 12), 'SXY', (16, 12, 3, 1), 'SYXC'),
-                          ((5, 5, 1), 'XYZ', (1, 1, 5, 5, 1), 'SZYXC'),
+                          ((5, 5, 2), 'XYS', (2, 5, 5, 1), 'SYXC'),
+                          ((5, 1, 5, 2), 'XZYS', (2, 1, 5, 5, 1), 'SZYXC'),
+                          ((5, 12, 5, 2), 'ZXYS', (2, 5, 5, 12, 1), 'SZYXC'),
+                          ((16, 8, 5, 12), 'SZYX', (16, 8, 5, 12, 1), 'SZYXC')])
+def test_reshape_data_no_CT(shape, axes, final_shape, final_axes):
+    x = np.zeros(shape)
+    y = np.zeros(shape)
+    final_shape_y = final_shape[:-1]
+
+    _x, _y, new_axes = reshape_data(x, y, axes)
+
+    assert _x.shape == final_shape
+    assert _y.shape == final_shape_y
+    assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 8, 5), 'YXT', (5, 16, 8, 1), 'SYXC'),
+                          ((4, 16, 8), 'TXY', (4, 8, 16, 1), 'SYXC'),
+                          ((4, 16, 6, 8), 'TXSY', (4 * 6, 8, 16, 1), 'SYXC'),
+                          ((4, 16, 6, 5, 8), 'ZXTYS', (8 * 6, 4, 5, 16, 1), 'SZYXC')])
+def test_reshape_data_T_no_C(shape, axes, final_shape, final_axes):
+    x = np.zeros(shape)
+    y = np.zeros(shape)
+    final_shape_y = final_shape[:-1]
+
+    _x, _y, new_axes = reshape_data(x, y, axes)
+
+    assert _x.shape == final_shape
+    assert _y.shape == final_shape_y
+    assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((5, 3, 5), 'XCY', (1, 5, 5, 3), 'SYXC'),
                           ((16, 3, 12, 8), 'XCYS', (8, 12, 16, 3), 'SYXC'),
                           ((16, 3, 12, 8), 'ZXCY', (1, 16, 8, 3, 12), 'SZYXC'),
                           ((16, 3, 12, 8), 'XCYZ', (1, 8, 12, 16, 3), 'SZYXC'),
                           ((16, 3, 12, 8), 'ZYXC', (1, 16, 3, 12, 8), 'SZYXC'),
                           ((16, 3, 21, 12, 8), 'ZYSXC', (21, 16, 3, 12, 8), 'SZYXC'),
-                          ((16, 3, 21, 12, 8), 'SZYXC', (16, 3, 21, 12, 8), 'SZYXC'),
-                          ((16, 3, 8), 'YXT', (8, 16, 3, 1), 'SYXC'),
-                          ((16, 3, 8), 'XTY', (3, 8, 16, 1), 'SYXC'),
-                          ((16, 3, 8, 5, 12), 'STZYX', (16 * 3, 8, 5, 12, 1), 'SZYXC'),
-                          ((16, 3, 8, 5, 12, 6), 'XCSYTZ', (12 * 8, 6, 5, 16, 3), 'SZYXC')])
-def test_reshape_data(shape, axes, final_shape, final_axes):
+                          ((16, 3, 21, 8, 12), 'SZYCX', (16, 3, 21, 12, 8), 'SZYXC')])
+def test_reshape_data_C_no_T(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
 
-    if 'C' in axes:  # if channels, Y has a singleton C dimension
-        ind_c = axes.find('C')
-        shape_y = list(shape)
-        shape_y[ind_c] = 1
+    # Y does not have C dimension
+    ind_c = axes.find('C')
+    shape_y = list(shape)
+    shape_y[ind_c] = 1
+    y = np.zeros(shape_y).squeeze()  # Remove C dimension
+    final_shape_y = final_shape[:-1]
 
-        y = np.zeros(shape_y).squeeze()
+    assert len(x.shape) == len(y.shape) + 1
 
-        final_shape_y = final_shape[:-1]
-    else:
-        y = np.zeros(shape)
-        final_shape_y = final_shape[:-1]
+    _x, _y, new_axes = reshape_data(x, y, axes)
+
+    assert _x.shape == final_shape
+    assert _y.shape == final_shape_y
+    assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((5, 3, 8, 6), 'XTCY', (3, 6, 5, 8), 'SYXC'),
+                          ((16, 3, 12, 5, 8), 'XCYTS', (8 * 5, 12, 16, 3), 'SYXC'),
+                          ((16, 10, 5, 6, 12, 8), 'ZSXCYT', (10 * 8, 16, 12, 5, 6), 'SZYXC')])
+def test_reshape_data_CT(shape, axes, final_shape, final_axes):
+    x = np.zeros(shape)
+
+    # Y does not have C dimension
+    ind_c = axes.find('C')
+    shape_y = list(shape)
+    shape_y[ind_c] = 1
+    y = np.zeros(shape_y).squeeze()  # Remove C dimension
+    final_shape_y = final_shape[:-1]
+
+    assert len(x.shape) == len(y.shape) + 1
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
@@ -224,9 +292,10 @@ def test_augment_data(shape, axes):
 def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final_axes):
     folders = ['train_x', 'train_y']
     sizes = [20, 5]
+    shapes = [shape for _ in sizes]
 
     # create data
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
@@ -248,9 +317,10 @@ def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final
 def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_axes):
     folders = ['train_x', 'train_y']
     sizes = [20, 5]
+    shapes = [shape for _ in sizes]
 
     # create data
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
@@ -272,12 +342,10 @@ def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_a
 def test_load_data_from_disk_train_C(tmp_path, shape, axes, final_shape, final_axes):
     folders = ['train_x', 'train_y']
     sizes = [20, 5]
+    shapes = [shape, remove_C_dim(shape, axes)]
 
-    # create data X
-    create_data(tmp_path, [folders[0]], [sizes[0]], shape)
-
-    # create data Y
-    create_data(tmp_path, [folders[1]], [sizes[1]], remove_C_dim(shape, axes))
+    # create data
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
@@ -304,9 +372,10 @@ def test_prepare_data_disk_error(tmp_path, shape, axes):
     """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 8, 8]
+    shapes = [shape, remove_C_dim(shape, axes)]
 
     # create data
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     with pytest.raises(ValueError):
@@ -329,9 +398,10 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape, axes):
     """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 10, 8]
+    shapes = [shape, remove_C_dim(shape, axes), shape, remove_C_dim(shape, axes)]
 
     # create data
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     with pytest.raises(FileNotFoundError):
@@ -342,8 +412,8 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape, axes):
                           axes)
 
 
-@pytest.mark.parametrize('shape, axis', [((8,), 'X'), ((8, 8, 16, 16, 32), 'SZYXC')])
-def test_prepare_data_disk_wrong_dims(tmp_path, shape, axis):
+@pytest.mark.parametrize('shape, axes', [((8,), 'X'), ((8, 8, 16, 16, 32), 'SZYXC')])
+def test_prepare_data_disk_wrong_dims(tmp_path, shape, axes):
     """
     Test that
     :param tmp_path:
@@ -352,9 +422,10 @@ def test_prepare_data_disk_wrong_dims(tmp_path, shape, axis):
     """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 8, 8]
+    shapes = [shape, remove_C_dim(shape, axes), shape, remove_C_dim(shape, axes)]
 
     # create data
-    create_data(tmp_path, folders, sizes, shape)
+    create_data(tmp_path, folders, sizes, shapes)
 
     # load data
     with pytest.raises(ValueError):
@@ -362,7 +433,7 @@ def test_prepare_data_disk_wrong_dims(tmp_path, shape, axis):
                           tmp_path / folders[1],
                           tmp_path / folders[2],
                           tmp_path / folders[3],
-                          axis)
+                          axes)
 
 
 @pytest.mark.parametrize('shape', [(10, 16, 8),  # SYX
@@ -370,7 +441,7 @@ def test_prepare_data_disk_wrong_dims(tmp_path, shape, axis):
                                    (10, 8, 16, 3),  # SYXC
                                    (10, 4, 16, 8, 3),  # SZYXC
                                    ])
-def test_non_zero_sum(shape):
+def test_detect_non_zero_frames(shape):
     n = 4
 
     # create images
@@ -387,7 +458,12 @@ def test_non_zero_sum(shape):
 
     im = np.stack(X)
     assert im.shape == shape
-    assert len(non_zero_sum(im)) == n
+    assert len(detect_non_zero_frames(im)) == n
+
+
+def test_detect_non_zero_frames_edge_cases():
+    assert len(detect_non_zero_frames(np.zeros((1, 8, 8)))) == 1
+    assert len(detect_non_zero_frames(np.ones((1, 8, 8)))) == 0
 
 
 @pytest.mark.parametrize('shape, axes', [((20, 16, 16, 1), 'SYXC'),
@@ -409,6 +485,7 @@ def test_create_train_set(shape, axes):
 
     # split
     X, Y = create_train_set(x, y, ind, axes)
+    assert Y.shape[0] == X.shape[0] == (shape[0]-len(ind)) * 8  # augmentation and added missing labels
     assert X.shape == (n * 8,) + shape[1:]
     assert Y.shape == (n * 8,) + shape[1:-1]
 
@@ -443,53 +520,324 @@ def test_create_val_set(shape):
 
     # split
     X, Y = create_val_set(x, y, ind)
+    assert Y.shape[0] == X.shape[0] == len(ind)
     assert X.shape == (n,) + shape[1:]
     assert Y.shape == (n,) + shape[1:-1]
 
 
-@pytest.mark.parametrize('shape, axes', [((20, 16, 16), 'TXY'),
-                                         ((20, 16, 16), 'SXY'),
-                                         ((20, 5, 16, 16), 'SZXY'),
-                                         ((20, 5, 16, 16), 'SCXY'),
-                                         ((20, 5, 16, 16), 'STXY'),
-                                         ((20, 5, 16, 16), 'TZXY'),
-                                         ((20, 5, 16, 16), 'TCXY'),
-                                         ((20, 5, 16, 16), 'ZCXY'),
-                                         ((5, 20, 16, 16), 'TSXY'),
-                                         ((5, 20, 16, 16), 'CSXY'),
-                                         ((5, 20, 16, 16), 'ZSXY'),
-                                         ((20, 3, 5, 16, 16), 'SCZXY'),
-                                         ((3, 20, 5, 16, 16), 'CSZXY'),
-                                         ((5, 3, 20, 16, 16), 'CZSXY'),
-                                         ((10, 3, 20, 16, 16), 'TCSXY'),
-                                         ((20, 3, 5, 16, 16), 'SCTXY'),
-                                         ((20, 3, 5, 16, 16), 'SZTXY'),
-                                         ((20, 8, 3, 5, 16, 16), 'SZTXY')])
-@pytest.mark.parametrize('perc', [30])
-def test_prepare_data_layers(make_napari_viewer, shape, axes, perc):
-    shape_X = shape
+@pytest.mark.parametrize('shape, axes', [((20, 16, 16), 'TXY'),  # No S
+                                         ((20, 16, 16), 'XYS'),  # wrong YX order
+                                         ((20, 16, 16), 'SXY'),  # wrong YX order
+                                         ((16, 16), 'YX'),  # No 3rd dim
+                                         ((20, 16, 16), 'SZYX'),  # axes and data not matching
+                                         ((20, 16, 18), 'SZYX'),  # YX not square
+                                         ((20, 3, 16, 16), 'SCYX')])  # Labels with C dim
+def test_check_napari_data_errors(shape, axes):
+    x = np.random.random(shape)
+    y = np.random.random(shape)
 
-    # Y doesn't have C dimension
-    if 'C' in axes:
-        shape_Y = remove_C_dim(shape, axes)
-    else:
-        shape_Y = shape
+    with pytest.raises(ValueError):
+        check_napari_data(x, y, axes)
 
-    # Y can be smaller along S dimension
-    if 'S' in axes:
-        ind_S = axes.find('S')
-        shapes = list(shape_Y)
-        min_perc = int(shapes[ind_S] * perc / 100.)
-        shapes[ind_S] = min(shapes[ind_S], min_perc + 1)
-        shape_Y = tuple(shapes)
+
+def test_check_napari_data_xy_dims():
+    x = np.random.random((5, 16, 16))
+    y = np.random.random((5, 16, 16, 5))
+
+    with pytest.raises(ValueError):
+        check_napari_data(x, y, 'SYX')
+
+
+def test_check_napari_data_different_xy():
+    x = np.random.random((5, 16, 16))
+    y = np.random.random((5, 17, 17))
+
+    with pytest.raises(ValueError):
+        check_napari_data(x, y, 'SYX')
+
+
+@pytest.mark.parametrize('shape1, shape2, axes',
+                         [((5, 3, 16, 16), (5, 2, 16, 16), 'SCYX'),
+                          ((5, 3, 16, 16), (5, 4, 16, 16), 'SCYX'),
+                          ((5, 3, 16, 16), (5, 3, 16, 16), 'SCYX'),
+                          ((3, 5, 16, 16), (2, 5, 16, 16), 'CSYX'),
+                          ((3, 5, 16, 16), (4, 5, 16, 16), 'CSYX'),
+                          ((5, 20, 3, 16, 16), (5, 20, 2, 16, 16), 'TSCYX')])
+def test_check_napari_data_C_error(shape1, shape2, axes):
+    x = np.random.random(shape1)
+    y = np.random.random(shape2)
+
+    with pytest.raises(ValueError):
+        check_napari_data(x, y, axes)
+
+
+@pytest.mark.parametrize('shape1, shape2, axes',
+                         [((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
+                          ((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
+                          ((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
+                          ((3, 5, 16, 16), (5, 16, 16), 'CSYX'),
+                          ((3, 5, 16, 16), (5, 16, 16), 'CSYX'),
+                          ((5, 20, 3, 16, 16), (5, 20, 16, 16), 'TSCYX')])
+def test_check_napari_data_C(shape1, shape2, axes):
+    x = np.random.random(shape1)
+    y = np.random.random(shape2)
+
+    check_napari_data(x, y, axes)
+
+
+def test_prepare_data_layers_no_labels(make_napari_viewer):
+    shape = (10, 8, 8)
+
+    # create data
+    x = np.random.random(shape)
+    y = np.zeros(shape, dtype=np.uint16)
 
     # make viewer and add layers
     viewer = make_napari_viewer()
 
-    viewer.add_image(np.random.random(shape_X), name='X')
-    viewer.add_labels(np.random.randint(0, 255, shape_Y, dtype=np.uint16), name='Y')
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # check layers
+    assert viewer.layers['X'].data.shape == shape
+    assert viewer.layers['Y'].data.shape == shape
+
+    # raise error because there is too little data
+    with pytest.raises(ValueError):
+        prepare_data_layers(viewer.layers['X'].data,
+                            viewer.layers['Y'].data,
+                            50,
+                            'SYX')
+
+
+@pytest.mark.parametrize('perc', [0, 10, 22, 93, 95, 100])
+def test_prepare_data_layers_not_enough_data(make_napari_viewer, perc):
+    shape = (50, 8, 8)
+    n_unlabeled = shape[0] - 20  # 20 labeled frames
+
+    # create data
+    x = np.random.random(shape)
+    y = np.random.randint(0, 255, shape, dtype=np.uint16)
+
+    # choose empty frames
+    y[:n_unlabeled, ...] = np.zeros((n_unlabeled, shape[1], shape[2]), dtype=np.uint16)
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # check layers
+    assert viewer.layers['X'].data.shape == shape
+    assert viewer.layers['Y'].data.shape == shape
+
+    # raise error because there is too little data
+    with pytest.raises(ValueError):
+        prepare_data_layers(viewer.layers['X'].data,
+                            viewer.layers['Y'].data,
+                            perc,
+                            'SYX')
+
+
+@pytest.mark.parametrize('shape, axes, final_axes',
+                         [((20, 8, 8), 'SYX', 'SYXC'),
+                          ((20, 2, 8, 8), 'SZYX', 'SZYXC')])
+def test_prepare_data_layers_no_CT(make_napari_viewer, shape, axes, final_axes):
+    n_unlabeled = shape[axes.find('S')] - 10
+    perc = 70
+
+    # create data
+    x = np.random.random(shape)
+
+    # Y can have smaller S size
+    y = np.random.randint(0, 255, (shape[0]-2, *shape[1:]), dtype=np.uint16)
+    y[:n_unlabeled, ...] = np.zeros((n_unlabeled, *shape[1:]), dtype=np.uint16)
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # check layers
+    assert viewer.layers['X'].data.shape == shape
+    assert viewer.layers['Y'].data.shape == (shape[0]-2, *shape[1:])
 
     # prepare data
-    assert viewer.layers['X'].data.shape == shape_X
-    assert viewer.layers['Y'].data.shape == shape_Y
-    prepare_data_layers(viewer.layers['X'].data, viewer.layers['Y'].data, perc, axes)
+    X, Y, X_val, Y_val, y_val_no_hot, new_axes = prepare_data_layers(viewer.layers['X'].data,
+                                                                     viewer.layers['Y'].data,
+                                                                     perc,
+                                                                     axes)
+    assert X.shape[0]/8 + X_val.shape[0] == shape[0]
+    assert X.shape[1:] == X_val.shape[1:]
+
+    assert Y.shape[0]/8 + Y_val.shape[0] == shape[0]
+    assert Y.shape[1:-1] == Y_val.shape[1:-1] == y_val_no_hot.shape[1:]
+    assert Y.shape[-1] == Y_val.shape[-1] == 3
+
+    assert new_axes == final_axes
+
+
+def test_prepare_data_layers_ZSYX(make_napari_viewer):
+    axes = 'ZSYX'
+    shape_x = (2, 20, 8, 8)
+    shape_y = (2, 18, 8, 8)  # Y can have smaller dim along S
+    n_unlabeled = shape_x[axes.find('S')] - 10
+    shape_zeros = (2, n_unlabeled, 8, 8)
+    perc = 70
+
+    # create data
+    x = np.random.random(shape_x)
+
+    # Y can have smaller S size
+    y = np.random.randint(0, 255, shape_y, dtype=np.uint16)
+    y[:, :n_unlabeled, ...] = np.zeros(shape_zeros, dtype=np.uint16)
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # check layers
+    assert viewer.layers['X'].data.shape == shape_x
+    assert viewer.layers['Y'].data.shape == shape_y
+
+    # prepare data
+    X, Y, X_val, Y_val, y_val_no_hot, new_axes = prepare_data_layers(viewer.layers['X'].data,
+                                                                     viewer.layers['Y'].data,
+                                                                     perc,
+                                                                     axes)
+    assert X.shape[0]/8 + X_val.shape[0] == shape_x[1]
+    assert X.shape[1:] == X_val.shape[1:]
+
+    assert Y.shape[0]/8 + Y_val.shape[0] == shape_x[1]
+    assert Y.shape[1:-1] == Y_val.shape[1:-1] == y_val_no_hot.shape[1:]
+    assert Y.shape[-1] == Y_val.shape[-1] == 3
+
+    assert new_axes == 'SZYXC'
+
+
+@pytest.mark.parametrize('shape, axes, final_axes',
+                         [((20, 4, 8, 8), 'STYX', 'SYXC'),
+                          ((4, 20, 8, 8), 'TSYX', 'SYXC'),
+                          ((20, 5, 4, 8, 8), 'SZTYX', 'SZYXC'),
+                          ((20, 4, 5, 8, 8), 'STZYX', 'SZYXC'),
+                          ((4, 20, 5, 8, 8), 'TSZYX', 'SZYXC')])
+def test_prepare_data_layers_T_no_C(make_napari_viewer, shape, axes, final_axes):
+    n_unlabeled = shape[axes.find('S')] - 10
+    perc = 70
+
+    # create data
+    x = np.random.random(shape)
+
+    # Y can have smaller S size
+    shape_x = shape
+    shape_y = list(shape)
+    shape_y[axes.find('S')] = shape_x[axes.find('S')] - 2
+
+    y = np.random.randint(0, 255, shape_y, dtype=np.uint16)
+
+    ind_S = axes.find('S')
+    ind_T = axes.find('T')
+    if ind_S != 0:
+        # TODO there must be an elegant way to access subarray with dynamical indices...
+        shape_zero = shape_y.copy()
+        shape_zero[ind_S] = n_unlabeled
+        zeros = np.zeros(shape_zero, dtype=np.uint16)
+
+        if ind_S == 1:
+            y[:, :n_unlabeled, ...] = zeros
+        else:
+            y[:, :, :n_unlabeled, ...] = zeros
+
+    else:
+        y[:n_unlabeled, ...] = np.zeros((n_unlabeled, *shape_y[1:]), dtype=np.uint16)
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # prepare data
+    X, Y, X_val, Y_val, y_val_no_hot, new_axes = prepare_data_layers(viewer.layers['X'].data,
+                                                                     viewer.layers['Y'].data,
+                                                                     perc,
+                                                                     axes)
+    assert X.shape[0]/8 + X_val.shape[0] == shape[ind_S] * shape[ind_T]
+    assert X.shape[1:] == X_val.shape[1:]
+
+    assert Y.shape[0]/8 + Y_val.shape[0] == shape[ind_S] * shape[ind_T]
+    assert Y.shape[1:-1] == Y_val.shape[1:-1] == y_val_no_hot.shape[1:]
+    assert Y.shape[-1] == Y_val.shape[-1] == 3
+
+    assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_axes',
+                         [((20, 4, 3, 8, 8), 'STCYX', 'SYXC'),
+                          ((3, 4, 20, 8, 8), 'CTSYX', 'SYXC'),
+                          ((20, 3, 5, 4, 8, 8), 'SCZTYX', 'SZYXC'),
+                          ((20, 4, 5, 3, 8, 8), 'STZCYX', 'SZYXC'),
+                          ((4, 20, 5, 3, 8, 8), 'TSCZYX', 'SZYXC')])
+def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
+    n_unlabeled = shape[axes.find('S')] - 10
+    perc = 70
+
+    # create data
+    x = np.random.random(shape)
+
+    # find axes
+    ind_S = axes.find('S')
+    ind_T = axes.find('T')
+    ind_C = axes.find('C')
+
+    # Y can have smaller S size
+    shape_y = list(shape)
+    shape_y[ind_S] = shape_y[ind_S] - 2
+    shape_y = remove_C_dim(shape_y, axes)
+
+    if ind_S > ind_C != -1:
+        ind_S_y = ind_S - 1
+    else:
+        ind_S_y = ind_S
+
+    y = np.random.randint(0, 255, shape_y, dtype=np.uint16)
+
+    if ind_S_y != 0:
+        # TODO there must be an elegant way to access subarray with dynamical indices...
+        shape_zero = list(shape_y)
+        shape_zero[ind_S_y] = n_unlabeled
+        zeros = np.zeros(shape_zero, dtype=np.uint16)
+
+        if ind_S_y == 1:
+            y[:, :n_unlabeled, ...] = zeros
+        else:
+            y[:, :, :n_unlabeled, ...] = zeros
+
+    else:
+        y[:n_unlabeled, ...] = np.zeros((n_unlabeled, *shape_y[1:]), dtype=np.uint16)
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # prepare data
+    X, Y, X_val, Y_val, y_val_no_hot, new_axes = prepare_data_layers(viewer.layers['X'].data,
+                                                                     viewer.layers['Y'].data,
+                                                                     perc,
+                                                                     axes)
+    assert X.shape[0]/8 + X_val.shape[0] == shape[ind_S] * shape[ind_T]
+    assert X.shape[1:] == X_val.shape[1:]
+    assert X.shape[-1] == X_val.shape[-1] == shape[ind_C]
+
+    assert Y.shape[0]/8 + Y_val.shape[0] == shape[ind_S] * shape[ind_T]
+    assert Y.shape[1:-1] == Y_val.shape[1:-1] == y_val_no_hot.shape[1:]
+    assert Y.shape[-1] == Y_val.shape[-1] == 3
+
+    assert new_axes == final_axes
+

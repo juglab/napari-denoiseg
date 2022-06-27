@@ -17,7 +17,8 @@ from napari_denoiseg.utils import (
     build_modelzoo,
     load_weights,
     load_from_disk,
-    load_pairs_from_disk
+    load_pairs_from_disk,
+    remove_C_dim
 )
 
 
@@ -39,18 +40,20 @@ def test_from_folder_unequal_sizes(tmp_path):
     """
     folders = ['train_X', 'train_Y']
     sizes = [15, 5]
+    shapes = [(3, 16, 16) for _ in sizes]
 
-    create_data(tmp_path, folders, sizes, (3, 16, 16))
+    create_data(tmp_path, folders, sizes, shapes)
 
     data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZYX', check_exists=False)
 
     n = 0
     n_empty = 0
-    for source_x, target_y, _, _ in data.generator():
+    for source_x, target_y in data.generator():
         n += 1
 
         if target_y.min() == target_y.max() == 0:
             n_empty += 1
+    remove_C_dim
 
     assert n == sizes[0]
     assert n_empty == sizes[0] - sizes[1]
@@ -65,8 +68,9 @@ def test_from_folder_unequal_sizes_exception(tmp_path):
     """
     folders = ['train_X', 'train_Y']
     sizes = [6, 5]
+    shapes = [(3, 16, 16) for _ in sizes]
 
-    create_data(tmp_path, folders, sizes, (3, 16, 16))
+    create_data(tmp_path, folders, sizes, shapes)
 
     with pytest.raises(FileNotFoundError):
         from_folder(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
@@ -75,14 +79,15 @@ def test_from_folder_unequal_sizes_exception(tmp_path):
 def test_from_folder_equal_sizes(tmp_path):
     folders = ['val_X', 'val_Y']
     sizes = [5, 5]
+    shapes = [(3, 16, 16) for _ in sizes]
 
-    create_data(tmp_path, folders, sizes, (3, 16, 16))
+    create_data(tmp_path, folders, sizes, shapes)
 
     data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
     n = 0
     n_empty = 0
-    for source_x, target_y, _, _ in data.generator():
+    for source_x, target_y in data.generator():
         n += 1
 
         if target_y.min() == target_y.max() == 0:
@@ -96,8 +101,9 @@ def test_from_folder_equal_sizes(tmp_path):
 def test_from_folder_dimensions(tmp_path, shape):
     folders = ['val_X', 'val_Y']
     sizes = [5, 5]
+    shapes = [(3, 16, 16) for _ in sizes]
 
-    create_data(tmp_path, folders, sizes, (3, 16, 16))
+    create_data(tmp_path, folders, sizes, shapes)
 
     from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
@@ -379,3 +385,20 @@ def test_load_pairs_from_disk_different_shapes_C(tmp_path, shape1, shape2, axes)
     # load images
     load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
 
+
+@pytest.mark.parametrize('shape, axes, final_shape',
+                         [((8, 8, 12), 'XYC', (8, 8)),
+                          ((4, 8, 8), 'CYX', (8, 8)),
+                          ((8, 9, 10), 'YCX', (8, 10)),
+                          ((5, 8, 9, 10), 'ZYCX', (5, 8, 10)),
+                          ((8, 9, 5, 10), 'CYZX', (9, 5, 10)),
+                          ((9, 5, 10), 'YZX', (9, 5, 10))])
+def test_remove_C_dim(shape, axes, final_shape):
+    new_shape = remove_C_dim(shape, axes)
+
+    if 'C' in axes:
+        assert len(new_shape) == len(shape) - 1
+    else:
+        assert len(new_shape) == len(shape)
+
+    assert new_shape == final_shape

@@ -118,7 +118,7 @@ class ThresholdWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from ._sample_data import denoiseg_data_n0
+    from napari_denoiseg._sample_data import denoiseg_data_n0
 
     data = denoiseg_data_n0()
 

@@ -88,6 +88,10 @@ def from_folder(source_dir, target_dir, axes, check_exists=True):
                                                                                       o=t.name, a=axes,
                                                                                       pt=pattern)
 
+    # keep C index in memory
+    c_in_axes = 'C' in axes
+    index_c = axes.find('C')
+
     def _gen():
         for fx, fy in pairs:
             if fy:  # read images
@@ -95,16 +99,15 @@ def from_folder(source_dir, target_dir, axes, check_exists=True):
             else:  # if the target is None, replace by an empty image
                 x = imread(str(fx))
 
-                if 'C' in axes:
-                    ind = axes.find('C')
+                if c_in_axes:
                     new_shape = list(x.shape)
-                    new_shape.pop(ind)
+                    new_shape.pop(index_c)
                     y = np.zeros(new_shape)
                 else:
                     y = np.zeros(x.shape)
 
             len(axes) >= x.ndim or _raise(ValueError())
-            yield x, y, axes[-x.ndim:], None
+            yield x, y
 
     return RawData(_gen, n_images, description)
 
@@ -179,7 +182,7 @@ def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     # load data
     _source = []
     _target = []
-    for s, t, _, _ in pairs.generator():
+    for s, t in pairs.generator():
         _source.append(s)
         _target.append(t)
 
@@ -236,7 +239,8 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
 
 def remove_C_dim(shape, axes):
     ind = axes.find('C')
-    new_shape = list(shape)
-    new_shape.pop(ind)
 
-    return tuple(new_shape)
+    if ind == -1:
+        return shape
+
+    return (*shape[:ind], *shape[ind+1:])

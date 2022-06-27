@@ -1,6 +1,5 @@
 from queue import Queue
 
-import napari_svg.layer_to_xml
 import numpy as np
 
 from tensorflow.keras.callbacks import Callback
@@ -8,6 +7,9 @@ from tensorflow.keras.callbacks import Callback
 from napari.qt.threading import thread_worker
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import State, UpdateType
+
+
+REF_AXES = 'TSZYXC'
 
 
 class TrainingCallback(Callback):
@@ -49,8 +51,16 @@ def training_worker(widget, pretrained_model=None):
     n_epochs = widget.n_epochs
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
-    patch_shape = widget.patch_size_spin.value()
-    denoiseg_conf = generate_config(X_train, n_epochs, n_steps, batch_size, patch_shape)
+
+    # patch
+    patch_shape_XY = widget.patch_size_XY.value()
+    patch_shape_Z = widget.patch_size_Z.value()
+    if widget.is_3D:
+        patch_shape = (patch_shape_Z, patch_shape_XY, patch_shape_XY)
+    else:
+        patch_shape = (patch_shape_XY, patch_shape_XY)
+
+    denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
 
     # prepare training
     args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
@@ -117,57 +127,83 @@ def load_images(widget):
         return prepare_data_layers(image_data, label_data, perc_labels, widget.axes)
 
 
+def get_shape_order(x, ref_axes, axes):
+    """
+    Return the new shape and axes order of x, if the axes were to be ordered according to
+    the reference axes.
+
+    :param x:
+    :param ref_axes: Reference axes order (string)
+    :param axes: New axes as a list of strings
+    :return:
+    """
+    # build indices look-up table: indices of each axe in `axes`
+    indices = [axes.find(k) for k in ref_axes]
+
+    # remove all non-existing axes (index == -1)
+    indices = tuple(filter(lambda k: k != -1, indices))
+
+    # find axes order and get new shape
+    new_axes = [axes[ind] for ind in indices]
+    new_shape = tuple([x.shape[ind] for ind in indices])
+
+    return new_shape, ''.join(new_axes), indices
+
+
 def reshape_data(x, y, axes: str):
     """
     Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
     points are considered independent and stacked along the S dimension.
 
-    Note that if C dimension is present, y will have a singleton dimension
+    Differences between x and y:
+    - y can have a different S and T dimension size
+    - y doesn't have C dimension
 
     :param x: Raw data.
     :param y: Ground-truth data.
     :param axes: Current axes order of X
     :return: Reshaped x, reshaped y, new axes order
     """
-    ref_axes = 'TSZYXC'
+    _x = x
+    _y = y
+    _axes = axes
 
     # sanity checks TODO: raise error rather than assert?
-    assert 'X' in axes and 'Y' in axes, 'X or Y dimension missing in axes.'
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
 
-    if 'C' in axes:
-        assert len(axes) == len(x.shape) == len(y.shape) + 1
+    if 'C' in _axes:
+        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
+            raise ValueError('Incompatible data and axes.')
     else:
-        assert len(axes) == len(x.shape) == len(y.shape)
+        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
+            raise ValueError('Incompatible data and axes.')
 
-    assert len(list_diff(list(axes), list(ref_axes))) == 0  # all axes are part of ref_axes
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
-    # if S is not in the list of axes, then add a singleton S
-    if 'S' not in axes:
-        _axes = 'S' + axes
-        _x = x[np.newaxis, ...]
-        _y = y[np.newaxis, ...]
-    else:
-        _axes = axes
-        _x = x
-        _y = y
-
-    # build indices look-up table: indices of each axe in `axes`
-    indices = [_axes.find(k) for k in ref_axes]
-
-    # remove all non-existing axes (index == -1)
-    indices = tuple(filter(lambda k: k != -1, indices))
-    new_axes = [_axes[ind] for ind in indices]
-    new_x_shape = tuple([_x.shape[ind] for ind in indices])
-    new_y_shape = tuple([_y.shape[ind] for ind in indices])
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
 
     if 'C' in _axes:  # Y does not have a C dimension
-        new_y_shape = new_y_shape[:-1]
+        axes_y = _axes.replace('C', '')
+        ref_axes_y = REF_AXES.replace('C', '')
+        new_y_shape, _, _ = get_shape_order(_y, ref_axes_y, axes_y)
+    else:
+        new_y_shape = tuple([_y.shape[ind] for ind in indices])
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in new_axes:
+        new_axes = 'S' + new_axes
+        _x = _x[np.newaxis, ...]
+        _y = _y[np.newaxis, ...]
+        new_x_shape = (1,) + new_x_shape
+        new_y_shape = (1,) + new_y_shape
 
     # remove T if necessary
-    if 'T' in _axes:
+    if 'T' in new_axes:
         new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
         new_y_shape = (-1,) + new_y_shape[2:]
-        new_axes.pop(0)
+        new_axes = new_axes.replace('T', '')
 
     # reshape
     _x = _x.reshape(new_x_shape)
@@ -176,9 +212,9 @@ def reshape_data(x, y, axes: str):
     # add channel
     if 'C' not in new_axes:
         _x = _x[..., np.newaxis]
-        new_axes.append('C')
+        new_axes = new_axes + 'C'
 
-    return _x, _y, ''.join(new_axes)
+    return _x, _y, new_axes
 
 
 def augment_data(array, axes: str):
@@ -237,6 +273,7 @@ def load_data_from_disk(source, target, axes, augmentation=False, check_exists=T
         _axes = 'S' + axes
     else:
         _axes = axes
+
     _x, _y, new_axes = reshape_data(_x, _y, _axes)
 
     # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
@@ -259,16 +296,24 @@ def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes):
     return X, Y, X_val, Y_val, y_val, new_axes
 
 
-def non_zero_sum(im):
+def detect_non_zero_frames(im):
     """
-    Detect empty slices along the S dim.
+    Detect empty slices along the 0th dim.
 
     :param im: Image stack
     :return:
     """
-    im_reshaped = im.reshape(im.shape[0], -1)
+    assert len(im.shape) > 2
 
-    return np.where(np.sum(im_reshaped != 0, axis=1) != 0)[0]
+    if im.shape[0] > 1:
+        im_reshaped = im.reshape(im.shape[0], -1)
+
+        return np.where(np.sum(im_reshaped != 0, axis=1) != 0)[0]
+    else:
+        if im.min() == im.max() == 0:
+            return [0]
+        else:
+            return []
 
 
 def list_diff(l1, l2):
@@ -294,7 +339,10 @@ def create_train_set(x, y, ind_exclude, axes):
     # if there are channels in x, there should be none in y
     # along the S dimension, x can be larger than y
 
-    masks = np.zeros(x.shape[:-1])  # Y does not have channels dim before one hot encoding
+    # Y does not have channels dim before one hot encoding
+    masks = np.zeros(x.shape[:-1])
+
+    # missing frames are replaced by empty ones
     masks[:y.shape[0], ...] = y
 
     x_aug = augment_data(np.delete(x, ind_exclude, axis=0), axes)
@@ -314,8 +362,55 @@ def create_val_set(x, y, ind_include):
     return np.take(x, ind_include, axis=0), np.take(y, ind_include, axis=0)
 
 
+def check_napari_data(x, y, axes: str):
+    """
+
+    :param x:
+    :param y:
+    :param axes:
+    :return:
+    """
+
+    if 'S' not in axes:
+        raise ValueError('Missing S axis.')
+
+    if axes[-2:] != 'YX':
+        raise ValueError('X and Y axes are in the wrong order.')
+
+    if len(x.shape) < 3:
+        raise ValueError('Images must have a 3rd dimension (multiple samples).')
+
+    if len(axes) != len(x.shape):
+        raise ValueError('Raw images dimensions and axes are incompatible.')
+
+    if 'C' in axes:
+        if len(axes) != len(y.shape) + 1:
+            raise ValueError('Label images dimensions and axes are incompatible.')
+
+        if len(x.shape) != len(y.shape) + 1:
+            raise ValueError('Raw and label images dimensions are incompatible.')
+    else:
+        if len(axes) != len(y.shape):
+            raise ValueError('Label images dimensions and axes are incompatible.')
+
+        if len(x.shape) != len(y.shape):
+            raise ValueError('Raw and label images dimensions are incompatible.')
+
+    # X and Y dims are fixed in napari, check that they are equal for the augmentation
+    if x.shape[-1] != x.shape[-2]:
+        raise ValueError('Raw data X and Y dimensions should be equal.')
+
+    if y.shape[-1] != y.shape[-2]:
+        raise ValueError('Label image X and Y dimensions should be equal.')
+
+    if x.shape[-1] != y.shape[-1] or x.shape[-2] != y.shape[-2]:
+        raise ValueError('Raw and labels have different X and Y dimensions.')
+
+
 def prepare_data_layers(raw, gt, perc_labels, axes):
     """
+
+    perc_labels: ]0-100[
 
     :param raw:
     :param gt:
@@ -324,33 +419,41 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     :return:
     """
 
+    # sanity check on the data
+    check_napari_data(raw, gt, axes)
+
     # reshape data
     _x, _y, new_axes = reshape_data(raw, gt, axes)
-    # TODO: check that dim(X) and dim(Y) are equal for the augmentation
 
     # get indices of labeled frames
+    label_indices = detect_non_zero_frames(_y)
+
+    # get number of requested training labels
     dec_perc_labels = 0.01 * perc_labels
-    n_labels = int(0.5 + dec_perc_labels * _y.data.shape[0])
-    ind = non_zero_sum(_y)
-    if len(ind) < n_labels:
-        raise ValueError('Not enough labeled frames, label more frames or decrease label percentage.')
+    n_labels = len(label_indices)
+    n_train_labels = int(0.5 + dec_perc_labels * n_labels)
+
+    if perc_labels == 0 or perc_labels == 100:
+        raise ValueError('Percentage of training labels cannot be 0 or 100%.')
+    if len(label_indices) == 0 or n_train_labels < 5:  # TODO: hard coded value...
+        raise ValueError('Not enough labeled images for training, label more frames or decrease label percentage.')
+    if n_labels - n_train_labels < 2:
+        raise ValueError('Not enough labeled images for validation, label more frames or decrease label percentage.')
 
     # split labeled frames between train and val sets
-    ind_train = np.random.choice(ind, size=n_labels, replace=False).tolist()
-    ind_val = list_diff(ind, ind_train)
-    assert len(ind_train) + len(ind_val) == len(ind)
+    ind_train = np.random.choice(label_indices, size=n_train_labels, replace=False).tolist()
+    ind_val = list_diff(label_indices, ind_train)
+    assert len(ind_train) + len(ind_val) == len(label_indices)
 
     # create train and val sets
-    x_train, y_train = create_train_set(_x, _y, ind_val, new_axes)
-    x_val, y_val = create_val_set(_x, _y, ind_val)  # val sets without one-hot encoding
+    X, y_train = create_train_set(_x, _y, ind_val, new_axes)
+    X_val, y_val_no_hot = create_val_set(_x, _y, ind_val)  # val sets without one-hot encoding
 
     # add channel dim and one-hot encoding
-    X = x_train[..., np.newaxis]
     Y = convert_to_oneHot(y_train)
-    X_val = x_val[..., np.newaxis]
-    Y_val = convert_to_oneHot(y_val)
+    Y_val = convert_to_oneHot(y_val_no_hot)
 
-    return X, Y, X_val, Y_val, y_val, new_axes
+    return X, Y, X_val, Y_val, y_val_no_hot, new_axes
 
 
 def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
