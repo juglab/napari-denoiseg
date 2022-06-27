@@ -841,3 +841,65 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
 
     assert new_axes == final_axes
 
+
+@pytest.mark.parametrize('shape1, shape2, axes',
+                         [((20, 64, 64), (10, 64, 64), 'SYX'),
+                          ((20, 5, 64, 64), (10, 5, 64, 64), 'STYX'),
+                          ((20, 32, 64, 64), (10, 32, 64, 64), 'SZYX'),
+                          ((20, 3, 64, 64), (10, 64, 64), 'SCYX'),
+                          ((32, 5, 20, 64, 64), (32, 5, 20, 64, 64), 'ZTSYX')])
+def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes):
+
+    class Value:
+        def __init__(self, value):
+            self.value = value
+
+        def get_value(self):
+            return self.value()
+
+    class Slider:
+        def __init__(self, func):
+            self.slider = Value(func)
+
+    class MonkeyPatchWidget:
+        def __init__(self, napari_viewer):
+            self.images = Value(napari_viewer.layers['X'])
+            self.labels = Value(napari_viewer.layers['Y'])
+            self.perc_train_slider = Slider(lambda: 60)
+            self.axes = axes
+            self.n_epochs = 2
+            self.n_steps = 2
+            self.batch_size_spin = Value(lambda: 2)
+            self.patch_size_XY = Value(lambda: 16)
+            self.patch_size_Z = Value(lambda: 16)
+            self.is_3D = 'Z' in axes
+            self.tf_version = ''
+            self.state = State.RUNNING
+            self.model = None
+            self.threshold = -1
+            self.inputs = None
+            self.outputs = None
+            self.new_axes = None
+            self.load_from_disk = False
+
+    # make viewer and add layers
+    viewer = make_napari_viewer()
+
+    # create data
+    x = np.random.random(shape1)
+    y = np.random.randint(0, 255, shape2, dtype=np.uint16)
+
+    # add layers
+    viewer.add_image(x, name='X')
+    viewer.add_labels(y, name='Y')
+
+    # start training
+    widget = MonkeyPatchWidget(viewer)
+    t = training_worker(widget)
+
+    with qtbot.waitSignal(t.finished, timeout=50_000):
+        t.start()
+
+    assert -1 < widget.threshold <= 1
+    assert isinstance(widget.model, DenoiSeg)
+
