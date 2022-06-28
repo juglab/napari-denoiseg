@@ -62,6 +62,8 @@ class ThresholdWidget(QWidget):
 
         # add to main layout
         self.layout().addWidget(self.tabs)
+        self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
+        self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
         ###############################
         # other

@@ -56,6 +56,7 @@ class PredictWidget(QWidget):
 
         # add to main layout
         self.layout().addWidget(self.tabs)
+        self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
 
         ###############################
         # others
@@ -67,7 +68,6 @@ class PredictWidget(QWidget):
         # load 3D enabling checkbox
         self.enable_3d = enable_3d()
         self.layout().addWidget(self.enable_3d.native)
-
 
         # threshold slider
         self.threshold_spin = threshold_spin()

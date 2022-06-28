@@ -34,6 +34,7 @@ def layer_choice(annotation, **kwargs):
     viewer = napari.current_viewer()
     viewer.layers.events.inserted.connect(widget.reset_choices)
     viewer.layers.events.removed.connect(widget.reset_choices)
+    viewer.layers.events.changed.connect(widget.reset_choices)
     return widget
 
 
