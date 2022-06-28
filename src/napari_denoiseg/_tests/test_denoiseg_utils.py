@@ -18,7 +18,8 @@ from napari_denoiseg.utils import (
     load_weights,
     load_from_disk,
     load_pairs_from_disk,
-    remove_C_dim
+    remove_C_dim,
+    filter_dimensions
 )
 
 
@@ -97,7 +98,8 @@ def test_from_folder_equal_sizes(tmp_path):
     assert n_empty == sizes[0] - sizes[1]
 
 
-@pytest.mark.parametrize('shape', [(8,), (16, 8), (8, 16, 16), (32, 8, 16, 3), (32, 8, 64, 16, 3), (32, 16, 8, 64, 16, 3)])
+@pytest.mark.parametrize('shape',
+                         [(8,), (16, 8), (8, 16, 16), (32, 8, 16, 3), (32, 8, 64, 16, 3), (32, 16, 8, 64, 16, 3)])
 def test_from_folder_dimensions(tmp_path, shape):
     folders = ['val_X', 'val_Y']
     sizes = [5, 5]
@@ -284,7 +286,7 @@ def test_load_from_disk_same_shapes(tmp_path, shape):
     # load images
     images = load_from_disk(tmp_path)
     assert type(images) == np.ndarray
-    assert len(images.shape) == len(shape)+1
+    assert len(images.shape) == len(shape) + 1
     assert images.shape[0] == n
     assert images.shape[1:] == shape
     assert (images[0, ...] != images[1, ...]).all()
@@ -299,7 +301,7 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2):
     # load images
     images = load_from_disk(tmp_path)
     assert type(images) == list
-    assert len(images) == n[0]+n[1]
+    assert len(images) == n[0] + n[1]
 
     for img in images:
         assert (img.shape == shape1) or (img.shape == shape2)
@@ -402,3 +404,36 @@ def test_remove_C_dim(shape, axes, final_shape):
         assert len(new_shape) == len(shape)
 
     assert new_shape == final_shape
+
+
+@pytest.mark.parametrize('shape', [(1, 1, 1),
+                                   (1, 1, 1, 1),
+                                   (1, 1, 1, 1, 1)])
+@pytest.mark.parametrize('is_3D', [True, False])
+def test_filter_dimensions(shape, is_3D):
+    permutations = filter_dimensions(shape, is_3D)
+
+    if is_3D:
+        assert ['Z' in p for p in permutations]
+
+    assert ['YX' == p[-2:] for p in permutations]
+
+
+def test_filter_dimensions_len6_Z():
+    permutations = filter_dimensions((1, 1, 1, 1, 1, 1), True)
+
+    assert ['Z' in p for p in permutations]
+    assert ['YX' == p[-2:] for p in permutations]
+
+
+def test_filter_dimensions_YX_with_Z():
+    permutations = filter_dimensions((1, 1), True)
+
+    assert len(permutations) == 0
+
+
+@pytest.mark.parametrize('shape, is_3D', [((1, 1, 1, 1, 1, 1), False),
+                                          ((1, 1, 1, 1, 1, 1, 1), True)])
+def test_filter_dimensions_error(shape, is_3D):
+    with pytest.raises(AssertionError):
+        filter_dimensions(shape, is_3D)

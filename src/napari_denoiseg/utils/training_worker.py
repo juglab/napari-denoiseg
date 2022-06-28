@@ -6,10 +6,7 @@ from tensorflow.keras.callbacks import Callback
 
 from napari.qt.threading import thread_worker
 from denoiseg.utils.seg_utils import convert_to_oneHot
-from napari_denoiseg.utils import State, UpdateType
-
-
-REF_AXES = 'TSZYXC'
+from napari_denoiseg.utils import State, UpdateType, REF_AXES
 
 
 class TrainingCallback(Callback):

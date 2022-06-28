@@ -6,8 +6,12 @@ import numpy as np
 from tifffile import imread
 
 from csbdeep.data import RawData
-from csbdeep.utils import consume, axes_check_and_normalize
+from csbdeep.utils import consume
 from denoiseg.models import DenoiSeg
+from itertools import permutations
+
+
+REF_AXES = 'TSZYXC'
 
 
 class State(Enum):
@@ -246,3 +250,27 @@ def remove_C_dim(shape, axes):
         return shape
 
     return (*shape[:ind], *shape[ind+1:])
+
+
+def filter_dimensions(shape, is_3D):
+    """
+    """
+    axes = list(REF_AXES)
+    axes.remove('Y')  # skip YX, constraint
+    axes.remove('X')
+    n = len(shape) - 2
+
+    if not is_3D:  # if not 3D, remove it from the
+        axes.remove('Z')
+
+    assert n <= len(axes), 'Too many dimensions for the shape.'
+
+    all_permutations = [''.join(p)+'YX' for p in permutations(axes, n)]
+
+    if is_3D:
+        all_permutations = [p for p in all_permutations if 'Z' in p]
+
+    if len(all_permutations) == 0 and not is_3D:
+        all_permutations = ['YX']
+
+    return all_permutations
