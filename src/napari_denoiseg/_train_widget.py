@@ -184,7 +184,7 @@ class TrainWidget(QWidget):
         self.save_button.clicked.connect(self._save_model)
 
         # place-holder for models and parameters (e.g. bioimage.io)
-        self.model, self.threshold = None, None, None
+        self.model, self.threshold = None, None
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
