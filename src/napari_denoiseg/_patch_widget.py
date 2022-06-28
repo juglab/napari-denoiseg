@@ -1,7 +1,7 @@
 from copy import copy
 
 import napari
-from magicgui import magic_factory, magicgui
+from magicgui import magicgui
 import numpy as np
 
 

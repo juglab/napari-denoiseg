@@ -14,8 +14,8 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabWidget
 )
-from napari_denoiseg.utils import TBPlotWidget, FolderWidget
-from napari_denoiseg.utils import two_layers_choice, percentage_slider
+from napari_denoiseg.widgets import TBPlotWidget, FolderWidget
+from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker
 

@@ -11,11 +11,8 @@ from qtpy.QtWidgets import (
 )
 
 import napari
-from napari_denoiseg.utils import State, UpdateType
-from napari_denoiseg.utils import FolderWidget
-from napari_denoiseg.utils import layer_choice, load_button, threshold_spin
-from napari_denoiseg.utils import prediction_worker
-from napari_denoiseg.utils.widgets.magicgui_widgets import enable_3d
+from napari_denoiseg.utils import State, UpdateType, prediction_worker
+from napari_denoiseg.widgets import FolderWidget, layer_choice, load_button, threshold_spin, enable_3d
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'

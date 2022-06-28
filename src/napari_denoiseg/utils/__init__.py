@@ -1,13 +1,3 @@
-
-from .widgets import (
-    FolderWidget,
-    TBPlotWidget,
-    percentage_slider,
-    threshold_spin,
-    layer_choice,
-    two_layers_choice,
-    load_button
-)
 from .denoiseg_utils import State, UpdateType, ModelSaveMode, REF_AXES
 from .denoiseg_utils import (
     from_folder,
@@ -17,7 +7,8 @@ from .denoiseg_utils import (
     load_pairs_from_disk,
     build_modelzoo,
     remove_C_dim,
-    filter_dimensions
+    filter_dimensions,
+    are_axes_valid
 )
 from .optimizer_worker import optimizer_worker
 from .prediction_worker import prediction_worker
