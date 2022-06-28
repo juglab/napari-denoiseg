@@ -903,3 +903,4 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
     assert -1 < widget.threshold <= 1
     assert isinstance(widget.model, DenoiSeg)
 
+# TODO: test continue training with other weights

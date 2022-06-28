@@ -11,6 +11,7 @@ def optimizer_worker(widget):
     from denoiseg.utils.compute_precision_threshold import measure_precision
 
     # get images
+    # TODO reshape data + lazy loading
     if widget.load_from_disk:
         images = widget.images_folder.get_folder()
         assert Path(images.exists()), 'Images path does not exists.'

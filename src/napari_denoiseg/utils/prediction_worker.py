@@ -9,6 +9,8 @@ def prediction_worker(widget):
     from napari_denoiseg.utils import load_from_disk, load_weights
 
     # grab images
+    # TODO: reshape data
+    # TODO: lazy loading, add check box lazy loading and save folder?
     if widget.load_from_disk:
         images = load_from_disk(widget.images_folder.get_folder())
     else:
