@@ -1,6 +1,6 @@
 import numpy as np
 from napari.qt.threading import thread_worker
-from napari_denoiseg.utils import generate_config, UpdateType, State
+from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single
 
 
 @thread_worker(start_thread=False)
@@ -8,25 +8,34 @@ def prediction_worker(widget):
     from denoiseg.models import DenoiSeg
     from napari_denoiseg.utils import load_from_disk, load_weights
 
+    # from disk, lazy loading and threshold
+    is_from_disk = widget.load_from_disk
+    is_threshold = widget.threshold_cbox.isChecked()
+    is_lazy_loading = widget.lazy_loading.isChecked()
+
+    # get axes
+    axes = widget.axes_widget.get_axes()
+
     # grab images
-    # TODO: reshape data
-    # TODO: lazy loading, add check box lazy loading and save folder?
-    if widget.load_from_disk:
+    if is_from_disk:
         images = load_from_disk(widget.images_folder.get_folder())
     else:
         images = widget.images.value.data
-    assert len(images.shape) > 1
+    assert len(images.shape) > 0
+
+    # reshape data
+    x, new_axes = reshape_data_single(images, axes)
 
     # yield total number of images
     n_img = images.shape[0]
     yield {UpdateType.N_IMAGES: n_img}
 
-    # set extra dimensions
-    images = images[np.newaxis,... , np.newaxis]
-
-    images = np.array(images)
     # instantiate model with dummy values
-    config = generate_config(images, tuple([1 for x in range(len(images.shape)-2)]), 1, 1, 1)
+    if 'Z' in new_axes:
+        patch = (16, 16, 16)
+    else:
+        patch = (16, 16)
+    config = generate_config(images, patch, 1, 1, 1)
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine

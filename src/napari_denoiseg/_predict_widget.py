@@ -7,15 +7,29 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QTabWidget,
-    QProgressBar
+    QProgressBar,
+    QCheckBox
 )
 
 import napari
-from napari_denoiseg.utils import State, UpdateType, prediction_worker
-from napari_denoiseg.widgets import FolderWidget, layer_choice, load_button, threshold_spin, enable_3d
+from napari_denoiseg.utils import (
+    State,
+    UpdateType,
+    prediction_worker,
+    loading_worker
+)
+from napari_denoiseg.widgets import (
+    FolderWidget,
+    AxesWidget,
+    layer_choice,
+    load_button,
+    threshold_spin,
+    enable_3d
+)
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
+SAMPLE = 'Sample data'
 
 
 class PredictWidget(QWidget):
@@ -26,7 +40,7 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(300)
+        self.setMaximumHeight(400)
 
         ###############################
         # QTabs
@@ -40,14 +54,15 @@ class PredictWidget(QWidget):
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
-        self.tabs.setMaximumHeight(150)
+        self.tabs.setMaximumHeight(250)
 
         # image layer tab
         self.images = layer_choice(annotation=napari.layers.Image, name="Images")
-        self.layout().addWidget(self.images.native)
         tab_layers.layout().addWidget(self.images.native)
 
         # disk tab
+        self.lazy_loading = QCheckBox('Lazy loading')
+        tab_disk.layout().addWidget(self.lazy_loading)
         self.images_folder = FolderWidget('Choose')
         tab_disk.layout().addWidget(self.images_folder)
 
@@ -63,11 +78,19 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.load_button.native)
 
         # load 3D enabling checkbox
-        self.enable_3d = enable_3d()
-        self.layout().addWidget(self.enable_3d.native)
+        self.enable_3d = QCheckBox('Enable 3D') # enable_3d()
+        self.layout().addWidget(self.enable_3d)
+
+        # axes widget
+        self.axes_widget = AxesWidget()
+        self.axes_widget.setContentsMargins(8, 0, 0, 0)  # TODO very inelegant
+        self.layout().addWidget(self.axes_widget)
 
         # threshold slider
+        self.threshold_cbox = QCheckBox('Apply threshold')
+        self.layout().addWidget(self.threshold_cbox)
         self.threshold_spin = threshold_spin()
+        self.threshold_spin.native.setEnabled(False)
         self.layout().addWidget(self.threshold_spin.native)
 
         # progress bar
@@ -84,14 +107,58 @@ class PredictWidget(QWidget):
         self.seg_prediction = None
         self.denoi_prediction = None
         self.predict_button = QPushButton("Predict", self)
-        self.predict_button.clicked.connect(self.start_prediction)
         self.layout().addWidget(self.predict_button)
 
-        self.n_im = 0
-        self.load_from_disk = 0
-        # napari_viewer.window.qt_viewer.destroyed.connect(self.interrupt)
+        # actions
+        self.predict_button.clicked.connect(self._start_prediction)
+        self.images.changed.connect(self._update_layer_axes)
+        self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
+        self.enable_3d.stateChanged.connect(self._update_3D)
+        self.threshold_cbox.stateChanged.connect(self._update_threshold)
 
-    def update(self, updates):
+        # members
+        self.n_im = 0
+        self.shape = None
+        self.load_from_disk = 0
+
+        # update axes widget in case of data
+        self._update_layer_axes()
+
+    def _update_threshold(self):
+        self.threshold_spin.native.setEnabled(self.threshold_cbox.isChecked())
+
+    def _update_3D(self):
+        self.axes_widget.update_is_3D(self.enable_3d.isChecked())
+        self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _update_layer_axes(self):
+        if self.images.value is not None:
+            shape = self.images.value.data.shape
+
+            # update shape length in the axes widget
+            self.axes_widget.update_axes_number(len(shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _add_image(self, image):
+        if SAMPLE in self.viewer.layers:
+            self.viewer.layers.remove(SAMPLE)
+
+        if image is not None:
+            self.viewer.add_image(image, name=SAMPLE, visible=True)
+
+            # update the axes widget
+            self.axes_widget.update_axes_number(len(image.shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _update_disk_axes(self):
+        path = self.images_folder.get_folder()
+
+        # load one image
+        load_worker = loading_worker(path)
+        load_worker.yielded.connect(lambda x: self._add_image(x))
+        load_worker.start()
+
+    def _update(self, updates):
         """
 
         :param updates:
@@ -114,11 +181,10 @@ class PredictWidget(QWidget):
             self.pb_prediction.setValue(100)
             self.pb_prediction.setFormat(f'Prediction done')
 
-    def interrupt(self):
-        self.worker.quit()
-
-    def start_prediction(self):
+    def _start_prediction(self):
         if self.state == State.IDLE:
+            # TODO check that all in order (data loaded or something)
+
             self.state = State.RUNNING
 
             self.predict_button.setText('Stop')
@@ -134,21 +200,26 @@ class PredictWidget(QWidget):
 
             # create new seg and denoising layers
             if self.load_from_disk == 0:
-                self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+                self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.float)
                 viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
                 self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+                viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+            else:
+                self.seg_prediction = np.zeros(self.shape, dtype=np.float)
+                viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                self.denoi_prediction = np.zeros(self.shape, dtype=np.int16)
                 viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
             # start the prediction worker
             self.worker = prediction_worker(self)
-            self.worker.yielded.connect(lambda x: self.update(x))
-            self.worker.returned.connect(self.done)
+            self.worker.yielded.connect(lambda x: self._update(x))
+            self.worker.returned.connect(self._done)
             self.worker.start()
         elif self.state == State.RUNNING:
             # stop requested
             self.state = State.IDLE
 
-    def done(self):
+    def _done(self):
         self.state = State.IDLE
         self.predict_button.setText('Predict again')
 

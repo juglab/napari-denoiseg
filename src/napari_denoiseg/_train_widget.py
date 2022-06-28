@@ -49,7 +49,7 @@ class TrainWidget(QWidget):
         # layer tabs
         self.layer_choice = two_layers_choice()
         self.images = self.layer_choice.Images
-        self.labels = self.layer_choice.Masks
+        self.labels = self.layer_choice.Labels
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         self.perc_train_slider = percentage_slider()
@@ -83,7 +83,6 @@ class TrainWidget(QWidget):
         ###############################
         # axes
         self.axes_widget = AxesWidget()
-        #self.layout().addWidget(self.axes_widget)
 
         # others
         self.n_epochs_spin = QSpinBox()
@@ -248,7 +247,7 @@ class TrainWidget(QWidget):
         pass
 
     def _update_layer_axes(self):
-        if self.images.value.data is not None:
+        if self.images.value is not None:
             shape = self.images.value.data.shape
 
             # update shape length in the axes widget
