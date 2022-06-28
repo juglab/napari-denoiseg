@@ -15,6 +15,7 @@ from napari_denoiseg.utils import State, UpdateType
 from napari_denoiseg.utils import FolderWidget
 from napari_denoiseg.utils import layer_choice, load_button, threshold_spin
 from napari_denoiseg.utils import prediction_worker
+from napari_denoiseg.utils.widgets.magicgui_widgets import enable_3d
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -45,9 +46,9 @@ class PredictWidget(QWidget):
         self.tabs.setMaximumHeight(150)
 
         # image layer tab
-        self.images = layer_choice(napari_viewer, annotation=napari.layers.Image, name="Images")
+        self.images = layer_choice(annotation=napari.layers.Image, name="Images")
         self.layout().addWidget(self.images.native)
-        tab_layers.layout().addWidget(self.layer_choice.native)
+        tab_layers.layout().addWidget(self.images.native)
 
         # disk tab
         self.images_folder = FolderWidget('Choose')
@@ -62,6 +63,11 @@ class PredictWidget(QWidget):
         # load model button
         self.load_button = load_button()
         self.layout().addWidget(self.load_button.native)
+
+        # load 3D enabling checkbox
+        self.enable_3d = enable_3d()
+        self.layout().addWidget(self.enable_3d.native)
+
 
         # threshold slider
         self.threshold_spin = threshold_spin()
@@ -150,7 +156,7 @@ class PredictWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from ._sample_data import denoiseg_data_n0
+    from napari_denoiseg._sample_data import denoiseg_data_n0
 
     data = denoiseg_data_n0()
 

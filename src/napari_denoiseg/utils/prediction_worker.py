@@ -20,10 +20,11 @@ def prediction_worker(widget):
     yield {UpdateType.N_IMAGES: n_img}
 
     # set extra dimensions
-    images = [np.newaxis, ..., np.newaxis]
+    images = images[np.newaxis,... , np.newaxis]
 
+    images = np.array(images)
     # instantiate model with dummy values
-    config = generate_config(images, 1, 1, 1)
+    config = generate_config(images, tuple([1 for x in range(len(images.shape)-2)]), 1, 1, 1)
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine

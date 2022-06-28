@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from enum import Enum
@@ -129,7 +130,8 @@ def load_weights(model: DenoiSeg, weights_path):
     :param weights_path:
     :return:
     """
-    if weights_path[-4:] == ".zip":
+    _filename, file_ext = os.path.splitext(weights_path)
+    if file_ext == ".zip":
         import bioimageio.core
         # we assume we got a modelzoo file
         rdf = bioimageio.core.load_resource_description(weights_path)

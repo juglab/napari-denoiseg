@@ -23,6 +23,11 @@ def load_button(Model: Path):
     pass
 
 
+@magic_factory(auto_call=True, use3d={'label': 'Enable 3D', 'widget_type': 'Checkbox'})
+def enable_3d(use3d: bool = False):
+    pass
+
+
 def layer_choice(annotation, **kwargs):
     widget = create_widget(annotation=annotation, **kwargs)
     widget.reset_choices()
