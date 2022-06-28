@@ -133,10 +133,11 @@ class PredictWidget(QWidget):
                 self.viewer.layers.remove(DENOISING)
 
             # create new seg and denoising layers
-            self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
-            viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-            self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
-            viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+            if self.load_from_disk == 0:
+                self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+                viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+                viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
             # start the prediction worker
             self.worker = prediction_worker(self)

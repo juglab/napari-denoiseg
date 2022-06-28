@@ -55,7 +55,7 @@ class AxesWidget(QWidget):
         self.layout().addWidget(self.label)
 
         # text field
-        self.text_field = QLineEdit(self._set_default_text())
+        self.text_field = QLineEdit(self.get_default_text())
         self.text_field.setMaxLength(6)
         self.text_field.setValidator(LettersValidator(REF_AXES))
 
@@ -70,7 +70,7 @@ class AxesWidget(QWidget):
         # validate text
         self._validate_text()
 
-    def _set_default_text(self):
+    def get_default_text(self):
         if self.is_3D:
             defaults = ['YX', 'ZYX', 'SZYX', 'STZYX', 'STCZYX']
         else:
@@ -114,6 +114,9 @@ class AxesWidget(QWidget):
     def is_valid(self):
         self._validate_text()  # probably unnecessary
         return self.is_text_valid
+
+    def set_text_field(self, text):
+        self.text_field.setText(text)
 
 
 if __name__ == "__main__":

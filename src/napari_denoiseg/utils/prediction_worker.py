@@ -54,6 +54,8 @@ def prediction_worker(widget):
         widget.seg_prediction[i, :, :] = pred_seg
         widget.denoi_prediction[i, :, :] = pred[0, :, :, 0]
 
+        # TODO: show also the border class
+
         # check if stop requested
         if widget.state != State.RUNNING:
             break

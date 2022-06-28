@@ -32,7 +32,7 @@ def test_axes_widget_change_dims():
     widget.update_is_3D(True)
 
     # change text
-    widget.text_field.setText(widget._set_default_text())
+    widget.set_text_field(widget.get_default_text())
     assert widget.is_valid()
 
 
@@ -45,5 +45,5 @@ def test_axes_widget_change_dims():
     assert not widget.is_valid()   # text is not valid anymore
 
     # change text
-    widget.text_field.setText('ZTSYX')  # valid text
+    widget.set_text_field('ZTSYX')  # valid text
     assert widget.is_valid()

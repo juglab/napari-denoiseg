@@ -14,10 +14,13 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabWidget
 )
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget
+from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
-from napari_denoiseg.utils import training_worker
+from napari_denoiseg.utils import training_worker, loading_worker
+
+
+SAMPLE = 'Sample data'
 
 
 class TrainWidget(QWidget):
@@ -78,6 +81,10 @@ class TrainWidget(QWidget):
         self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
         ###############################
+        # axes
+        self.axes_widget = AxesWidget()
+        #self.layout().addWidget(self.axes_widget)
+
         # others
         self.n_epochs_spin = QSpinBox()
         self.n_epochs_spin.setMinimum(1)
@@ -108,6 +115,7 @@ class TrainWidget(QWidget):
         # TODO add tooltips
         others = QWidget()
         formLayout = QFormLayout()
+        formLayout.addRow('', self.axes_widget)
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
@@ -177,6 +185,8 @@ class TrainWidget(QWidget):
         self.worker = None
 
         # actions
+        self.images.changed.connect(self._update_layer_axes)
+        self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
         self.train_button.clicked.connect(self._start_training)
         self.retrain_button.clicked.connect(self._continue_training)
         self.n_epochs_spin.valueChanged.connect(self._update_epochs)
@@ -189,26 +199,33 @@ class TrainWidget(QWidget):
         self.tf_version = None
         self.load_from_disk = False
 
+        # update axes widget in case of data
+        self._update_layer_axes()
+
     def _start_training(self, pretrained_model=None):
         if self.state == State.IDLE:
-            self.state = State.RUNNING
+            if self.axes_widget.is_valid():
+                self.state = State.RUNNING
 
-            # register which data tab: layers or disk
-            self.load_from_disk = self.tabs.currentIndex() == 1
+                # register which data tab: layers or disk
+                self.load_from_disk = self.tabs.currentIndex() == 1
 
-            # modify UI
-            self.plot.clear_plot()
-            self.threshold_label.setText("Best threshold: ?")
-            self.train_button.setText('Stop')
-            self.retrain_button.setText('')
-            self.retrain_button.setEnabled(False)
-            self.save_button.setEnabled(False)
+                # modify UI
+                self.plot.clear_plot()
+                self.threshold_label.setText("Best threshold: ?")
+                self.train_button.setText('Stop')
+                self.retrain_button.setText('')
+                self.retrain_button.setEnabled(False)
+                self.save_button.setEnabled(False)
 
-            # instantiate worker and start training
-            self.worker = training_worker(self, pretrained_model=pretrained_model)
-            self.worker.yielded.connect(lambda x: self._update_all(x))
-            self.worker.returned.connect(self._done)
-            self.worker.start()
+                # instantiate worker and start training
+                self.worker = training_worker(self, pretrained_model=pretrained_model)
+                self.worker.yielded.connect(lambda x: self._update_all(x))
+                self.worker.returned.connect(self._done)
+                self.worker.start()
+            else:
+                # TODO feedback to users?
+                pass
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
@@ -225,6 +242,37 @@ class TrainWidget(QWidget):
         self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
 
         self.save_button.setEnabled(True)
+
+    def _update_3D(self):
+        # TODO: get checkbox state and pass it on to the axes
+        pass
+
+    def _update_layer_axes(self):
+        if self.images.value.data is not None:
+            shape = self.images.value.data.shape
+
+            # update shape length in the axes widget
+            self.axes_widget.update_axes_number(len(shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _add_image(self, image):
+        if SAMPLE in self.viewer.layers:
+            self.viewer.layers.remove(SAMPLE)
+
+        if image is not None:
+            self.viewer.add_image(image, name=SAMPLE, visible=True)
+
+            # update the axes widget
+            self.axes_widget.update_axes_number(len(image.shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _update_disk_axes(self):
+        path = self.train_images_folder.get_folder()
+
+        # load one image
+        load_worker = loading_worker(path)
+        load_worker.yielded.connect(lambda x: self._add_image(x))
+        load_worker.start()
 
     def _update_epochs(self):
         if self.state == State.IDLE:
