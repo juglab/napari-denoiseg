@@ -79,7 +79,7 @@ class AxesWidget(QWidget):
         return defaults[self.n_axes-2]
 
     def _validate_text(self):
-        axes = self.get_text()
+        axes = self.get_axes()
 
         # change text color according to axes validation
         if are_axes_valid(axes):
@@ -108,7 +108,7 @@ class AxesWidget(QWidget):
         self.is_3D = is_3D
         self._validate_text()  # force new validation
 
-    def get_text(self):
+    def get_axes(self):
         return self.text_field.text()
 
     def is_valid(self):

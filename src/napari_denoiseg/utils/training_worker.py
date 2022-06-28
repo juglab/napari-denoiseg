@@ -105,6 +105,9 @@ def load_images(widget):
     """
     # TODO make clearer what objects are returned
 
+    # get axes
+    axes = widget.axes_widget.get_axes()
+
     # get images and labels
     if widget.load_from_disk:  # from local folders
         path_train_X = widget.train_images_folder.get_folder()
@@ -112,7 +115,7 @@ def load_images(widget):
         path_val_X = widget.val_images_folder.get_folder()
         path_val_Y = widget.val_labels_folder.get_folder()
 
-        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, widget.axes)
+        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes)
 
     else:  # from layers
         image_data = widget.images.value.data
@@ -121,7 +124,7 @@ def load_images(widget):
         # split train and val
         perc_labels = widget.perc_train_slider.slider.get_value()
 
-        return prepare_data_layers(image_data, label_data, perc_labels, widget.axes)
+        return prepare_data_layers(image_data, label_data, perc_labels, axes)
 
 
 def get_shape_order(x, ref_axes, axes):
