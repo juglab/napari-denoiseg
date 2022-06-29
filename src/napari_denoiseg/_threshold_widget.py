@@ -43,7 +43,7 @@ class ThresholdWidget(QWidget):
         # layer tabs
         self.layer_choice = two_layers_choice()
         self.images = self.layer_choice.Images
-        self.labels = self.layer_choice.Masks
+        self.labels = self.layer_choice.Labels
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         # disk tab
