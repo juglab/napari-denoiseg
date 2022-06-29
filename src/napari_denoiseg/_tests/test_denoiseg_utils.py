@@ -12,26 +12,29 @@ from napari_denoiseg._tests.test_utils import (
     create_model_zoo_parameters
 )
 from napari_denoiseg.utils import (
-    from_folder,
+    load_pairs_generator,
     generate_config,
     build_modelzoo,
     load_weights,
     load_from_disk,
     load_pairs_from_disk,
-    remove_C_dim
+    remove_C_dim,
+    filter_dimensions,
+    are_axes_valid,
+    lazy_load_generator
 )
 
 
 ###################################################################
-# test from_folder
-def test_from_folder_no_files(tmp_path):
+# test load_pairs_generator
+def test_load_pairs_generator_no_files(tmp_path):
     folders = ['train_X', 'train_Y']
 
     with pytest.raises(FileNotFoundError):
-        from_folder(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
+        load_pairs_generator(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
 
 
-def test_from_folder_unequal_sizes(tmp_path):
+def test_load_pairs_generator_unequal_sizes(tmp_path):
     """
     Test that we can load pairs of images with `check_exists` set to `False` when no target exist.
 
@@ -44,7 +47,7 @@ def test_from_folder_unequal_sizes(tmp_path):
 
     create_data(tmp_path, folders, sizes, shapes)
 
-    data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZYX', check_exists=False)
+    data = load_pairs_generator(tmp_path / folders[0], tmp_path / folders[1], 'ZYX', check_exists=False)
 
     n = 0
     n_empty = 0
@@ -59,7 +62,7 @@ def test_from_folder_unequal_sizes(tmp_path):
     assert n_empty == sizes[0] - sizes[1]
 
 
-def test_from_folder_unequal_sizes_exception(tmp_path):
+def test_load_pairs_generator_unequal_sizes_exception(tmp_path):
     """
     Test that with the default `check_exists` parameter set to `True`, loading unmatched pairs generate an exception.
 
@@ -73,17 +76,17 @@ def test_from_folder_unequal_sizes_exception(tmp_path):
     create_data(tmp_path, folders, sizes, shapes)
 
     with pytest.raises(FileNotFoundError):
-        from_folder(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
+        load_pairs_generator(tmp_path / folders[0], 'ZXY', tmp_path / folders[1])
 
 
-def test_from_folder_equal_sizes(tmp_path):
+def test_load_pairs_generator_equal_sizes(tmp_path):
     folders = ['val_X', 'val_Y']
     sizes = [5, 5]
     shapes = [(3, 16, 16) for _ in sizes]
 
     create_data(tmp_path, folders, sizes, shapes)
 
-    data = from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
+    data = load_pairs_generator(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
     n = 0
     n_empty = 0
@@ -97,15 +100,16 @@ def test_from_folder_equal_sizes(tmp_path):
     assert n_empty == sizes[0] - sizes[1]
 
 
-@pytest.mark.parametrize('shape', [(8,), (16, 8), (8, 16, 16), (32, 8, 16, 3), (32, 8, 64, 16, 3), (32, 16, 8, 64, 16, 3)])
-def test_from_folder_dimensions(tmp_path, shape):
+@pytest.mark.parametrize('shape',
+                         [(8,), (16, 8), (8, 16, 16), (32, 8, 16, 3), (32, 8, 64, 16, 3), (32, 16, 8, 64, 16, 3)])
+def test_load_pairs_generator_dimensions(tmp_path, shape):
     folders = ['val_X', 'val_Y']
     sizes = [5, 5]
     shapes = [(3, 16, 16) for _ in sizes]
 
     create_data(tmp_path, folders, sizes, shapes)
 
-    from_folder(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
+    load_pairs_generator(tmp_path / folders[0], tmp_path / folders[1], 'ZXY')
 
 
 ###################################################################
@@ -284,7 +288,7 @@ def test_load_from_disk_same_shapes(tmp_path, shape):
     # load images
     images = load_from_disk(tmp_path)
     assert type(images) == np.ndarray
-    assert len(images.shape) == len(shape)+1
+    assert len(images.shape) == len(shape) + 1
     assert images.shape[0] == n
     assert images.shape[1:] == shape
     assert (images[0, ...] != images[1, ...]).all()
@@ -299,7 +303,7 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2):
     # load images
     images = load_from_disk(tmp_path)
     assert type(images) == list
-    assert len(images) == n[0]+n[1]
+    assert len(images) == n[0] + n[1]
 
     for img in images:
         assert (img.shape == shape1) or (img.shape == shape2)
@@ -402,3 +406,64 @@ def test_remove_C_dim(shape, axes, final_shape):
         assert len(new_shape) == len(shape)
 
     assert new_shape == final_shape
+
+
+@pytest.mark.parametrize('shape', [3, 4, 5])
+@pytest.mark.parametrize('is_3D', [True, False])
+def test_filter_dimensions(shape, is_3D):
+    permutations = filter_dimensions(shape, is_3D)
+
+    if is_3D:
+        assert all(['Z' in p for p in permutations])
+
+    assert all(['YX' == p[-2:] for p in permutations])
+
+
+def test_filter_dimensions_len6_Z():
+    permutations = filter_dimensions(6, True)
+
+    assert all(['Z' in p for p in permutations])
+    assert all(['YX' == p[-2:] for p in permutations])
+
+
+@pytest.mark.parametrize('shape, is_3D', [(2, True), (6, False), (7, True)])
+def test_filter_dimensions_error(shape, is_3D):
+    permutations = filter_dimensions(shape, is_3D)
+    print(permutations)
+    assert len(permutations) == 0
+
+
+@pytest.mark.parametrize('axes, valid', [('XSYCZ', True),
+                                         ('YZX', True),
+                                         ('TCS', True),
+                                         ('xsYcZ', True),
+                                         ('YzX', True),
+                                         ('tCS', True),
+                                         ('SCZXYT', True),
+                                         ('SZXCZY', False),
+                                         ('Xx', False),
+                                         ('SZXGY', False),
+                                         ('I5SYX', False),
+                                         ('STZCYXL', False)])
+def test_are_axes_valid(axes, valid):
+    assert are_axes_valid(axes) == valid
+
+
+def test_lazy_generator(tmp_path):
+    n = 10
+    save_img(tmp_path, n, (8, 8, 8))
+
+    # create lazy generator
+    gen, m = lazy_load_generator(tmp_path)
+    assert m == n
+
+    # check that it can load n images
+    for i in range(n):
+        next(gen)
+
+    # test that next(gen, None) works
+    assert next(gen, None) is None
+
+    # test that next() throws error
+    with pytest.raises(StopIteration):
+        next(gen)

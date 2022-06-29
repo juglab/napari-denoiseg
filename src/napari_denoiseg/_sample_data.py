@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import urllib
-import warnings
 import zipfile
 import numpy as np
 

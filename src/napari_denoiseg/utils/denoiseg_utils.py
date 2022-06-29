@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 
 from enum import Enum
@@ -6,8 +7,12 @@ import numpy as np
 from tifffile import imread
 
 from csbdeep.data import RawData
-from csbdeep.utils import consume, axes_check_and_normalize
+from csbdeep.utils import consume
 from denoiseg.models import DenoiSeg
+from itertools import permutations
+
+
+REF_AXES = 'TSZYXC'
 
 
 class State(Enum):
@@ -35,7 +40,7 @@ class UpdateType(Enum):
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
-def from_folder(source_dir, target_dir, axes, check_exists=True):
+def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
     """
     Builds a generator for pairs of source and target images with same names. `check_exists` = `False` allows inserting
     empty images when the corresponding target is not found.
@@ -168,6 +173,22 @@ def load_from_disk(path):
     return np.array(images) if dims_agree else images
 
 
+def lazy_load_generator(path):
+    """
+
+    :param path:
+    :return:
+    """
+    images_path = Path(path)
+    image_files = [f for f in images_path.glob('*.tif*')]
+
+    def generator(file_list):
+        for f in file_list:
+            yield imread(str(f))
+
+    return generator(image_files), len(image_files)
+
+
 def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     """
 
@@ -178,7 +199,7 @@ def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     :return:
     """
     # create RawData generator
-    pairs = from_folder(source_path, target_path, axes, check_exists)
+    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
     n = pairs.size
 
     # load data
@@ -239,6 +260,147 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                 )
 
 
+def get_shape_order(x, ref_axes, axes):
+    """
+    Return the new shape and axes order of x, if the axes were to be ordered according to
+    the reference axes.
+
+    :param x:
+    :param ref_axes: Reference axes order (string)
+    :param axes: New axes as a list of strings
+    :return:
+    """
+    # build indices look-up table: indices of each axe in `axes`
+    indices = [axes.find(k) for k in ref_axes]
+
+    # remove all non-existing axes (index == -1)
+    indices = tuple(filter(lambda k: k != -1, indices))
+
+    # find axes order and get new shape
+    new_axes = [axes[ind] for ind in indices]
+    new_shape = tuple([x.shape[ind] for ind in indices])
+
+    return new_shape, ''.join(new_axes), indices
+
+
+def list_diff(l1, l2):
+    """
+    Return the difference of two lists.
+    :param l1:
+    :param l2:
+    :return: list of elements in l1 that are not in l2.
+    """
+    return list(set(l1) - set(l2))
+
+
+def reshape_data(x, y, axes: str):
+    """
+    Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
+    points are considered independent and stacked along the S dimension.
+
+    Differences between x and y:
+    - y can have a different S and T dimension size
+    - y doesn't have C dimension
+
+    :param x: Raw data.
+    :param y: Ground-truth data.
+    :param axes: Current axes order of X
+    :return: Reshaped x, reshaped y, new axes order
+    """
+    _x = x
+    _y = y
+    _axes = axes
+
+    # sanity checks TODO: raise error rather than assert?
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
+
+    if 'C' in _axes:
+        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
+            raise ValueError('Incompatible data and axes.')
+    else:
+        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
+            raise ValueError('Incompatible data and axes.')
+
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
+
+    if 'C' in _axes:  # Y does not have a C dimension
+        axes_y = _axes.replace('C', '')
+        ref_axes_y = REF_AXES.replace('C', '')
+        new_y_shape, _, _ = get_shape_order(_y, ref_axes_y, axes_y)
+    else:
+        new_y_shape = tuple([_y.shape[ind] for ind in indices])
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in new_axes:
+        new_axes = 'S' + new_axes
+        _x = _x[np.newaxis, ...]
+        _y = _y[np.newaxis, ...]
+        new_x_shape = (1,) + new_x_shape
+        new_y_shape = (1,) + new_y_shape
+
+    # remove T if necessary
+    if 'T' in new_axes:
+        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
+        new_y_shape = (-1,) + new_y_shape[2:]
+        new_axes = new_axes.replace('T', '')
+
+    # reshape
+    _x = _x.reshape(new_x_shape)
+    _y = _y.reshape(new_y_shape)
+
+    # add channel
+    if 'C' not in new_axes:
+        _x = _x[..., np.newaxis]
+        new_axes = new_axes + 'C'
+
+    return _x, _y, new_axes
+
+
+# TODO: this is a copy of reshape_data but without Y...
+def reshape_data_single(x, axes: str):
+    """
+    """
+    _x = x
+    _axes = axes
+
+    # sanity checks
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
+
+    if len(_axes) != len(_x.shape):
+        raise ValueError('Incompatible data and axes.')
+
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in new_axes:
+        new_axes = 'S' + new_axes
+        _x = _x[np.newaxis, ...]
+        new_x_shape = (1,) + new_x_shape
+
+    # remove T if necessary
+    if 'T' in new_axes:
+        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
+        new_axes = new_axes.replace('T', '')
+
+    # reshape
+    _x = _x.reshape(new_x_shape)
+
+    # add channel
+    if 'C' not in new_axes:
+        _x = _x[..., np.newaxis]
+        new_axes = new_axes + 'C'
+
+    return _x, new_axes
+
+
 def remove_C_dim(shape, axes):
     ind = axes.find('C')
 
@@ -246,3 +408,49 @@ def remove_C_dim(shape, axes):
         return shape
 
     return (*shape[:ind], *shape[ind+1:])
+
+
+def filter_dimensions(shape_length, is_3D):
+    """
+    """
+    axes = list(REF_AXES)
+    axes.remove('Y')  # skip YX, constraint
+    axes.remove('X')
+    n = shape_length - 2
+
+    if not is_3D:  # if not 3D, remove it from the
+        axes.remove('Z')
+
+    if n > len(axes):
+        warnings.warn('Data shape length is too large.')
+        return []
+    else:
+        all_permutations = [''.join(p)+'YX' for p in permutations(axes, n)]
+
+        if is_3D:
+            all_permutations = [p for p in all_permutations if 'Z' in p]
+
+        if len(all_permutations) == 0 and not is_3D:
+            all_permutations = ['YX']
+
+        return all_permutations
+
+
+def are_axes_valid(axes: str):
+    _axes = axes.upper()
+
+    # length 0 and >6 are not accepted
+    if 0 > len(_axes) > 6:
+        return False
+
+    # all characters must be in REF_AXES = 'STZYXC'
+    if not all([s in REF_AXES for s in _axes]):
+        return False
+
+    # check for repeating characters
+    for i, s in enumerate(_axes):
+        if i != _axes.rfind(s):
+            return False
+
+    return True
+

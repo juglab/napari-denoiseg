@@ -6,10 +6,12 @@ from tensorflow.keras.callbacks import Callback
 
 from napari.qt.threading import thread_worker
 from denoiseg.utils.seg_utils import convert_to_oneHot
-from napari_denoiseg.utils import State, UpdateType
-
-
-REF_AXES = 'TSZYXC'
+from napari_denoiseg.utils import (
+    State,
+    UpdateType,
+    list_diff,
+    reshape_data
+)
 
 
 class TrainingCallback(Callback):
@@ -108,6 +110,9 @@ def load_images(widget):
     """
     # TODO make clearer what objects are returned
 
+    # get axes
+    axes = widget.axes_widget.get_axes()
+
     # get images and labels
     if widget.load_from_disk:  # from local folders
         path_train_X = widget.train_images_folder.get_folder()
@@ -115,7 +120,7 @@ def load_images(widget):
         path_val_X = widget.val_images_folder.get_folder()
         path_val_Y = widget.val_labels_folder.get_folder()
 
-        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, widget.axes)
+        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes)
 
     else:  # from layers
         image_data = widget.images.value.data
@@ -124,97 +129,7 @@ def load_images(widget):
         # split train and val
         perc_labels = widget.perc_train_slider.slider.get_value()
 
-        return prepare_data_layers(image_data, label_data, perc_labels, widget.axes)
-
-
-def get_shape_order(x, ref_axes, axes):
-    """
-    Return the new shape and axes order of x, if the axes were to be ordered according to
-    the reference axes.
-
-    :param x:
-    :param ref_axes: Reference axes order (string)
-    :param axes: New axes as a list of strings
-    :return:
-    """
-    # build indices look-up table: indices of each axe in `axes`
-    indices = [axes.find(k) for k in ref_axes]
-
-    # remove all non-existing axes (index == -1)
-    indices = tuple(filter(lambda k: k != -1, indices))
-
-    # find axes order and get new shape
-    new_axes = [axes[ind] for ind in indices]
-    new_shape = tuple([x.shape[ind] for ind in indices])
-
-    return new_shape, ''.join(new_axes), indices
-
-
-def reshape_data(x, y, axes: str):
-    """
-    Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
-    points are considered independent and stacked along the S dimension.
-
-    Differences between x and y:
-    - y can have a different S and T dimension size
-    - y doesn't have C dimension
-
-    :param x: Raw data.
-    :param y: Ground-truth data.
-    :param axes: Current axes order of X
-    :return: Reshaped x, reshaped y, new axes order
-    """
-    _x = x
-    _y = y
-    _axes = axes
-
-    # sanity checks TODO: raise error rather than assert?
-    if 'X' not in axes or 'Y' not in axes:
-        raise ValueError('X or Y dimension missing in axes.')
-
-    if 'C' in _axes:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
-            raise ValueError('Incompatible data and axes.')
-    else:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
-            raise ValueError('Incompatible data and axes.')
-
-    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
-
-    # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
-
-    if 'C' in _axes:  # Y does not have a C dimension
-        axes_y = _axes.replace('C', '')
-        ref_axes_y = REF_AXES.replace('C', '')
-        new_y_shape, _, _ = get_shape_order(_y, ref_axes_y, axes_y)
-    else:
-        new_y_shape = tuple([_y.shape[ind] for ind in indices])
-
-    # if S is not in the list of axes, then add a singleton S
-    if 'S' not in new_axes:
-        new_axes = 'S' + new_axes
-        _x = _x[np.newaxis, ...]
-        _y = _y[np.newaxis, ...]
-        new_x_shape = (1,) + new_x_shape
-        new_y_shape = (1,) + new_y_shape
-
-    # remove T if necessary
-    if 'T' in new_axes:
-        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
-        new_y_shape = (-1,) + new_y_shape[2:]
-        new_axes = new_axes.replace('T', '')
-
-    # reshape
-    _x = _x.reshape(new_x_shape)
-    _y = _y.reshape(new_y_shape)
-
-    # add channel
-    if 'C' not in new_axes:
-        _x = _x[..., np.newaxis]
-        new_axes = new_axes + 'C'
-
-    return _x, _y, new_axes
+        return prepare_data_layers(image_data, label_data, perc_labels, axes)
 
 
 def augment_data(array, axes: str):
@@ -314,16 +229,6 @@ def detect_non_zero_frames(im):
             return [0]
         else:
             return []
-
-
-def list_diff(l1, l2):
-    """
-    Return the difference of two lists.
-    :param l1:
-    :param l2:
-    :return: list of elements in l1 that are not in l2.
-    """
-    return list(set(l1) - set(l2))
 
 
 def create_train_set(x, y, ind_exclude, axes):

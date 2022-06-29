@@ -9,9 +9,8 @@ from qtpy.QtWidgets import (
     QHeaderView
 )
 import napari
-from napari_denoiseg._train_widget import State
-from napari_denoiseg.utils import FolderWidget, two_layers_choice, load_button
-from napari_denoiseg.utils import optimizer_worker
+from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
+from napari_denoiseg.utils import State, optimizer_worker
 
 T = 't'
 M = 'metrics'

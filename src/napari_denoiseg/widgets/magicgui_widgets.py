@@ -44,6 +44,6 @@ def two_layers_choice():
     :return:
     """
     img = layer_choice(annotation=napari.layers.Image, name="Images")
-    lbl = layer_choice(annotation=napari.layers.Labels, name="Masks")
+    lbl = layer_choice(annotation=napari.layers.Labels, name="Labels")
 
     return Container(widgets=[img, lbl])
