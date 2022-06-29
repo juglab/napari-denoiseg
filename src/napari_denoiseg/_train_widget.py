@@ -140,10 +140,11 @@ class TrainWidget(QWidget):
         train_buttons.setLayout(QHBoxLayout())
 
         self.train_button = QPushButton("Train", self)
-        self.retrain_button = QPushButton("", self)
-        self.retrain_button.setEnabled(False)
+        self.zero_model_button = QPushButton("Zero model", self)
+        self.zero_model_button.setEnabled(False)
+        self.zero_model_button.setVisible(False)
 
-        train_buttons.layout().addWidget(self.retrain_button)
+        train_buttons.layout().addWidget(self.zero_model_button)
         train_buttons.layout().addWidget(self.train_button)
 
         self.layout().addWidget(train_buttons)
@@ -174,18 +175,18 @@ class TrainWidget(QWidget):
         # worker
         self.worker = None
 
-        # actions
-        self.train_button.clicked.connect(self._start_training)
-        self.retrain_button.clicked.connect(self._continue_training)
-        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
-        self.n_steps_spin.valueChanged.connect(self._update_steps)
-        self.save_button.clicked.connect(self._save_model)
-
         # place-holder for models and parameters (e.g. bioimage.io)
-        self.model, self.threshold = None, None, None
+        self.model, self.threshold = None, None
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
+
+        # actions
+        self.train_button.clicked.connect(lambda: self._start_training(self.model))
+        self.zero_model_button.clicked.connect(self._zero_model)
+        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
+        self.n_steps_spin.valueChanged.connect(self._update_steps)
+        self.save_button.clicked.connect(self._save_model)
 
     def _start_training(self, pretrained_model=None):
         if self.state == State.IDLE:
@@ -198,8 +199,8 @@ class TrainWidget(QWidget):
             self.plot.clear_plot()
             self.threshold_label.setText("Best threshold: ?")
             self.train_button.setText('Stop')
-            self.retrain_button.setText('')
-            self.retrain_button.setEnabled(False)
+            self.zero_model_button.setEnabled(False)
+            self.zero_model_button.setVisible(False)
             self.save_button.setEnabled(False)
 
             # instantiate worker and start training
@@ -210,15 +211,15 @@ class TrainWidget(QWidget):
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
-    def _continue_training(self):
+    def _zero_model(self):
         if self.state == State.IDLE:
-            self.start_training(pretrained_model=self.model)
+            self.model = None
 
     def _done(self):
         self.state = State.IDLE
         self.train_button.setText('Train new')
-        self.retrain_button.setText('Retrain')
-        self.retrain_button.setEnabled(True)
+        self.zero_model_button.setEnabled(True)
+        self.zero_model_button.setVisible(True)
 
         self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
 
