@@ -129,7 +129,7 @@ class TrainWidget(QWidget):
         formLayout.addRow('Enable 3D', self.enable_3d.native)
 
         # patch size 3D
-        def switch_visibilty(state):
+        def switch_visibility(state):
             if state:
                 self.patch_size_spin3D.setVisible(True)
                 self.patch_size_spin3D_label.setVisible(True)
@@ -143,7 +143,7 @@ class TrainWidget(QWidget):
         self.patch_size_spin3D.setSingleStep(2)
         self.patch_size_spin3D.setValue(2)
         self.patch_size_spin3D.setVisible(False)
-        self.enable_3d.use3d.changed.connect(switch_visibilty)
+        self.enable_3d.use3d.changed.connect(switch_visibility)
         self.patch_size_spin3D_label = QLabel()
         self.patch_size_spin3D_label.setText("Patch Z")
         self.patch_size_spin3D_label.setVisible(False)
@@ -177,10 +177,11 @@ class TrainWidget(QWidget):
         train_buttons.setLayout(QHBoxLayout())
 
         self.train_button = QPushButton("Train", self)
-        self.retrain_button = QPushButton("", self)
-        self.retrain_button.setEnabled(False)
+        self.zero_model_button = QPushButton("Zero model", self)
+        self.zero_model_button.setEnabled(False)
+        self.zero_model_button.setVisible(False)
 
-        train_buttons.layout().addWidget(self.retrain_button)
+        train_buttons.layout().addWidget(self.zero_model_button)
         train_buttons.layout().addWidget(self.train_button)
 
         self.layout().addWidget(train_buttons)
@@ -208,23 +209,22 @@ class TrainWidget(QWidget):
         self.plot = TBPlotWidget(max_width=300, max_height=300)
         self.layout().addWidget(self.plot.native)
 
-        # worker
-        self.worker = None
-
-        # actions
-        self.images.changed.connect(self._update_layer_axes)
-        self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
-        self.train_button.clicked.connect(self._start_training)
-        self.retrain_button.clicked.connect(self._continue_training)
-        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
-        self.n_steps_spin.valueChanged.connect(self._update_steps)
-        self.save_button.clicked.connect(self._save_model)
 
         # place-holder for models and parameters (e.g. bioimage.io)
+        self.worker = None
         self.model, self.threshold = None, None
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
+
+        # actions
+        self.images.changed.connect(self._update_layer_axes)
+        self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
+        self.train_button.clicked.connect(lambda: self._start_training(self.model))
+        self.zero_model_button.clicked.connect(self._zero_model)
+        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
+        self.n_steps_spin.valueChanged.connect(self._update_steps)
+        self.save_button.clicked.connect(self._save_model)
 
         # update axes widget in case of data
         self._update_layer_axes()
@@ -243,8 +243,8 @@ class TrainWidget(QWidget):
                 self.plot.clear_plot()
                 self.threshold_label.setText("Best threshold: ?")
                 self.train_button.setText('Stop')
-                self.retrain_button.setText('')
-                self.retrain_button.setEnabled(False)
+                self.zero_model_button.setEnabled(False)
+                self.zero_model_button.setVisible(False)
                 self.save_button.setEnabled(False)
 
                 # instantiate worker and start training
@@ -255,22 +255,20 @@ class TrainWidget(QWidget):
             else:
                 # TODO feedback to users?
                 pass
-        elif self.state == State.RUNNING:
-            self.state = State.IDLE
-
-    def _continue_training(self):
-        if self.state == State.IDLE:
-            self.start_training(pretrained_model=self.model)
 
     def _done(self):
         self.state = State.IDLE
         self.train_button.setText('Train new')
-        self.retrain_button.setText('Retrain')
-        self.retrain_button.setEnabled(True)
+        self.zero_model_button.setEnabled(True)
+        self.zero_model_button.setVisible(True)
 
         self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
 
         self.save_button.setEnabled(True)
+
+    def _zero_model(self):
+        if self.state == State.IDLE:
+            self.model = None
 
     def _update_3D(self):
         # TODO: get checkbox state and pass it on to the axes
