@@ -280,28 +280,38 @@ def test_load_weights_h5_incompatible_shapes(tmp_path, shape1, shape2):
 
 ###################################################################
 # test load_from_disk
-@pytest.mark.parametrize('shape', [(8, 8), (4, 8, 8)])
-def test_load_from_disk_same_shapes(tmp_path, shape):
+@pytest.mark.parametrize('shape, axes', [((8, 8), 'YX'), ((4, 8, 8), 'ZYX'), ((5, 8, 8), 'SYX')])
+def test_load_from_disk_same_shapes(tmp_path, shape, axes):
     n = 10
     save_img(tmp_path, n, shape)
 
     # load images
-    images = load_from_disk(tmp_path)
+    images = load_from_disk(tmp_path, axes)
     assert type(images) == np.ndarray
-    assert len(images.shape) == len(shape) + 1
-    assert images.shape[0] == n
-    assert images.shape[1:] == shape
+
+    if 'S' in axes:
+        assert len(images.shape) == len(shape)
+        assert images.shape[0] == n * shape[0]
+        assert images.shape[1:] == shape[1:]
+    else:
+        assert len(images.shape) == len(shape) + 1
+        assert images.shape[0] == n
+        assert images.shape[1:] == shape
+
     assert (images[0, ...] != images[1, ...]).all()
 
 
-@pytest.mark.parametrize('shape1, shape2', [((8, 8), (4, 4)), ((4, 8, 8), (2, 16, 16)), ((8, 16), (4, 8, 8))])
-def test_load_from_disk_different_shapes(tmp_path, shape1, shape2):
+@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8), (4, 4), 'YX'),
+                                                  ((4, 8, 8), (2, 16, 16), 'ZYX'),
+                                                  ((4, 8, 8), (2, 16, 16), 'SYX'),
+                                                  ((8, 16), (4, 8, 8), 'YX')])
+def test_load_from_disk_different_shapes(tmp_path, shape1, shape2, axes):
     n = [10, 5]
     save_img(tmp_path, n[0], shape1, prefix='im1-')
     save_img(tmp_path, n[1], shape2, prefix='im2-')
 
     # load images
-    images = load_from_disk(tmp_path)
+    images = load_from_disk(tmp_path, axes)
     assert type(images) == list
     assert len(images) == n[0] + n[1]
 
@@ -459,7 +469,9 @@ def test_lazy_generator(tmp_path):
 
     # check that it can load n images
     for i in range(n):
-        next(gen)
+        ret = next(gen, None)
+        assert len(ret) == 3
+        assert all([r is not None for r in ret])
 
     # test that next(gen, None) works
     assert next(gen, None) is None

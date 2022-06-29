@@ -2,20 +2,18 @@ import pytest
 import numpy as np
 from denoiseg.models import DenoiSeg
 
-from napari_denoiseg.utils import generate_config, State, UpdateType, training_worker
+from napari_denoiseg.utils import generate_config, State, training_worker, get_shape_order
 from napari_denoiseg.utils.denoiseg_utils import remove_C_dim
 from napari_denoiseg.utils.training_worker import (
     sanity_check_validation_fraction,
     sanity_check_training_size,
     get_validation_patch_shape,
     normalize_images,
-    get_shape_order,
     reshape_data,
     augment_data,
     prepare_data_disk,
     load_data_from_disk,
     detect_non_zero_frames,
-    list_diff,
     create_train_set,
     create_val_set,
     check_napari_data,
@@ -863,6 +861,8 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
 
     class MonkeyPatchWidget:
         def __init__(self, napari_viewer):
+            from napari_denoiseg.widgets import AxesWidget
+
             self.images = Value(napari_viewer.layers['X'])
             self.labels = Value(napari_viewer.layers['Y'])
             self.perc_train_slider = Slider(lambda: 60)
@@ -881,6 +881,8 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
             self.outputs = None
             self.new_axes = None
             self.load_from_disk = False
+            self.axes_widget = AxesWidget(n_axes=len(shape1), is_3D='Z' in axes)
+            self.axes_widget.set_text_field(axes)
 
     # make viewer and add layers
     viewer = make_napari_viewer()
@@ -897,7 +899,7 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
     widget = MonkeyPatchWidget(viewer)
     t = training_worker(widget)
 
-    with qtbot.waitSignal(t.finished, timeout=50_000):
+    with qtbot.waitSignal(t.finished, timeout=100_000):
         t.start()
 
     assert -1 < widget.threshold <= 1

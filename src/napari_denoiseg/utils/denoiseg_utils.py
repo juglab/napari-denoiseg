@@ -155,9 +155,10 @@ def load_weights(model: DenoiSeg, weights_path):
 
 
 # TODO: we must make sure that if the function returns a list, then it is handled correctly by prediction
-def load_from_disk(path):
+def load_from_disk(path, axes: str):
     """
 
+    :param axes:
     :param path:
     :return:
     """
@@ -170,7 +171,15 @@ def load_from_disk(path):
         images.append(imread(str(f)))
         dims_agree = dims_agree and (images[0].shape == images[-1].shape)
 
-    return np.array(images) if dims_agree else images
+    if dims_agree:
+        if 'S' in axes:
+            ind_S = axes.find('S')
+            final_images = np.concatenate(images, axis=ind_S)
+        else:
+            final_images = np.stack(images, axis=0)
+        return final_images
+
+    return images
 
 
 def lazy_load_generator(path):
@@ -183,8 +192,10 @@ def lazy_load_generator(path):
     image_files = [f for f in images_path.glob('*.tif*')]
 
     def generator(file_list):
+        counter = 0
         for f in file_list:
-            yield imread(str(f))
+            counter = counter + 1
+            yield imread(str(f)), f, counter
 
     return generator(image_files), len(image_files)
 

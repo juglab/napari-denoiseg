@@ -193,7 +193,7 @@ class TrainWidget(QWidget):
         self.layout().addWidget(save_widget)
 
         # plot widget
-        self.plot = TBPlotWidget(max_width=300, max_height=300)
+        self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=200)
         self.layout().addWidget(self.plot.native)
 
         # place-holder for models and parameters (e.g. bioimage.io)
