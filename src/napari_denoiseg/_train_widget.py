@@ -18,6 +18,7 @@ from napari_denoiseg.utils import TBPlotWidget, FolderWidget
 from napari_denoiseg.utils import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker
+from napari_denoiseg.utils.widgets.magicgui_widgets import enable_3d
 
 
 class TrainWidget(QWidget):
@@ -114,6 +115,33 @@ class TrainWidget(QWidget):
         formLayout.addRow('Patch XY', self.patch_size_spin)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
+
+        # load 3D enabling checkbox
+        self.enable_3d = enable_3d()
+        #self.layout().addWidget(self.enable_3d.native)
+        formLayout.addRow('Enable 3D', self.enable_3d.native)
+
+        # patch size 3D
+        def switch_visibilty(state):
+            if state:
+                self.patch_size_spin3D.setVisible(True)
+                self.patch_size_spin3D_label.setVisible(True)
+            else:
+                self.patch_size_spin3D.setVisible(False)
+                self.patch_size_spin3D_label.setVisible(False)
+
+        self.patch_size_spin3D = QSpinBox()
+        self.patch_size_spin3D.setMaximum(512)
+        self.patch_size_spin3D.setMinimum(2)
+        self.patch_size_spin3D.setSingleStep(2)
+        self.patch_size_spin3D.setValue(2)
+        self.patch_size_spin3D.setVisible(False)
+        self.enable_3d.use3d.changed.connect(switch_visibilty)
+        self.patch_size_spin3D_label = QLabel()
+        self.patch_size_spin3D_label.setText("Patch Z")
+        self.patch_size_spin3D_label.setVisible(False)
+        #self.layout().addWidget(self.patch_size_spin3D)
+        formLayout.addRow(self.patch_size_spin3D_label, self.patch_size_spin3D)
 
         # progress bars
         progress_widget = QWidget()

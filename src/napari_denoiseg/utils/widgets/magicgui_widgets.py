@@ -2,7 +2,7 @@ from pathlib import Path
 
 import napari
 from magicgui import magic_factory
-from magicgui.widgets import create_widget, Container
+from magicgui.widgets import create_widget, Container, Widget
 
 
 @magic_factory(auto_call=True,
@@ -23,12 +23,12 @@ def load_button(Model: Path):
     pass
 
 
-@magic_factory(auto_call=True, use3d={'label': 'Enable 3D', 'widget_type': 'Checkbox'})
-def enable_3d(use3d: bool = False):
-    pass
+@magic_factory(auto_call=True, use3d={'label': ' ', 'widget_type': 'Checkbox', 'visible': True})
+def enable_3d(use3d: bool = False) -> bool:
+    return use3d
 
 
-def layer_choice(annotation, **kwargs):
+def layer_choice(annotation, **kwargs) -> Widget:
     widget = create_widget(annotation=annotation, **kwargs)
     widget.reset_choices()
     viewer = napari.current_viewer()
