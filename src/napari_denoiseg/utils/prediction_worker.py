@@ -6,7 +6,7 @@ from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_da
 @thread_worker(start_thread=False)
 def prediction_worker(widget):
     from denoiseg.models import DenoiSeg
-    from napari_denoiseg.utils import load_from_disk, load_weights
+    from napari_denoiseg.utils import load_from_disk, lazy_load_generator, load_weights
 
     # from disk, lazy loading and threshold
     is_from_disk = widget.load_from_disk
@@ -18,7 +18,10 @@ def prediction_worker(widget):
 
     # grab images
     if is_from_disk:
-        images = load_from_disk(widget.images_folder.get_folder())
+        if is_lazy_loading:
+            images = lazy_load_generator(widget.images_folder.get_folder())
+        else:
+            images = load_from_disk(widget.images_folder.get_folder())
     else:
         images = widget.images.value.data
     assert len(images.shape) > 0
@@ -31,7 +34,7 @@ def prediction_worker(widget):
     yield {UpdateType.N_IMAGES: n_img}
 
     # instantiate model with dummy values
-    if 'Z' in new_axes:
+    if 'Z' in axes:
         patch = (16, 16, 16)
     else:
         patch = (16, 16)
@@ -71,3 +74,20 @@ def prediction_worker(widget):
 
     # update done
     yield {UpdateType.DONE}
+
+
+def _run_lazy(widget, model, axes, generator, path):
+
+    # yield generator size
+    yield {UpdateType.N_IMAGES: generator.ge}
+
+    while True:
+        image = next(generator, None)
+
+        if image is not None:
+            x, new_axes = reshape_data_single(image, axes)
+
+            pass
+        else:
+            break
+

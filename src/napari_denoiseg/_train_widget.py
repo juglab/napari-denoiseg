@@ -203,6 +203,8 @@ class TrainWidget(QWidget):
 
     def _start_training(self, pretrained_model=None):
         if self.state == State.IDLE:
+            # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
+
             if self.axes_widget.is_valid():
                 self.state = State.RUNNING
 

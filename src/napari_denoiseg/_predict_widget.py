@@ -183,38 +183,42 @@ class PredictWidget(QWidget):
 
     def _start_prediction(self):
         if self.state == State.IDLE:
-            # TODO check that all in order (data loaded or something)
+            # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
+            if self.axes_widget.is_valid():
 
-            self.state = State.RUNNING
+                self.state = State.RUNNING
 
-            self.predict_button.setText('Stop')
+                self.predict_button.setText('Stop')
 
-            # register which data tab: layers or disk
-            self.load_from_disk = self.tabs.currentIndex() == 1
+                # register which data tab: layers or disk
+                self.load_from_disk = self.tabs.currentIndex() == 1
 
-            # remove seg and denoising layers if they are present
-            if SEGMENTATION in self.viewer.layers:
-                self.viewer.layers.remove(SEGMENTATION)
-            if DENOISING in self.viewer.layers:
-                self.viewer.layers.remove(DENOISING)
+                # remove seg and denoising layers if they are present
+                if SEGMENTATION in self.viewer.layers:
+                    self.viewer.layers.remove(SEGMENTATION)
+                if DENOISING in self.viewer.layers:
+                    self.viewer.layers.remove(DENOISING)
 
-            # create new seg and denoising layers
-            if self.load_from_disk == 0:
-                self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.float)
-                viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
-                viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+                # create new seg and denoising layers
+                if self.load_from_disk == 0:
+                    self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.float)
+                    viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.int16)
+                    viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+                else:
+                    self.seg_prediction = np.zeros(self.shape, dtype=np.float)
+                    viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    self.denoi_prediction = np.zeros(self.shape, dtype=np.int16)
+                    viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+
+                # start the prediction worker
+                self.worker = prediction_worker(self)
+                self.worker.yielded.connect(lambda x: self._update(x))
+                self.worker.returned.connect(self._done)
+                self.worker.start()
             else:
-                self.seg_prediction = np.zeros(self.shape, dtype=np.float)
-                viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                self.denoi_prediction = np.zeros(self.shape, dtype=np.int16)
-                viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
-
-            # start the prediction worker
-            self.worker = prediction_worker(self)
-            self.worker.yielded.connect(lambda x: self._update(x))
-            self.worker.returned.connect(self._done)
-            self.worker.start()
+                # TODO feedback to users
+                pass
         elif self.state == State.RUNNING:
             # stop requested
             self.state = State.IDLE

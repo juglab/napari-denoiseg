@@ -40,7 +40,7 @@ class UpdateType(Enum):
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
-def from_folder(source_dir, target_dir, axes, check_exists=True):
+def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
     """
     Builds a generator for pairs of source and target images with same names. `check_exists` = `False` allows inserting
     empty images when the corresponding target is not found.
@@ -173,6 +173,22 @@ def load_from_disk(path):
     return np.array(images) if dims_agree else images
 
 
+def lazy_load_generator(path):
+    """
+
+    :param path:
+    :return:
+    """
+    images_path = Path(path)
+    image_files = [f for f in images_path.glob('*.tif*')]
+
+    def generator(file_list):
+        for f in file_list:
+            yield imread(str(f))
+
+    return generator(image_files), len(image_files)
+
+
 def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     """
 
@@ -183,7 +199,7 @@ def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
     :return:
     """
     # create RawData generator
-    pairs = from_folder(source_path, target_path, axes, check_exists)
+    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
     n = pairs.size
 
     # load data

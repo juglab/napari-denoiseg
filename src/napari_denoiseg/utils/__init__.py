@@ -1,8 +1,9 @@
 from .denoiseg_utils import State, UpdateType, ModelSaveMode, REF_AXES
 from .denoiseg_utils import (
-    from_folder,
+    load_pairs_generator,
     generate_config,
     load_from_disk,
+    lazy_load_generator,
     load_weights,
     load_pairs_from_disk,
     build_modelzoo,
