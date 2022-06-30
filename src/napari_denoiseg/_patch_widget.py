@@ -121,9 +121,9 @@ def slice_img_patch(data, rectangle, ndim: int):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_n0
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n0
 
-    data = denoiseg_data_n0()
+    data = denoiseg_data_2D_n0()
 
     # create a Viewer
     viewer = napari.Viewer()

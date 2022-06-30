@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import urllib
 import zipfile
+from pathlib import Path
+
 import numpy as np
 
 from napari.types import LayerDataTuple
@@ -48,6 +50,9 @@ def _denoiseg_data_2D(noise_level):
 
 
 def _denoiseg_data_3D():
+    from tifffile import imread
+    from denoiseg.utils.misc_utils import center_crop_2d
+
     # create a folder for our data
     if not os.path.isdir('./data'):
         os.mkdir('data')
@@ -59,12 +64,27 @@ def _denoiseg_data_3D():
 
     # download the zip archive
     if not os.path.exists(zipPath):
-        urllib.request.urlretrieve(link, zipPath)
+        data = urllib.request.urlretrieve(link, zipPath)
 
     # unzip the files
     if not os.path.exists(zipPath[:-4]):
         with zipfile.ZipFile(zipPath, 'r') as zip_ref:
             zip_ref.extractall('data')
+
+    # images need to be cropped
+    crop = 192
+    slice_crop_start = 19
+    slice_crop_end = 51
+
+    _path = Path(zipPath[:-4]) / 'train' / 'images'
+    image_list = [center_crop_2d(imread(f), crop, crop) for f in sorted(list(_path.rglob('*.tif*')))]
+    images = np.array(image_list)[:, slice_crop_start:slice_crop_end, ...]
+
+    _path = Path(zipPath[:-4]) / 'train' / 'masks'
+    label_list = [center_crop_2d(imread(f), crop, crop) for f in sorted(list(_path.rglob('*.tif*')))]
+    labels = np.array(label_list)[:, slice_crop_start:slice_crop_end, ...]
+
+    return [(images, {'name': 'Data'}), (labels, {"name": 'Labels'})]
 
 
 def denoiseg_data_2D_n0() -> LayerDataTuple:

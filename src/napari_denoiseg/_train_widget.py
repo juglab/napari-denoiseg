@@ -106,23 +106,23 @@ class TrainWidget(QWidget):
         self.batch_size_spin.setValue(16)
 
         # patch size
-        self.patch_size_spin = QSpinBox()
-        self.patch_size_spin.setMaximum(512)
-        self.patch_size_spin.setMinimum(16)
-        self.patch_size_spin.setSingleStep(8)
-        self.patch_size_spin.setValue(16)
+        self.patch_size_XY = QSpinBox()
+        self.patch_size_XY.setMaximum(512)
+        self.patch_size_XY.setMinimum(16)
+        self.patch_size_XY.setSingleStep(8)
+        self.patch_size_XY.setValue(16)
 
         # 3D checkbox
         self.enable_3d = enable_3d()
-        self.patch_size_spin3D = QSpinBox()
-        self.patch_size_spin3D.setMaximum(512)
-        self.patch_size_spin3D.setMinimum(16)
-        self.patch_size_spin3D.setSingleStep(8)
-        self.patch_size_spin3D.setValue(16)
-        self.patch_size_spin3D.setVisible(False)
-        self.patch_size_spin3D_label = QLabel()
-        self.patch_size_spin3D_label.setText("Patch Z")
-        self.patch_size_spin3D_label.setVisible(False)
+        self.patch_size_Z = QSpinBox()
+        self.patch_size_Z.setMaximum(512)
+        self.patch_size_Z.setMinimum(16)
+        self.patch_size_Z.setSingleStep(8)
+        self.patch_size_Z.setValue(16)
+        self.patch_size_Z.setVisible(False)
+        self.patch_size_Z_label = QLabel()
+        self.patch_size_Z_label.setText("Patch Z")
+        self.patch_size_Z_label.setVisible(False)
 
         # TODO add tooltips
         others = QWidget()
@@ -132,8 +132,8 @@ class TrainWidget(QWidget):
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
-        formLayout.addRow('Patch XY', self.patch_size_spin)
-        formLayout.addRow(self.patch_size_spin3D_label, self.patch_size_spin3D)
+        formLayout.addRow('Patch XY', self.patch_size_XY)
+        formLayout.addRow(self.patch_size_Z_label, self.patch_size_Z)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
@@ -279,12 +279,12 @@ class TrainWidget(QWidget):
         :param event:
         :return:
         """
-        is_3D = event.value
-        self.patch_size_spin3D.setVisible(is_3D)
-        self.patch_size_spin3D_label.setVisible(is_3D)
+        self.is_3D = event.value
+        self.patch_size_Z.setVisible(self.is_3D)
+        self.patch_size_Z_label.setVisible(self.is_3D)
 
         # update axes widget
-        self.axes_widget.update_is_3D(is_3D)
+        self.axes_widget.update_is_3D(self.is_3D)
         self.axes_widget.set_text_field(self.axes_widget.get_default_text())
 
     def _update_layer_axes(self):
@@ -401,9 +401,13 @@ class TrainWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_n0
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n0, denoiseg_data_3D
 
-    data = denoiseg_data_n0()
+    dims = '3D'  # '2D'
+    if dims == '3D':
+        data = denoiseg_data_3D()
+    else:
+        data = denoiseg_data_2D_n0()
 
     # create a Viewer
     viewer = napari.Viewer()
