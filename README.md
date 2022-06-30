@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/juglab/napari_denoiseg/branch/main/graph/badge.svg)](https://codecov.io/gh/juglab/napari_denoiseg)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-denoiseg)](https://napari-hub.org/plugins/napari-denoiseg)
 
-A napari plugin for supervised denoising and segmentation of microscopy images, using the [DenoiSeg] method.
+A napari plugin for self-supervised denoising and segmentation of microscopy images, using the [DenoiSeg] method.
 
 ----------------------------------
 
@@ -90,6 +90,7 @@ If you know an optimal threshold already or used the threshold optimized widget 
 you can set the value now.
 Finally, click on "Predict" and the result will be output into a new layer.
 
+GIF AGAIN
 
 ## Contributing
 

@@ -4,15 +4,28 @@
 
 # Description
 
-This should be a detailed description of the context of your plugin and its 
-intended purpose.
+This plugin brings the full functionality of the DenoiSeg method as well as several quality of life improvements
+directly to napari.
 
-If you have videos or screenshots of your plugin in action, you should include them
-here as well, to make them front and center for new users. 
+Taken from the abstract of the [DenoiSeg paper]:
 
-You should use absolute links to these assets, so that we can easily display them 
-on the hub. The easiest way to include a video is to use a GIF, for example hosted
-on imgur. You can then reference this GIF as an image.
+Microscopy image analysis often requires the segmentation of objects, 
+but training data for this task is typically scarce and hard to obtain. 
+Here we propose DenoiSeg, a new method that can be trained end-to-end on 
+only a few annotated ground truth segmentations. We achieve this by extending 
+Noise2Void, a self-supervised denoising scheme that can be trained on 
+noisy images alone, to also predict dense 3-class segmentations. 
+The reason for the success of our method is that segmentation can profit 
+from denoising, especially when performed jointly within the same network. 
+The network becomes a denoising expert by seeing all available raw data, 
+while co-learning to segment, even if only a few segmentation labels are available. 
+This hypothesis is additionally fueled by our observation that the 
+best segmentation results on high quality (very low noise) raw data are obtained 
+when moderate amounts of synthetic noise are added. 
+This renders the denoising-task non-trivial and unleashes the desired co-learning effect. 
+We believe that DenoiSeg offers a viable way to circumvent the tremendous hunger 
+for high quality training data and effectively enables few-shot learning of dense segmentations.
+
 
 ![Example GIF hosted on Imgur](https://i.imgur.com/A5phCX4.gif)
 
@@ -35,9 +48,13 @@ https://user-images.githubusercontent.com/17995243/120088305-6c093380-c132-11eb-
 
 # Intended Audience & Supported Data
 
-This section should describe the target audience for this plugin (any knowledge,
-skills and experience required), as well as a description of the types of data
-supported by this plugin.
+This plugin is intended for usage by image analysts and microbiologists that want to
+segment microscopy images but have only little ground truth data available.
+
+The data can be in all by napari loadable formats with two(YX) to five dimensions(STZYXC).
+The image axes do not need to be in a specific order, as the user will have to specify that.
+
+The way the method works, both noisy images and some labeled images are necessary.
 
 Try to make the data description as explicit as possible, so that users know the
 format your plugin expects. This applies both to reader plugins reading file formats
@@ -72,10 +89,20 @@ this information here.
 
 # Getting Help
 
-This section should point users to your preferred support tools, whether this be raising
-an issue on GitHub, asking a question on image.sc, or using some other method of contact.
-If you distinguish between usage support and bug/feature support, you should state that
-here.
+### Contributing
+
+Contributions are very welcome. Tests can be run with [tox], please ensure
+the coverage at least stays the same before you submit a pull request.
+
+### Questions?
+
+If you have any questions regarding this plugin, feel free to contact the authors and maintainers 
+either on the image.sc forum or the napari zulipchat.
+
+### Issues
+
+If you encounter any problems, please [file an issue] along with a detailed description and steps to replicate the problem.
+
 
 # How to Cite
 
@@ -86,3 +113,6 @@ here.
   year={2020}
 }
 ```
+
+
+[DenoiSeg paper]: https://arxiv.org/abs/2005.02987
