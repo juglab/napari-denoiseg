@@ -1,12 +1,6 @@
 
 
-<!-- This file is designed to provide you with a starting template for documenting
-the functionality of your plugin. Its content will be rendered on your plugin's
-napari hub page.
-
-The sections below are given as a guide for the flow of information only, and
-are in no way prescriptive. You should feel free to merge, remove, add and 
-rename sections at will to make this document work best for your plugin. 
+![](https://github.com/juglab/DenoiSeg/raw/master/resources/teaser.png)
 
 # Description
 
@@ -85,8 +79,10 @@ here.
 
 # How to Cite
 
-Many plugins may be used in the course of published (or publishable) research, as well as
-during conference talks and other public facing events. If you'd like to be cited in
-a particular format, or have a DOI you'd like used, you should provide that information here. -->
-
-The developer has not yet provided a napari-hub specific description.
+```
+@inproceedings{BuchholzPrakash2020DenoiSeg,
+  title={DenoiSeg: Joint Denoising and Segmentation},
+  author={Tim-Oliver Buchholz and Mangal Prakash and Alexander Krull and Florian Jug},
+  year={2020}
+}
+```
