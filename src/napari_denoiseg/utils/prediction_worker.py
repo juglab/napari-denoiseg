@@ -60,7 +60,7 @@ def prediction_worker(widget):
 
 def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0.8):
     """
-    
+
     :param widget:
     :param model:
     :param axes:

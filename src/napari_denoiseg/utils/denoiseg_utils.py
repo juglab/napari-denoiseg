@@ -4,13 +4,13 @@ from pathlib import Path
 
 from enum import Enum
 import numpy as np
+from denoiseg.utils.compute_precision_threshold import measure_precision
 from tifffile import imread
 
 from csbdeep.data import RawData
 from csbdeep.utils import consume
 from denoiseg.models import DenoiSeg
 from itertools import permutations
-
 
 REF_AXES = 'TSZYXC'
 
@@ -418,7 +418,7 @@ def remove_C_dim(shape, axes):
     if ind == -1:
         return shape
 
-    return (*shape[:ind], *shape[ind+1:])
+    return (*shape[:ind], *shape[ind + 1:])
 
 
 def filter_dimensions(shape_length, is_3D):
@@ -436,7 +436,7 @@ def filter_dimensions(shape_length, is_3D):
         warnings.warn('Data shape length is too large.')
         return []
     else:
-        all_permutations = [''.join(p)+'YX' for p in permutations(axes, n)]
+        all_permutations = [''.join(p) + 'YX' for p in permutations(axes, n)]
 
         if is_3D:
             all_permutations = [p for p in all_permutations if 'Z' in p]
@@ -465,3 +465,17 @@ def are_axes_valid(axes: str):
 
     return True
 
+
+def optimize_threshold(model, image_data, label_data, axes, widget=None, measure=measure_precision):
+    """
+
+    :return:
+    """
+    for i, ts in enumerate(np.linspace(0.1, 1, 19)):
+        _, _, score, _ = model.predict_denoised_label_masks(image_data, label_data, axes[1:], ts, measure())
+
+        # check if stop requested
+        if widget is not None and widget.state != State.RUNNING:
+            break
+
+        yield i, ts, score

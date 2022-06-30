@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from napari.qt.threading import thread_worker
 from napari_denoiseg.utils import generate_config, load_pairs_from_disk, load_weights, State
+from utils.denoiseg_utils import optimize_threshold
 
 
 @thread_worker(start_thread=False)
@@ -38,12 +39,5 @@ def optimizer_worker(widget):
     load_weights(model, weights_name)
 
     # threshold data to estimate the best threshold
-    for i, ts in enumerate(np.linspace(0.1, 1, 19)):
-        _, score = model.predict_label_masks(image_data, label_data, ts, measure_precision())
-
-        # check if stop requested
-        if widget.state != State.RUNNING:
-            break
-
-        yield i, ts, score
+    yield from optimize_threshold(model, image_data, label_data, widget)
 

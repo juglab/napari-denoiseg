@@ -12,6 +12,7 @@ from napari_denoiseg.utils import (
     list_diff,
     reshape_data
 )
+from utils import optimize_threshold
 
 
 class TrainingCallback(Callback):
@@ -89,10 +90,22 @@ def training_worker(widget, pretrained_model=None):
     widget.model = train_args[0]
 
     # threshold validation data to estimate the best threshold
-    # TODO would be better to use the same code base than in the optimizer_worker
-    widget.threshold, val_score = widget.model.optimize_thresholds(X_val[..., 0],
-                                                                   Y_val,
-                                                                   measure=measure_precision())
+    gen = optimize_threshold(widget.model, X_val, Y_val, widget.new_axes, widget=widget)
+    best_threshold = -1
+    best_score = -1
+    while True:
+        t = next(gen, None)
+
+        if t:
+            _, temp_threshold, temp_score = t
+
+            if temp_score > best_score:
+                best_score = temp_score
+                best_threshold = temp_threshold
+        else:
+            break
+
+    widget.threshold = best_threshold
 
     # save input/output for bioimage.io
     widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
@@ -275,9 +288,6 @@ def check_napari_data(x, y, axes: str):
     :param axes:
     :return:
     """
-
-    if 'S' not in axes:
-        raise ValueError('Missing S axis.')
 
     if axes[-2:] != 'YX':
         raise ValueError('X and Y axes are in the wrong order.')
