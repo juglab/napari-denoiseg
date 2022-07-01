@@ -56,26 +56,76 @@ The image axes do not need to be in a specific order, as the user will have to s
 
 The way the method works, both noisy images and some labeled images are necessary.
 
-Try to make the data description as explicit as possible, so that users know the
-format your plugin expects. This applies both to reader plugins reading file formats
-and to function/dock widget plugins accepting layers and/or layer data.
-For example, if you know your plugin only works with 3D integer data in "tyx" order,
-make sure to mention this.
-
-If you know of researchers, groups or labs using your plugin, or if it has been cited
-anywhere, feel free to also include this information here.
-
 # Quickstart
 
-This section should go through step-by-step examples of how your plugin should be used.
-Where your plugin provides multiple dock widgets or functions, you should split these
-out into separate subsections for easy browsing. Include screenshots and videos
-wherever possible to elucidate your descriptions. 
+## Short summary
 
-Ideally, this section should start with minimal examples for those who just want a
-quick overview of the plugin's functionality, but you should definitely link out to
-more complex and in-depth tutorials highlighting any intricacies of your plugin, and
-more detailed documentation if you have it.
+Napari-denoiseg provides several widgets to make the [DenoiSeg] method available in napari with addition widgets 
+to provide quality of life improvements. Fiji Users or people with prior experience with DenoiSeg should see the similarities.
+
+- **Sample Data** to easily try out the widgets provided
+- **Training** to train the method with your images and labels, either from the file system or as layers in napari
+- **Prediction** to use a trained model from the widget before on new data,  either from the file system or as a layer in napari
+- **Patch Creation** as an interactive way to created patches of your ROIs with the right size for training
+- **Threshold optimizer** ????
+
+
+Add example before/after here.
+
+#### What you need
+
+- (optional) a Tensorflow2 compatible GPU to train the model on for better training speed
+- Noisy images with pixel-independent noise
+- **Some** of these images labeled. Uou can do the labeling inside napari.
+
+## Long summary
+
+The following section describes a possible workflow on how to use the available widgets in this plugin.
+
+Add workflow graphic for that here. Each widget should contain one (or more) gif to show its usage.
+
+### Patch Creation
+The patch creation widget is used to create small quadratic/cubic patches in 2D or 3D of your images. 
+These patches should include the ROI of your images and can then be used to train the model in the next step more effectively.
+
+GIF here
+
+Set the patch size and then enable the selection. Your cursor now has a rectangle following it along. 
+With a simple left-click of your mouse you can select ROIs. After you are down, select a path and click on "Save"
+in the widget to write all selected to disk. Changing the patch size clears all previous selections.
+If you want to remove certain patches, switch to the "selection" and use the core tools of the napari 
+shape layer to delete them.
+
+### DenoiSeg Train
+The train widget offers two ways to select input data. You can either choose an image and a label layer that represent 
+your data or specify two folders that contain those images. After that, specify the train/test ratio you want to have
+your images randomly split in.
+After that, you have to specify the axes of your images. Accepted axes are S(ample), T(ime), Z, Y, X, C(channel). Red
+color highlighting means that a character is not recognized, orange means that the axes order is not allowed. 
+The YX axes are mandatory.
+
+GIF GOES BRRRRR.
+
+
+Now you need to select if you want to train with 3D patches and set the training parameters to your preferences.
+Sensible default values are already preset but might need to be tuned further to match your needs.
+You can now start the training and can watch the loss progression in the graph at the bottom.
+If you are satisfied with your training result, you can either save the model as a keras h5 file or as a 
+bioimage-io model.zip, ready to be uploaded to the [BioImage Model Zoo].
+
+### Threshold Optimizer
+@Joran please add a part about the threshold optimizer and how it works.
+
+
+### DenoiSeg Predict
+The prediction widget is used on the data you want denoise and segment. You can either select a certain layer or (lazily)
+load from disk, just like before. You need a trained model from the training step before for this to work.
+Again, you need to specify if you have 3D images and which axes your data provides.
+If you know an optimal threshold already or used the threshold optimized widget from the step before, 
+you can set the value now.
+Finally, click on "Predict" and the result will be output into a new layer.
+
+GIF AGAIN
 
 # Additional Install Steps (uncommon)
 We will be providing installation instructions on the hub, which will be sufficient
