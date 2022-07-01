@@ -32,11 +32,12 @@ def _download_data_2D(noise_level):
 
 
 def _load_data_2D(noise_level):
-    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level))
-    images = train_data['X_train'].astype(np.float32)
-    labels = train_data['Y_train'].astype(np.int32)
+    train_data = np.load('data/DSB2018_{}/train/train_data.npz'.format(noise_level), allow_pickle=True)
+    X_train = train_data['X_train'].astype(np.float32)
+    Y_train = train_data['Y_train'].astype(np.int32)
 
-    return [(images, {'name': 'Data'}), (labels, {"name": 'Labels'})]
+    return [(X_train, {'name': 'Train data'}),
+            (Y_train, {'name': 'Train labels'})]
 
 
 def _denoiseg_data_2D(noise_level):

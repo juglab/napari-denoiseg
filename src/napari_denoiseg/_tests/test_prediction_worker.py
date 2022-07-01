@@ -7,7 +7,6 @@ from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_f
 
 # TODO: test from layers, and all with thresholding.
 # TODO: test the prediction worker itself
-
 @pytest.mark.parametrize('shape, axes',  # they are already reshaped
                          [((1, 16, 16, 1), 'SYXC'),
                           ((5, 16, 16, 1), 'SYXC'),

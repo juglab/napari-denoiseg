@@ -50,9 +50,6 @@ class ThresholdWidget(QWidget):
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         # disk tab
-        self.lazy_loading = QCheckBox('Lazy loading')
-        tab_disk.layout().addWidget(self.lazy_loading)
-
         self.images_folder = FolderWidget('Choose')
         self.labels_folder = FolderWidget('Choose')
 
@@ -159,18 +156,22 @@ class ThresholdWidget(QWidget):
 
     def start_optimization(self):
         if self.state == State.IDLE:
-            self.state = State.RUNNING
+            if self.axes_widget.is_valid():
+                self.state = State.RUNNING
 
-            # register which data tab: layers or disk
-            self.load_from_disk = self.tabs.currentIndex() == 1
+                # register which data tab: layers or disk
+                self.load_from_disk = self.tabs.currentIndex() == 1
 
-            self.optimize_button.setText('Stop')
-            self.table.clear()
+                self.optimize_button.setText('Stop')
+                self.table.clear()
 
-            self.worker = optimizer_worker(self)
-            self.worker.returned.connect(self.done)
-            self.worker.yielded.connect(lambda x: self.update(x))
-            self.worker.start()
+                self.worker = optimizer_worker(self)
+                self.worker.returned.connect(self.done)
+                self.worker.yielded.connect(lambda x: self.update(x))
+                self.worker.start()
+            else:
+                # TODO: feedback to user?
+                pass
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 

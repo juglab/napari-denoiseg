@@ -14,8 +14,8 @@ def prediction_worker(widget):
 
     # from disk, lazy loading and threshold
     is_from_disk = widget.load_from_disk
-    is_threshold = widget.threshold_cbox.isChecked()
     is_lazy_loading = widget.lazy_loading.isChecked()
+    is_threshold = widget.threshold_cbox.isChecked()
     threshold = widget.threshold_spin.Threshold.value
 
     # get axes
