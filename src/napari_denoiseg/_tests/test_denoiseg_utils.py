@@ -21,7 +21,8 @@ from napari_denoiseg.utils import (
     remove_C_dim,
     filter_dimensions,
     are_axes_valid,
-    lazy_load_generator
+    lazy_load_generator,
+    optimize_threshold
 )
 
 
@@ -209,7 +210,6 @@ def test_build_modelzoo_disallowed_batch(tmp_path, shape):
 # test load_weights
 def test_load_weights_wrong_path(tmp_path):
     model = create_model(tmp_path, (1, 16, 16, 1))
-    path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create a new model and load from previous weights
     model2 = create_model(tmp_path, (1, 16, 16, 1))
@@ -479,3 +479,27 @@ def test_lazy_generator(tmp_path):
     # test that next() throws error
     with pytest.raises(StopIteration):
         next(gen)
+
+
+@pytest.mark.parametrize('shape, axes', [((1, 16, 16, 1), 'SYXC')])
+def test_optimize_threshold(tmp_path, shape, axes):
+    # create model and data
+    model = create_model(tmp_path, shape)
+    X_val = np.random.random(shape)
+    Y_val = np.random.randint(0, 255, shape, dtype=np.uint16)
+
+    # instantiate generator
+    gen = optimize_threshold(model, X_val, Y_val, axes)
+
+    thresholds = []
+    while True:
+        t = next(gen, None)
+
+        if t:
+            _, temp_threshold, temp_score = t
+
+            thresholds.append(temp_threshold)
+        else:
+            break
+
+    assert len(thresholds) == 19

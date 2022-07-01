@@ -23,8 +23,7 @@ from napari_denoiseg.widgets import (
     AxesWidget,
     layer_choice,
     load_button,
-    threshold_spin,
-    enable_3d
+    threshold_spin
 )
 
 SEGMENTATION = 'segmented'
@@ -78,12 +77,11 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.load_button.native)
 
         # load 3D enabling checkbox
-        self.enable_3d = QCheckBox('Enable 3D') # enable_3d()
+        self.enable_3d = QCheckBox('Enable 3D')
         self.layout().addWidget(self.enable_3d)
 
         # axes widget
         self.axes_widget = AxesWidget()
-        self.axes_widget.setContentsMargins(8, 0, 0, 0)  # TODO very inelegant
         self.layout().addWidget(self.axes_widget)
 
         # threshold slider
@@ -110,6 +108,7 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.predict_button)
 
         # actions
+        self.tabs.currentChanged.connect(self._update_tab_axes)
         self.predict_button.clicked.connect(self._start_prediction)
         self.images.changed.connect(self._update_layer_axes)
         self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
@@ -157,6 +156,19 @@ class PredictWidget(QWidget):
         load_worker = loading_worker(path)
         load_worker.yielded.connect(lambda x: self._add_image(x))
         load_worker.start()
+
+    def _update_tab_axes(self):
+        """
+        Updates the axes widget following the newly selected tab.
+
+        :return:
+        """
+        self.load_from_disk = self.tabs.currentIndex() == 1
+
+        if self.load_from_disk:
+            self._update_disk_axes()
+        else:
+            self._update_layer_axes()
 
     def _update(self, updates):
         """

@@ -44,7 +44,6 @@ class TrainingCallback(Callback):
 def training_worker(widget, pretrained_model=None):
     import os
     import threading
-    from denoiseg.utils.compute_precision_threshold import measure_precision
     from napari_denoiseg.utils import UpdateType, generate_config
 
     # get images and labels
