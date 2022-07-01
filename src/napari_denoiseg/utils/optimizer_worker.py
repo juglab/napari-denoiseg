@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import numpy as np
 from napari.qt.threading import thread_worker
 from napari_denoiseg.utils import generate_config, load_pairs_from_disk, load_weights, State
 from utils.denoiseg_utils import optimize_threshold, load_pairs_generator, reshape_data
