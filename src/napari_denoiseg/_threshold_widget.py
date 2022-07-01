@@ -6,14 +6,17 @@ from qtpy.QtWidgets import (
     QTableWidget,
     QTabWidget,
     QTableWidgetItem,
-    QHeaderView
+    QHeaderView,
+    QCheckBox
 )
 import napari
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker
+from utils import loading_worker
 
 T = 't'
 M = 'metrics'
+SAMPLE = 'Sample data'
 
 
 class ThresholdWidget(QWidget):
@@ -47,6 +50,9 @@ class ThresholdWidget(QWidget):
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         # disk tab
+        self.lazy_loading = QCheckBox('Lazy loading')
+        tab_disk.layout().addWidget(self.lazy_loading)
+
         self.images_folder = FolderWidget('Choose')
         self.labels_folder = FolderWidget('Choose')
 
@@ -71,6 +77,14 @@ class ThresholdWidget(QWidget):
         self.load_button = load_button()
         self.layout().addWidget(self.load_button.native)
 
+        # load 3D enabling checkbox
+        self.enable_3d = QCheckBox('Enable 3D')
+        self.layout().addWidget(self.enable_3d)
+
+        # axes widget
+        self.axes_widget = AxesWidget()
+        self.layout().addWidget(self.axes_widget)
+
         # feedback table to users
         self.table = QTableWidget()
         self.table.setRowCount(19)
@@ -84,12 +98,64 @@ class ThresholdWidget(QWidget):
 
         # optimize button
         self.optimize_button = QPushButton("Optimize", self)
-        self.optimize_button.clicked.connect(self.start_optimization)
         self.layout().addWidget(self.optimize_button)
 
         # set variables
         self.worker = None
         self.load_from_disk = 0
+
+        # actions
+        self.tabs.currentChanged.connect(self._update_tab_axes)
+        self.optimize_button.clicked.connect(self.start_optimization)
+        self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
+        self.enable_3d.stateChanged.connect(self._update_3D)
+
+        # update axes widget in case of data
+        self._update_layer_axes()
+
+    def _update_3D(self):
+        self.axes_widget.update_is_3D(self.enable_3d.isChecked())
+        self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _update_layer_axes(self):
+        if self.images.value is not None:
+            shape = self.images.value.data.shape
+
+            # update shape length in the axes widget
+            self.axes_widget.update_axes_number(len(shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _add_image(self, image):
+        if SAMPLE in self.viewer.layers:
+            self.viewer.layers.remove(SAMPLE)
+
+        if image is not None:
+            self.viewer.add_image(image, name=SAMPLE, visible=True)
+
+            # update the axes widget
+            self.axes_widget.update_axes_number(len(image.shape))
+            self.axes_widget.set_text_field(self.axes_widget.get_default_text())
+
+    def _update_disk_axes(self):
+        path = self.images_folder.get_folder()
+
+        # load one image
+        load_worker = loading_worker(path)
+        load_worker.yielded.connect(lambda x: self._add_image(x))
+        load_worker.start()
+
+    def _update_tab_axes(self):
+        """
+        Updates the axes widget following the newly selected tab.
+
+        :return:
+        """
+        self.load_from_disk = self.tabs.currentIndex() == 1
+
+        if self.load_from_disk:
+            self._update_disk_axes()
+        else:
+            self._update_layer_axes()
 
     def start_optimization(self):
         if self.state == State.IDLE:
