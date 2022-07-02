@@ -162,10 +162,9 @@ class TrainWidget(QWidget):
         train_buttons = QWidget()
         train_buttons.setLayout(QHBoxLayout())
 
-        self.train_button = QPushButton("Train", self)
-        self.zero_model_button = QPushButton("Zero model", self)
+        self.train_button = QPushButton('Train', self)
+        self.zero_model_button = QPushButton('', self)
         self.zero_model_button.setEnabled(False)
-        self.zero_model_button.setVisible(False)
 
         train_buttons.layout().addWidget(self.zero_model_button)
         train_buttons.layout().addWidget(self.train_button)
@@ -196,6 +195,7 @@ class TrainWidget(QWidget):
         self.layout().addWidget(self.plot.native)
 
         # place-holder for models and parameters (e.g. bioimage.io)
+        self.is_3D = False
         self.worker = None
         self.model, self.threshold = None, None
         self.inputs, self.outputs = [], []
@@ -236,8 +236,8 @@ class TrainWidget(QWidget):
                 self.plot.clear_plot()
                 self.threshold_label.setText("Best threshold: ?")
                 self.train_button.setText('Stop')
+                self.zero_model_button.setText('')
                 self.zero_model_button.setEnabled(False)
-                self.zero_model_button.setVisible(False)
                 self.save_button.setEnabled(False)
 
                 # instantiate worker and start training
@@ -257,8 +257,8 @@ class TrainWidget(QWidget):
         """
         self.state = State.IDLE
         self.train_button.setText('Train new')
+        self.zero_model_button.setText('Zero model')
         self.zero_model_button.setEnabled(True)
-        self.zero_model_button.setVisible(True)
 
         self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
 
@@ -271,6 +271,8 @@ class TrainWidget(QWidget):
         """
         if self.state == State.IDLE:
             self.model = None
+            self.zero_model_button.setText('')
+            self.zero_model_button.setEnabled(False)
 
     def _update_3D(self, event):
         """
