@@ -122,7 +122,6 @@ class TrainWidget(QWidget):
         self.patch_size_Z.setVisible(False)
         self.patch_size_Z_label = QLabel()
         self.patch_size_Z_label.setText("Patch Z")
-        self.patch_size_Z_label.setVisible(False)
 
         # TODO add tooltips
         others = QWidget()
@@ -281,7 +280,6 @@ class TrainWidget(QWidget):
         """
         self.is_3D = event.value
         self.patch_size_Z.setVisible(self.is_3D)
-        self.patch_size_Z_label.setVisible(self.is_3D)
 
         # update axes widget
         self.axes_widget.update_is_3D(self.is_3D)
