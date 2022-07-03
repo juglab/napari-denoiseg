@@ -9,7 +9,6 @@ from napari_denoiseg.utils.training_worker import (
     sanity_check_training_size,
     get_validation_patch_shape,
     normalize_images,
-    reshape_data,
     augment_data,
     prepare_data_disk,
     load_data_from_disk,
@@ -136,96 +135,6 @@ def test_get_shape_order(shape, axes, final_shape, final_axes):
 
     new_shape, new_axes, _ = get_shape_order(x, ref_axes, axes)
     assert new_shape == final_shape
-    assert new_axes == final_axes
-
-
-@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((16, 8), 'YX', (1, 16, 8, 1), 'SYXC'),
-                          ((16, 8), 'XY', (1, 8, 16, 1), 'SYXC'),
-                          ((16, 3, 8), 'XZY', (1, 3, 8, 16, 1), 'SZYXC'),
-                          ((16, 3, 8), 'XYZ', (1, 8, 3, 16, 1), 'SZYXC'),
-                          ((16, 3, 8), 'ZXY', (1, 16, 8, 3, 1), 'SZYXC'),
-                          ((16, 3, 12), 'SXY', (16, 12, 3, 1), 'SYXC'),
-                          ((5, 5, 2), 'XYS', (2, 5, 5, 1), 'SYXC'),
-                          ((5, 1, 5, 2), 'XZYS', (2, 1, 5, 5, 1), 'SZYXC'),
-                          ((5, 12, 5, 2), 'ZXYS', (2, 5, 5, 12, 1), 'SZYXC'),
-                          ((16, 8, 5, 12), 'SZYX', (16, 8, 5, 12, 1), 'SZYXC')])
-def test_reshape_data_no_CT(shape, axes, final_shape, final_axes):
-    x = np.zeros(shape)
-    y = np.zeros(shape)
-    final_shape_y = final_shape[:-1]
-
-    _x, _y, new_axes = reshape_data(x, y, axes)
-
-    assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
-    assert new_axes == final_axes
-
-
-@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((16, 8, 5), 'YXT', (5, 16, 8, 1), 'SYXC'),
-                          ((4, 16, 8), 'TXY', (4, 8, 16, 1), 'SYXC'),
-                          ((4, 16, 6, 8), 'TXSY', (4 * 6, 8, 16, 1), 'SYXC'),
-                          ((4, 16, 6, 5, 8), 'ZXTYS', (8 * 6, 4, 5, 16, 1), 'SZYXC')])
-def test_reshape_data_T_no_C(shape, axes, final_shape, final_axes):
-    x = np.zeros(shape)
-    y = np.zeros(shape)
-    final_shape_y = final_shape[:-1]
-
-    _x, _y, new_axes = reshape_data(x, y, axes)
-
-    assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
-    assert new_axes == final_axes
-
-
-@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((5, 3, 5), 'XCY', (1, 5, 5, 3), 'SYXC'),
-                          ((16, 3, 12, 8), 'XCYS', (8, 12, 16, 3), 'SYXC'),
-                          ((16, 3, 12, 8), 'ZXCY', (1, 16, 8, 3, 12), 'SZYXC'),
-                          ((16, 3, 12, 8), 'XCYZ', (1, 8, 12, 16, 3), 'SZYXC'),
-                          ((16, 3, 12, 8), 'ZYXC', (1, 16, 3, 12, 8), 'SZYXC'),
-                          ((16, 3, 21, 12, 8), 'ZYSXC', (21, 16, 3, 12, 8), 'SZYXC'),
-                          ((16, 3, 21, 8, 12), 'SZYCX', (16, 3, 21, 12, 8), 'SZYXC')])
-def test_reshape_data_C_no_T(shape, axes, final_shape, final_axes):
-    x = np.zeros(shape)
-
-    # Y does not have C dimension
-    ind_c = axes.find('C')
-    shape_y = list(shape)
-    shape_y[ind_c] = 1
-    y = np.zeros(shape_y).squeeze()  # Remove C dimension
-    final_shape_y = final_shape[:-1]
-
-    assert len(x.shape) == len(y.shape) + 1
-
-    _x, _y, new_axes = reshape_data(x, y, axes)
-
-    assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
-    assert new_axes == final_axes
-
-
-@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((5, 3, 8, 6), 'XTCY', (3, 6, 5, 8), 'SYXC'),
-                          ((16, 3, 12, 5, 8), 'XCYTS', (8 * 5, 12, 16, 3), 'SYXC'),
-                          ((16, 10, 5, 6, 12, 8), 'ZSXCYT', (10 * 8, 16, 12, 5, 6), 'SZYXC')])
-def test_reshape_data_CT(shape, axes, final_shape, final_axes):
-    x = np.zeros(shape)
-
-    # Y does not have C dimension
-    ind_c = axes.find('C')
-    shape_y = list(shape)
-    shape_y[ind_c] = 1
-    y = np.zeros(shape_y).squeeze()  # Remove C dimension
-    final_shape_y = final_shape[:-1]
-
-    assert len(x.shape) == len(y.shape) + 1
-
-    _x, _y, new_axes = reshape_data(x, y, axes)
-
-    assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
     assert new_axes == final_axes
 
 
