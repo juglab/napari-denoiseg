@@ -137,7 +137,8 @@ def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, thr
             x, new_axes = reshape_data_single(image, axes)
 
             # run prediction
-            prediction = model.predict(x, axes=new_axes)
+            n_tiles = [5 for _ in range(len(new_axes[1:-1]))]
+            prediction = model.predict(x, axes=new_axes, n_tiles=n_tiles)
 
             # split predictions and threshold if requested
             if is_threshold:
