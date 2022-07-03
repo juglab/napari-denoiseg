@@ -120,8 +120,6 @@ class TrainWidget(QWidget):
         self.patch_size_Z.setSingleStep(8)
         self.patch_size_Z.setValue(16)
         self.patch_size_Z.setVisible(False)
-        self.patch_size_Z_label = QLabel()
-        self.patch_size_Z_label.setText("Patch Z")
 
         # TODO add tooltips
         others = QWidget()
@@ -132,7 +130,7 @@ class TrainWidget(QWidget):
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
         formLayout.addRow('Patch XY', self.patch_size_XY)
-        formLayout.addRow(self.patch_size_Z_label, self.patch_size_Z)
+        formLayout.addRow('Patch Z', self.patch_size_Z)
         others.setLayout(formLayout)
         self.layout().addWidget(others)
 
@@ -280,6 +278,7 @@ class TrainWidget(QWidget):
         :param event:
         :return:
         """
+        # TODO in magicgui 0.4 even becomes a Bool
         self.is_3D = event.value
         self.patch_size_Z.setVisible(self.is_3D)
 
@@ -391,11 +390,16 @@ class TrainWidget(QWidget):
                 export_type = self.save_choice.currentText()
                 if ModelSaveMode.MODELZOO.value == export_type:
                     from napari_denoiseg.utils import build_modelzoo
+
+                    axes = self.axes_widget.get_axes()
+                    axes = axes.replace('S', 'b').lower()
+
                     build_modelzoo(where + '.bioimage.io.zip',
                                    self.model.logdir / "weights_best.h5",
                                    self.inputs,
                                    self.outputs,
-                                   self.tf_version)
+                                   self.tf_version,
+                                   axes)
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
 

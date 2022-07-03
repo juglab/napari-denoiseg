@@ -243,6 +243,9 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
     from bioimageio.core.build_spec import build_model
 
     assert path.endswith('.bioimage.io.zip'), 'Path must end with .bioimage.io.zip'
+
+    tags_dim = '3d' if len(axes) == 5 else '2d'
+
     build_model(weight_uri=weights,
                 test_inputs=[inputs],
                 test_outputs=[outputs],
@@ -257,7 +260,7 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                          {"name": "Florian Jug"}],
                 license="BSD-3-Clause",
                 documentation=os.path.abspath(doc),
-                tags=["2d", "tensorflow", "unet", "denoising", "semantic-segmentation"],
+                tags=[tags_dim, "tensorflow", "unet", "denoising", "semantic-segmentation"],
                 cite=[
                     {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
                 preprocessing=[[{
