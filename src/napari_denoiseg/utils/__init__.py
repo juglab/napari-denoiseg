@@ -14,7 +14,8 @@ from .denoiseg_utils import (
     get_shape_order,
     reshape_data,
     reshape_data_single,
-    optimize_threshold
+    optimize_threshold,
+    reshape_napari
 )
 from .optimizer_worker import optimizer_worker
 from .prediction_worker import prediction_worker

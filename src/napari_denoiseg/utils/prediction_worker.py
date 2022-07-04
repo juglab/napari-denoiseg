@@ -25,7 +25,7 @@ def prediction_worker(widget):
     if is_from_disk:
         if is_lazy_loading:
             images, n_img = lazy_load_generator(widget.images_folder.get_folder())
-            assert len(images) > 0
+            assert n_img > 0
         else:
             images = load_from_disk(widget.images_folder.get_folder(), axes)
             assert len(images.shape) > 0
@@ -38,7 +38,7 @@ def prediction_worker(widget):
         patch = (16, 16, 16)
     else:
         patch = (16, 16)
-    config = generate_config(images, patch, 1, 1, 1)
+    config = generate_config(images, patch, 1, 1, 1)  # TODO: images in lazy load will not work here
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine
@@ -105,6 +105,7 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
             prediction = model.predict(_x, axes=new_axes)
 
             # split predictions and threshold if requested
+            # TODO does this work with napari layers? YX dims at the end
             if is_threshold:
                 denoised = prediction[0, ..., 0:-3]  # denoised channels
                 segmented = prediction[0, ..., -3:] >= threshold
@@ -140,6 +141,7 @@ def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, thr
             prediction = model.predict(x, axes=new_axes)
 
             # split predictions and threshold if requested
+            # TODO does this work with napari layers? YX dims at the end
             if is_threshold:
                 denoised = prediction[0, ..., 0:-3]  # denoised channels
                 segmented = prediction[0, ..., -3:] >= threshold

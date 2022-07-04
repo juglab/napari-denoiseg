@@ -482,3 +482,29 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None, measure
             break
 
         yield i, ts, score
+
+
+def reshape_napari(x, axes: str):
+    """
+
+    """
+    _x = x
+    _axes = axes
+
+    # sanity checks
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
+
+    if len(_axes) != len(_x.shape):
+        raise ValueError('Incompatible data and axes.')
+
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x, 'SCTZYX', _axes)
+
+    # reshape
+    _x = _x.reshape(new_x_shape)
+
+    return _x, new_axes
+

@@ -24,7 +24,8 @@ from napari_denoiseg.utils import (
     lazy_load_generator,
     optimize_threshold,
     reshape_data,
-    reshape_data_single
+    reshape_data_single,
+    reshape_napari
 )
 
 
@@ -625,10 +626,29 @@ def test_reshape_data_CT(shape, axes, final_shape, final_axes):
                           ((16, 3, 12, 5, 8), 'XCYTS', (8 * 5, 12, 16, 3), 'SYXC'),
                           ((16, 10, 5, 6, 12, 8), 'ZSXCYT', (10 * 8, 16, 12, 5, 6), 'SZYXC')
                           ])
-def test_reshape_data_single_no_CT(shape, axes, final_shape, final_axes):
+def test_reshape_data_single(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
 
     _x, new_axes = reshape_data_single(x, axes)
 
     assert _x.shape == final_shape
     assert new_axes == final_axes
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 8), 'YX', (16, 8), 'YX'),
+                          ((16, 8), 'XY', (8, 16), 'YX'),
+                          ((16, 8, 5), 'XYZ', (5, 8, 16), 'ZYX'),
+                          ((5, 16, 8), 'ZXY', (5, 8, 16), 'ZYX'),
+                          ((12, 16, 8, 10), 'TXYS', (10, 12, 8, 16), 'STYX'),
+                          ((10, 5, 16, 8, 3), 'SZXYC', (10, 3, 5, 8, 16), 'SCZYX'),
+                          ((16, 10, 3, 8), 'YSCX', (10, 3, 16, 8), 'SCYX')
+                          ])
+def test_reshape_data_napari(shape, axes, final_shape, final_axes):
+    x = np.zeros(shape)
+
+    _x, new_axes = reshape_napari(x, axes)
+
+    assert _x.shape == final_shape
+    assert new_axes == final_axes
+

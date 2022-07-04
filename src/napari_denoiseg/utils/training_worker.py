@@ -144,6 +144,7 @@ def load_images(widget):
         return prepare_data_layers(image_data, label_data, perc_labels, axes)
 
 
+# TODO: use denoiseg method
 def augment_data(array, axes: str):
     """
     Augments the data 8-fold by 90 degree rotations and flipping.
