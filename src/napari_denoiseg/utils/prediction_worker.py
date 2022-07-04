@@ -2,15 +2,15 @@ from pathlib import Path
 
 import numpy as np
 from tifffile import imwrite
+from denoiseg.models import DenoiSeg
 
 from napari.qt.threading import thread_worker
-from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single
+from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single, load_weights
 
 
 @thread_worker(start_thread=False)
 def prediction_worker(widget):
-    from denoiseg.models import DenoiSeg
-    from napari_denoiseg.utils import load_from_disk, lazy_load_generator, load_weights
+    from napari_denoiseg.utils import load_from_disk, lazy_load_generator
 
     # from disk, lazy loading and threshold
     is_from_disk = widget.load_from_disk
@@ -33,29 +33,12 @@ def prediction_worker(widget):
         images = widget.images.value.data
         assert len(images.shape) > 0
 
-    # instantiate model with dummy values
-    if 'Z' in axes:
-        patch = (16, 16, 16)
-    else:
-        patch = (16, 16)
-    config = generate_config(images, patch, 1, 1, 1)  # TODO: images in lazy load will not work here
-    model = DenoiSeg(config, 'DenoiSeg', 'models')
-
-    # this is to prevent the memory from saturating on the gpu on my machine
-    # if tf.config.list_physical_devices('GPU'):
-    #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-
-    # load model weights
-    weight_name = widget.load_button.Model.value
-    assert len(weight_name.name) > 0, 'Model path cannot be empty.'
-    load_weights(model, weight_name)
-
     if is_from_disk and is_lazy_loading:
         # yield generator size
         yield {UpdateType.N_IMAGES: n_img}
-        yield from _run_lazy_prediction(widget, model, axes, images, is_threshold, threshold)
+        yield from _run_lazy_prediction(widget, axes, images, is_threshold, threshold)
     else:
-        yield from _run_prediction(widget, model, axes, images, is_threshold, threshold)
+        yield from _run_prediction(widget, axes, images, is_threshold, threshold)
 
 
 def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0.8):
@@ -92,6 +75,29 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
     n_img = next(gen)
     yield {UpdateType.N_IMAGES: n_img}
 
+    # instantiate model with dummy values
+    if 'Z' in axes:
+        patch = (16, 16, 16)
+    else:
+        patch = (16, 16)
+
+    if type(images) == list:
+        config = generate_config(images[0], patch, 1, 1, 1)
+    else:
+        config = generate_config(images, patch, 1, 1, 1)
+
+    model = DenoiSeg(config, 'DenoiSeg', 'models')
+
+    # this is to prevent the memory from saturating on the gpu on my machine
+    # if tf.config.list_physical_devices('GPU'):
+    #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
+
+    # load model weights
+    weight_name = widget.load_button.Model.value
+    assert len(weight_name.name) > 0, 'Model path cannot be empty.'
+    load_weights(model, weight_name)
+
+    # start predicting
     while True:
         t = next(gen)
 
@@ -125,7 +131,14 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
     yield {UpdateType.DONE}
 
 
-def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, threshold=0.8):
+def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=0.8):
+    # instantiate model with dummy values
+    if 'Z' in axes:
+        patch = (16, 16, 16)
+    else:
+        patch = (16, 16)
+
+    config, model = None, None
     while True:
         next_tuple = next(generator, None)
 
@@ -133,6 +146,17 @@ def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, thr
             image, file, i = next_tuple
 
             yield {UpdateType.IMAGE: i}
+
+            # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model
+            if i == 0:
+                # instantiate model
+                config = generate_config(image, patch, 1, 1, 1)
+                model = DenoiSeg(config, 'DenoiSeg', 'models')
+
+                # load model weights
+                weight_name = widget.load_button.Model.value
+                assert len(weight_name.name) > 0, 'Model path cannot be empty.'
+                load_weights(model, weight_name)
 
             # reshape data
             x, new_axes = reshape_data_single(image, axes)

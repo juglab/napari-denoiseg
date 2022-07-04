@@ -122,7 +122,7 @@ def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
     from denoiseg.models import DenoiSegConfig
 
     # assert len(X.shape)-2 == len(patch_shape)
-
+    # TODO: what if generator or list
     conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps, train_epochs=n_epochs,
                           batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
