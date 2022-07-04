@@ -81,7 +81,9 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
     else:
         patch = (16, 16)
 
+    is_list = False
     if type(images) == list:
+        is_list = True
         config = generate_config(images[0], patch, 1, 1, 1)
     else:
         config = generate_config(images, patch, 1, 1, 1)
@@ -106,6 +108,10 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
 
             # yield image number + 1
             yield {UpdateType.IMAGE: i + 1}
+
+            # update std and mean
+            if is_list:
+                model.config = generate_config(_x, patch, 1, 1, 1)
 
             # predict
             prediction = model.predict(_x, axes=new_axes)
@@ -157,6 +163,8 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
                 weight_name = widget.load_button.Model.value
                 assert len(weight_name.name) > 0, 'Model path cannot be empty.'
                 load_weights(model, weight_name)
+            else:
+                model.config = generate_config(image, patch, 1, 1, 1)
 
             # reshape data
             x, new_axes = reshape_data_single(image, axes)
