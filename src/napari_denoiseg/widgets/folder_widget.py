@@ -40,7 +40,7 @@ class FileEditWidget(QWidget):
             path = QFileDialog.getExistingDirectory(self, 'Select Folder')
             print(path)
         else:
-            path = QFileDialog.getOpenFileName(self, 'Select File')
+            path = QFileDialog.getOpenFileName(self, 'Select File')[0]
         self.text_field.setText(path)
 
         # set text in the text field
