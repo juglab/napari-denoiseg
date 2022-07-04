@@ -14,7 +14,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabWidget
 )
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
+from napari_denoiseg.widgets import TBPlotWidget, FileEditWidget, AxesWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.widgets import enable_3d
@@ -60,10 +60,10 @@ class TrainWidget(QWidget):
         tab_layers.layout().addWidget(perc_widget)
 
         # disk tab
-        self.train_images_folder = FolderWidget('Choose')
-        self.train_labels_folder = FolderWidget('Choose')
-        self.val_images_folder = FolderWidget('Choose')
-        self.val_labels_folder = FolderWidget('Choose')
+        self.train_images_folder = FileEditWidget('Choose')
+        self.train_labels_folder = FileEditWidget('Choose')
+        self.val_images_folder = FileEditWidget('Choose')
+        self.val_labels_folder = FileEditWidget('Choose')
 
         buttons = QWidget()
         form = QFormLayout()
@@ -316,7 +316,7 @@ class TrainWidget(QWidget):
                 widget.axes_widget.update_axes_number(len(image.shape))
                 widget.axes_widget.set_text_field(widget.axes_widget.get_default_text())
 
-        path = self.train_images_folder.get_folder()
+        path = self.train_images_folder.get_path()
 
         if path is not None or path != '':
             # load one image

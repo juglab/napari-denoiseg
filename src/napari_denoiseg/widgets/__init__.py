@@ -1,5 +1,5 @@
 
-from .folder_widget import FolderWidget
+from .folder_widget import FileEditWidget
 from .tbplot_widget import TBPlotWidget
 from .axes_widget import AxesWidget
 from .magicgui_widgets import (

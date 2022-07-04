@@ -55,9 +55,9 @@ def training_worker(widget, pretrained_model=None):
     batch_size = widget.batch_size_spin.value()
 
     # patch
-    patch_shape_XY = widget.patch_size_XY.value()
-    patch_shape_Z = widget.patch_size_Z.value()
-    if widget.is_3D:
+    patch_shape_XY = widget.patch_size_spin.value()
+    patch_shape_Z = widget.patch_size_spin3D.value()
+    if widget.enable_3d.use3d.value:
         patch_shape = (patch_shape_Z, patch_shape_XY, patch_shape_XY)
     else:
         patch_shape = (patch_shape_XY, patch_shape_XY)
@@ -115,10 +115,10 @@ def load_images(widget):
 
     # get images and labels
     if widget.load_from_disk:  # from local folders
-        path_train_X = widget.train_images_folder.get_folder()
-        path_train_Y = widget.train_labels_folder.get_folder()
-        path_val_X = widget.val_images_folder.get_folder()
-        path_val_Y = widget.val_labels_folder.get_folder()
+        path_train_X = widget.train_images_folder.get_path()
+        path_train_Y = widget.train_labels_folder.get_path()
+        path_val_X = widget.val_images_folder.get_path()
+        path_val_Y = widget.val_labels_folder.get_path()
 
         return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes)
 

@@ -13,10 +13,10 @@ def optimizer_worker(widget):
     # get images
     # TODO reshape data + lazy loading
     if widget.load_from_disk:
-        images = widget.images_folder.get_folder()
+        images = widget.images_folder.get_path()
         assert Path(images.exists()), 'Images path does not exists.'
 
-        labels = widget.labels_folder.get_folder()
+        labels = widget.labels_folder.get_path()
         assert Path(labels.exists()), 'Labels path does not exists.'
 
         image_data, label_data = load_pairs_from_disk(images, labels)

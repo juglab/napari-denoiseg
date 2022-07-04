@@ -24,10 +24,10 @@ def prediction_worker(widget):
     # grab images
     if is_from_disk:
         if is_lazy_loading:
-            images, n_img = lazy_load_generator(widget.images_folder.get_folder())
+            images, n_img = lazy_load_generator(widget.images_folder.get_path())
             assert len(images) > 0
         else:
-            images = load_from_disk(widget.images_folder.get_folder(), axes)
+            images = load_from_disk(widget.images_folder.get_path(), axes)
             assert len(images.shape) > 0
     else:
         images = widget.images.value.data

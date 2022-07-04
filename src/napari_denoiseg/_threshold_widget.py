@@ -9,7 +9,7 @@ from qtpy.QtWidgets import (
     QHeaderView
 )
 import napari
-from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
+from napari_denoiseg.widgets import FileEditWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker
 
 T = 't'
@@ -47,8 +47,8 @@ class ThresholdWidget(QWidget):
         tab_layers.layout().addWidget(self.layer_choice.native)
 
         # disk tab
-        self.images_folder = FolderWidget('Choose')
-        self.labels_folder = FolderWidget('Choose')
+        self.images_folder = FileEditWidget('Choose')
+        self.labels_folder = FileEditWidget('Choose')
 
         buttons = QWidget()
         form = QFormLayout()

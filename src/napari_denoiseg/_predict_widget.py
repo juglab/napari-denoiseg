@@ -19,7 +19,7 @@ from napari_denoiseg.utils import (
     loading_worker
 )
 from napari_denoiseg.widgets import (
-    FolderWidget,
+    FileEditWidget,
     AxesWidget,
     layer_choice,
     load_button,
@@ -40,7 +40,7 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(400)
+        self.setMaximumHeight(300)
 
         ###############################
         # QTabs
@@ -54,7 +54,7 @@ class PredictWidget(QWidget):
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
-        self.tabs.setMaximumHeight(250)
+        self.tabs.setMaximumHeight(100)
 
         # image layer tab
         self.images = layer_choice(annotation=napari.layers.Image, name="Images")
@@ -63,7 +63,7 @@ class PredictWidget(QWidget):
         # disk tab
         self.lazy_loading = QCheckBox('Lazy loading')
         tab_disk.layout().addWidget(self.lazy_loading)
-        self.images_folder = FolderWidget('Choose')
+        self.images_folder = FileEditWidget('Choose')
         tab_disk.layout().addWidget(self.images_folder)
 
         # add to main layout
@@ -74,23 +74,25 @@ class PredictWidget(QWidget):
         # others
 
         # load model button
-        self.load_button = load_button()
-        self.layout().addWidget(self.load_button.native)
+        #self.load_button = load_button()
+        self.load_button = FileEditWidget("Choose", False, "Model")
+        self.layout().addWidget(self.load_button)
+
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D') # enable_3d()
         self.layout().addWidget(self.enable_3d)
+        print(self.enable_3d.getContentsMargins())
 
         # axes widget
         self.axes_widget = AxesWidget()
-        self.axes_widget.setContentsMargins(8, 0, 0, 0)  # TODO very inelegant
         self.layout().addWidget(self.axes_widget)
 
         # threshold slider
         self.threshold_cbox = QCheckBox('Apply threshold')
         self.layout().addWidget(self.threshold_cbox)
         self.threshold_spin = threshold_spin()
-        self.threshold_spin.native.setEnabled(False)
+        self.threshold_spin.native.setVisible(False)
         self.layout().addWidget(self.threshold_spin.native)
 
         # progress bar
@@ -124,8 +126,8 @@ class PredictWidget(QWidget):
         # update axes widget in case of data
         self._update_layer_axes()
 
-    def _update_threshold(self):
-        self.threshold_spin.native.setEnabled(self.threshold_cbox.isChecked())
+    def _update_threshold(self, value):
+        self.threshold_spin.native.setVisible(value)
 
     def _update_3D(self):
         self.axes_widget.update_is_3D(self.enable_3d.isChecked())
@@ -151,7 +153,7 @@ class PredictWidget(QWidget):
             self.axes_widget.set_text_field(self.axes_widget.get_default_text())
 
     def _update_disk_axes(self):
-        path = self.images_folder.get_folder()
+        path = self.images_folder.get_path()
 
         # load one image
         load_worker = loading_worker(path)
