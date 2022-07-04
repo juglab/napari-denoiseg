@@ -40,7 +40,7 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(300)
+        self.setMaximumHeight(400)
 
         ###############################
         # QTabs
@@ -54,7 +54,7 @@ class PredictWidget(QWidget):
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
-        self.tabs.setMaximumHeight(100)
+        self.tabs.setMaximumHeight(150)
 
         # image layer tab
         self.images = layer_choice(annotation=napari.layers.Image, name="Images")
