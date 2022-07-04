@@ -10,9 +10,9 @@ from napari_denoiseg.utils import (
     State,
     UpdateType,
     list_diff,
-    reshape_data
+    reshape_data,
+    optimize_threshold
 )
-from utils import optimize_threshold
 
 
 class TrainingCallback(Callback):

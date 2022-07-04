@@ -11,8 +11,7 @@ from qtpy.QtWidgets import (
 )
 import napari
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
-from napari_denoiseg.utils import State, optimizer_worker
-from utils import loading_worker
+from napari_denoiseg.utils import State, optimizer_worker, loading_worker
 
 T = 't'
 M = 'metrics'

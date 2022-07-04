@@ -1,6 +1,13 @@
 from napari.qt.threading import thread_worker
-from napari_denoiseg.utils import generate_config, load_pairs_from_disk, load_weights, State
-from utils.denoiseg_utils import optimize_threshold, load_pairs_generator, reshape_data
+from napari_denoiseg.utils import (
+    generate_config,
+    load_pairs_from_disk,
+    load_weights,
+    State,
+    optimize_threshold,
+    load_pairs_generator,
+    reshape_data
+)
 
 
 @thread_worker(start_thread=False)

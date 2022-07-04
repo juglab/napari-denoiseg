@@ -1,8 +1,8 @@
 import os
+
 import pytest
 from pathlib import Path
 
-import tifffile
 from tifffile import imwrite
 import numpy as np
 from denoiseg.models import DenoiSeg
