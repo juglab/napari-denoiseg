@@ -23,9 +23,12 @@ contributions:
     - id: napari-denoiseg.denoiseg_data_2D_n20
       python_name: napari_denoiseg._sample_data:denoiseg_data_2D_n20
       title: DenoiSeg sample 2D data (n20)
-    - id: napari-denoiseg.denoiseg_data_3D
-      python_name: napari_denoiseg._sample_data:denoiseg_data_3D
-      title: DenoiSeg sample 3D data
+    - id: napari-denoiseg.denoiseg_data_3D_n10
+      python_name: napari_denoiseg._sample_data:denoiseg_data_3D_n10
+      title: DenoiSeg sample 3D data (n10)
+    - id: napari-denoiseg.denoiseg_data_3D_n20
+      python_name: napari_denoiseg._sample_data:denoiseg_data_3D_n20
+      title: DenoiSeg sample 3D data (n20)
   widgets:
     - command: napari-denoiseg.make_train_widget
       display_name: DenoiSeg train
@@ -45,6 +48,9 @@ contributions:
     - command: napari-denoiseg.denoiseg_data_2D_n20
       display_name: Download 2D data (n20 noise)
       key: denoiseg_data_2D_n20
-    - command: napari-denoiseg.denoiseg_data_3D
-      display_name: Download 3D data
-      key: denoiseg_data_3D
+    - command: napari-denoiseg.denoiseg_data_3D_n10
+      display_name: Download 3D data (n10 noise)
+      key: denoiseg_data_3D_n10
+    - command: napari-denoiseg.denoiseg_data_3D_n20
+      display_name: Download 3D data (n20 noise)
+      key: denoiseg_data_3D_n20

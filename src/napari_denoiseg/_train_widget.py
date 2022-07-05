@@ -405,11 +405,11 @@ class TrainWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_2D_n0, denoiseg_data_3D
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n0, denoiseg_data_3D_n10
 
     dims = '3D'  # '2D'
     if dims == '3D':
-        data = denoiseg_data_3D()
+        data = denoiseg_data_3D_n10()
     else:
         data = denoiseg_data_2D_n0()
 
