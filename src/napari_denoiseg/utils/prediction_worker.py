@@ -5,7 +5,7 @@ from tifffile import imwrite
 from denoiseg.models import DenoiSeg
 
 from napari.qt.threading import thread_worker
-from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single, load_weights
+from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single, load_weights, reshape_napari
 
 
 # TODO: Because of the loading yielding np.array, list or generator, the model is now instantiated in the prediction
@@ -65,6 +65,7 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
         if type(data) == list:
             yield len(data)
             for j, d in enumerate(data):
+                # reshape from napari to S(Z)YXC
                 _data, _axes = reshape_data_single(d, axes_order)
                 yield _data, _axes, j
         else:
@@ -123,7 +124,6 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
             prediction = model.predict(_x, axes=new_axes)
 
             # split predictions and threshold if requested
-            # TODO does this work with napari layers? YX dims at the end
             if is_threshold:
                 denoised = prediction[0, ..., 0:-3]  # denoised channels
                 segmented = prediction[0, ..., -3:] >= threshold
@@ -132,8 +132,11 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
                 segmented = prediction[0, ..., -3:]
 
             # update the layers in napari
-            widget.seg_prediction[i, ...] = segmented
-            widget.denoi_prediction[i, ...] = denoised
+            # TODO: reshape the prediction for napari: YX dims at the end
+            #       call reshape(segmented, new_axes, axes),
+            #       but now [i, ...] should be indexed according to napari
+            widget.seg_prediction[i, ...] = reshape_napari(segmented, new_axes)
+            widget.denoi_prediction[i, ...] = reshape_napari(denoised, new_axes)
 
             # check if stop requested
             if widget.state != State.RUNNING:

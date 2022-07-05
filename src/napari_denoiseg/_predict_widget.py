@@ -146,6 +146,7 @@ class PredictWidget(QWidget):
 
         if image is not None:
             self.viewer.add_image(image, name=SAMPLE, visible=True)
+            self.shape = image.shape
 
             # update the axes widget
             self.axes_widget.update_axes_number(len(image.shape))
@@ -213,6 +214,17 @@ class PredictWidget(QWidget):
                     self.viewer.layers.remove(DENOISING)
 
                 # create new seg and denoising layers
+                # TODO 1: if self.threshold_cbox.isChecked() selected, seg_prediction is label, otherwise image layer
+                # TODO 2: 1) find 'C' in self.get_axes,
+                #         2) create (*shape[:ind_C], x, *shape[ind_C+1:]) from self.shape or images.value.data.shape,
+                #          where x is 3 for the segmentation images
+                #         3) denoised images has same dimensions than self.shape or images.value.data
+
+                # axes in napari are anything ****YX which can be SZTCYX or CSTZYX etc.
+                # but the axes widget tells us what the order is
+                # DenoiSeg outputs S(Z)YXC, where T and S are fused (T * S)
+                # In prediction worker (e.g. line 128), the shape must be the same than here
+
                 if self.load_from_disk == 0:
                     self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.float32)
                     viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)

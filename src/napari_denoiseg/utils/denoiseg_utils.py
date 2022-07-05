@@ -507,15 +507,15 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         yield i_t, ts, score
 
 
-def reshape_napari(x, axes: str):
+def reshape_napari(x, axes_in: str, axes_out: str = 'SCTZYX'):
     """
 
     """
     _x = x
-    _axes = axes
+    _axes = axes_in
 
     # sanity checks
-    if 'X' not in axes or 'Y' not in axes:
+    if 'X' not in axes_in or 'Y' not in axes_in:
         raise ValueError('X or Y dimension missing in axes.')
 
     if len(_axes) != len(_x.shape):
@@ -524,7 +524,7 @@ def reshape_napari(x, axes: str):
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
     # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x, 'SCTZYX', _axes)
+    new_x_shape, new_axes, indices = get_shape_order(_x, axes_out, _axes)
 
     # reshape
     _x = _x.reshape(new_x_shape)

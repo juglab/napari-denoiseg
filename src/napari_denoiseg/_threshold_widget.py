@@ -71,8 +71,8 @@ class ThresholdWidget(QWidget):
         # other
 
         # load model button
-        self.load_button = load_button()
-        self.layout().addWidget(self.load_button.native)
+        self.load_model_button = load_button()
+        self.layout().addWidget(self.load_model_button.native)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
@@ -105,6 +105,7 @@ class ThresholdWidget(QWidget):
         self.tabs.currentChanged.connect(self._update_tab_axes)
         self.optimize_button.clicked.connect(self._start_optimization)
         self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
+        self.images.changed.connect(self._update_layer_axes)
         self.enable_3d.stateChanged.connect(self._update_3D)
 
         # update axes widget in case of data
@@ -116,10 +117,10 @@ class ThresholdWidget(QWidget):
 
     def _update_layer_axes(self):
         if self.images.value is not None:
-            shape = self.images.value.data.shape
+            self.shape = self.images.value.data.shape
 
             # update shape length in the axes widget
-            self.axes_widget.update_axes_number(len(shape))
+            self.axes_widget.update_axes_number(len(self.shape))
             self.axes_widget.set_text_field(self.axes_widget.get_default_text())
 
     def _add_image(self, image):
