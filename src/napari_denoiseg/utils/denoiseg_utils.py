@@ -13,6 +13,7 @@ from denoiseg.models import DenoiSeg
 from itertools import permutations
 
 REF_AXES = 'TSZYXC'
+NAPARI_AXES = 'STCZYX'
 
 
 class State(Enum):
@@ -189,7 +190,7 @@ def load_from_disk(path, axes: str):
             final_images = np.stack(images, axis=0)
         return final_images
 
-    return images
+    return images, image_files
 
 
 def lazy_load_generator(path):
@@ -284,25 +285,26 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                 )
 
 
-def get_shape_order(x, ref_axes, axes):
+# TODO swap order ref_axes and axes_in
+def get_shape_order(shape_in, ref_axes, axes_in):
     """
     Return the new shape and axes order of x, if the axes were to be ordered according to
     the reference axes.
 
-    :param x:
+    :param shape_in:
     :param ref_axes: Reference axes order (string)
-    :param axes: New axes as a list of strings
+    :param axes_in: New axes as a list of strings
     :return:
     """
     # build indices look-up table: indices of each axe in `axes`
-    indices = [axes.find(k) for k in ref_axes]
+    indices = [axes_in.find(k) for k in ref_axes]
 
     # remove all non-existing axes (index == -1)
     indices = tuple(filter(lambda k: k != -1, indices))
 
     # find axes order and get new shape
-    new_axes = [axes[ind] for ind in indices]
-    new_shape = tuple([x.shape[ind] for ind in indices])
+    new_axes = [axes_in[ind] for ind in indices]
+    new_shape = tuple([shape_in[ind] for ind in indices])
 
     return new_shape, ''.join(new_axes), indices
 
@@ -349,12 +351,12 @@ def reshape_data(x, y, axes: str):
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
     # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, REF_AXES, _axes)
 
     if 'C' in _axes:  # Y does not have a C dimension
         axes_y = _axes.replace('C', '')
         ref_axes_y = REF_AXES.replace('C', '')
-        new_y_shape, _, _ = get_shape_order(_y, ref_axes_y, axes_y)
+        new_y_shape, _, _ = get_shape_order(_y.shape, ref_axes_y, axes_y)
     else:
         new_y_shape = tuple([_y.shape[ind] for ind in indices])
 
@@ -401,7 +403,7 @@ def reshape_data_single(x, axes: str):
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
     # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x, REF_AXES, _axes)
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, REF_AXES, _axes)
 
     # if S is not in the list of axes, then add a singleton S
     if 'S' not in new_axes:
@@ -507,7 +509,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         yield i_t, ts, score
 
 
-def reshape_napari(x, axes_in: str, axes_out: str = 'SCTZYX'):
+def reshape_napari(x, axes_in: str, axes_out: str = NAPARI_AXES):
     """
 
     """
@@ -524,10 +526,32 @@ def reshape_napari(x, axes_in: str, axes_out: str = 'SCTZYX'):
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
     # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x, axes_out, _axes)
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, axes_out, _axes)
 
     # reshape
     _x = _x.reshape(new_x_shape)
 
     return _x, new_axes
+
+
+def get_napari_shapes(shape_in, axes_in):
+    """
+    Transform shape into what DenoiSeg expect and return the denoised and segmented output shapes in napari axes order.
+
+    :param shape_in:
+    :param axes_in:
+    :return:
+    """
+    # shape and axes for DenoiSeg
+    shape_denoiseg, denoiseg_axes, _ = get_shape_order(shape_in, REF_AXES, axes_in)
+
+    # denoised and segmented image shapes
+    shape_denoised = shape_denoiseg
+    shape_segmented = (*shape_denoiseg[:-1], 3)
+
+    # shape and axes for napari
+    shape_denoised_out, _, _ = get_shape_order(shape_denoised, NAPARI_AXES, denoiseg_axes)
+    shape_segmented_out, _, _ = get_shape_order(shape_segmented, NAPARI_AXES, denoiseg_axes)
+
+    return shape_denoised_out, shape_segmented_out
 

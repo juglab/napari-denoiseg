@@ -5,7 +5,15 @@ from tifffile import imwrite
 from denoiseg.models import DenoiSeg
 
 from napari.qt.threading import thread_worker
-from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single, load_weights, reshape_napari
+from napari_denoiseg.utils import (
+    UpdateType,
+    State,
+    generate_config,
+    reshape_data_single,
+    load_weights,
+    reshape_napari,
+    get_napari_shapes
+)
 
 
 # TODO: Because of the loading yielding np.array, list or generator, the model is now instantiated in the prediction
@@ -29,7 +37,7 @@ def prediction_worker(widget):
     if is_from_disk:
         if is_lazy_loading:
             images, n_img = lazy_load_generator(widget.images_folder.get_folder())
-            assert n_img > 0
+            assert n_img > 0, 'No image returned.'
         else:
             images = load_from_disk(widget.images_folder.get_folder(), axes)
             assert len(images.shape) > 0
@@ -41,11 +49,13 @@ def prediction_worker(widget):
         # yield generator size
         yield {UpdateType.N_IMAGES: n_img}
         yield from _run_lazy_prediction(widget, axes, images, is_threshold, threshold)
+    elif is_from_disk and type(images) == tuple:
+        yield from _run_prediction_to_disk(widget, axes, images, is_threshold, threshold)
     else:
-        yield from _run_prediction(widget, axes, images, is_threshold, threshold)
+        yield from _run_prediction(widget, axes, images, is_from_disk, is_threshold, threshold)
 
 
-def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
+def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, threshold=0.8):
     """
 
     :param widget:
@@ -62,22 +72,21 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
         :param axes_order:
         :return:
         """
-        if type(data) == list:
-            yield len(data)
-            for j, d in enumerate(data):
-                # reshape from napari to S(Z)YXC
-                _data, _axes = reshape_data_single(d, axes_order)
-                yield _data, _axes, j
-        else:
-            _data, _axes = reshape_data_single(data, axes_order)
-            yield _data.shape[0]
+        _data, _axes = reshape_data_single(data, axes_order)
+        yield _data.shape[0]
 
-            for k in range(_data.shape[0]):
-                yield _data[np.newaxis, k, ...], _axes, k
+        for k in range(_data.shape[0]):
+            yield _data[np.newaxis, k, ...], _axes, k
 
     gen = generator(images, axes)
     n_img = next(gen)
     yield {UpdateType.N_IMAGES: n_img}
+
+    # if the images were loaded from disk, the layers in napari have the wrong shape
+    if is_from_disk:
+        shape_denoised, shape_segmented = get_napari_shapes(images.shape, axes)
+        widget.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
+        widget.seg_prediction = np.zeros(shape_segmented, dtype=widget.seg_prediction.dtype)
 
     # instantiate model with dummy values
     if 'Z' in axes:
@@ -85,13 +94,7 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
     else:
         patch = (16, 16)
 
-    is_list = False
-    if type(images) == list:
-        is_list = True
-        config = generate_config(images[0], patch, 1, 1, 1)
-    else:
-        config = generate_config(images, patch, 1, 1, 1)
-
+    config = generate_config(images, patch, 1, 1, 1)
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine
@@ -115,10 +118,6 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
             # yield image number + 1
             yield {UpdateType.IMAGE: i + 1}
 
-            # update std and mean
-            if is_list:
-                model.config = generate_config(_x, patch, 1, 1, 1)
-
             # TODO refactor the separation between denoised and segmented into a testable function
             # predict
             prediction = model.predict(_x, axes=new_axes)
@@ -132,11 +131,98 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
                 segmented = prediction[0, ..., -3:]
 
             # update the layers in napari
-            # TODO: reshape the prediction for napari: YX dims at the end
-            #       call reshape(segmented, new_axes, axes),
-            #       but now [i, ...] should be indexed according to napari
-            widget.seg_prediction[i, ...] = reshape_napari(segmented, new_axes)
-            widget.denoi_prediction[i, ...] = reshape_napari(denoised, new_axes)
+            widget.seg_prediction[i, ...], _ = reshape_napari(segmented, new_axes[1:])
+            widget.denoi_prediction[i, ...], _ = reshape_napari(denoised, new_axes[1:])
+
+            # check if stop requested
+            if widget.state != State.RUNNING:
+                break
+        else:
+            break
+
+    # update done
+    yield {UpdateType.DONE}
+
+
+def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=0.8):
+    """
+
+    :param widget:
+    :param axes:
+    :param images:
+    :param is_threshold:
+    :param threshold:
+    :return:
+    """
+    def generator(data, axes_order):
+        """
+
+        :param data:
+        :param axes_order:
+        :return:
+        """
+        yield len(data[0])
+        counter = 0
+        for im, file in zip(*data):
+            # reshape from napari to S(Z)YXC
+            _data, _axes = reshape_data_single(im, axes_order)
+            counter += counter + 1
+            yield _data, file, _axes, counter
+
+    gen = generator(images, axes)
+    n_img = next(gen)
+    yield {UpdateType.N_IMAGES: n_img}
+
+    # instantiate model with dummy values
+    if 'Z' in axes:
+        patch = (16, 16, 16)
+    else:
+        patch = (16, 16)
+
+    config = generate_config(images[0][0], patch, 1, 1, 1)
+    model = DenoiSeg(config, 'DenoiSeg', 'models')
+
+    # this is to prevent the memory from saturating on the gpu on my machine
+    # if tf.config.list_physical_devices('GPU'):
+    #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
+
+    # load model weights
+    weight_path = widget.get_model_path()
+    if not Path(weight_path).exists():
+        raise ValueError('Invalid model path.')
+
+    load_weights(model, weight_path)
+
+    # start predicting
+    while True:
+        t = next(gen, None)
+
+        if t is not None:
+            _x, file, new_axes, i = t
+
+            # yield image number
+            yield {UpdateType.IMAGE: i}
+
+            # update std and mean
+            model.config = generate_config(_x, patch, 1, 1, 1)
+
+            # TODO refactor the separation between denoised and segmented into a testable function
+            # predict
+            prediction = model.predict(_x, axes=new_axes)
+
+            # split predictions and threshold if requested
+            if is_threshold:
+                denoised = prediction[0, ..., 0:-3]  # denoised channels
+                segmented = prediction[0, ..., -3:] >= threshold
+            else:
+                denoised = prediction[0, ..., 0:-3]
+                segmented = prediction[0, ..., -3:]
+
+            # save predictions
+            new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
+            new_file_path_seg = Path(file.parent, file.stem + '_segmented' + file.suffix)
+            imwrite(new_file_path_denoi, denoised)
+            imwrite(new_file_path_seg, segmented)
 
             # check if stop requested
             if widget.state != State.RUNNING:
@@ -194,7 +280,6 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
                 prediction = model.predict(x, axes=new_axes)
 
             # split predictions and threshold if requested
-            # TODO does this work with napari layers? YX dims at the end
             if is_threshold:
                 denoised = prediction[0, ..., 0:-3]  # denoised channels
                 segmented = prediction[0, ..., -3:] >= threshold

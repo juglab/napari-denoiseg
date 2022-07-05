@@ -18,7 +18,11 @@ from napari_denoiseg.utils import (
     State,
     UpdateType,
     prediction_worker,
-    loading_worker
+    loading_worker,
+    get_shape_order,
+    get_napari_shapes,
+    REF_AXES,
+    NAPARI_AXES
 )
 from napari_denoiseg.widgets import (
     FolderWidget,
@@ -214,25 +218,31 @@ class PredictWidget(QWidget):
                     self.viewer.layers.remove(DENOISING)
 
                 # create new seg and denoising layers
-                # TODO 1: if self.threshold_cbox.isChecked() selected, seg_prediction is label, otherwise image layer
-                # TODO 2: 1) find 'C' in self.get_axes,
-                #         2) create (*shape[:ind_C], x, *shape[ind_C+1:]) from self.shape or images.value.data.shape,
-                #          where x is 3 for the segmentation images
-                #         3) denoised images has same dimensions than self.shape or images.value.data
-
-                # axes in napari are anything ****YX which can be SZTCYX or CSTZYX etc.
-                # but the axes widget tells us what the order is
-                # DenoiSeg outputs S(Z)YXC, where T and S are fused (T * S)
-                # In prediction worker (e.g. line 128), the shape must be the same than here
-
                 if self.load_from_disk == 0:
-                    self.seg_prediction = np.zeros(self.images.value.data.shape, dtype=np.float32)
-                    viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                    self.denoi_prediction = np.zeros(self.images.value.data.shape, dtype=np.float32)
+                    # load from the layers
+                    im_shape = self.images.value.data.shape
+                    current_axes = self.get_axes()
+                    shape_denoised, shape_segmented = get_napari_shapes(im_shape, current_axes)
+
+                    # create place-holders using the final shape
+                    if self.threshold_cbox.isChecked():
+                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32)
+                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    else:
+                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32)
+                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+
+                    self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
                 else:
-                    self.seg_prediction = np.zeros(self.shape, dtype=np.float32)
-                    viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    # load from disk, we create place-holders with the shape of the sample image
+                    if self.threshold_cbox.isChecked():
+                        self.seg_prediction = np.zeros(self.shape, dtype=np.int32)
+                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    else:
+                        self.seg_prediction = np.zeros(self.shape, dtype=np.float32)
+                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+
                     self.denoi_prediction = np.zeros(self.shape, dtype=np.float32)
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
@@ -254,6 +264,10 @@ class PredictWidget(QWidget):
 
     def get_model_path(self):
         return self.load_model_button.Model.value
+
+    # TODO call these methods throughout the workers
+    def get_axes(self):
+        return self.axes_widget.get_axes()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from .denoiseg_utils import State, UpdateType, ModelSaveMode, REF_AXES
+from .denoiseg_utils import State, UpdateType, ModelSaveMode, REF_AXES, NAPARI_AXES
 from .denoiseg_utils import (
     load_pairs_generator,
     generate_config,
@@ -15,7 +15,8 @@ from .denoiseg_utils import (
     reshape_data,
     reshape_data_single,
     optimize_threshold,
-    reshape_napari
+    reshape_napari,
+    get_napari_shapes
 )
 from .optimizer_worker import optimizer_worker
 from .prediction_worker import prediction_worker

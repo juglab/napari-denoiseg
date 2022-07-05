@@ -317,10 +317,10 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2, axes):
 
     # load images
     images = load_from_disk(tmp_path, axes)
-    assert type(images) == list
-    assert len(images) == n[0] + n[1]
+    assert type(images) == tuple
+    assert len(images[0]) == n[0] + n[1]
 
-    for img in images:
+    for img, _ in zip(*images):
         assert (img.shape == shape1) or (img.shape == shape2)
 
 
