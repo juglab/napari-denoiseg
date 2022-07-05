@@ -484,12 +484,19 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
 
     :return:
     """
-    for i, ts in enumerate(np.linspace(0.1, 1, 19)):
-        prediction = model.predict(image_data, axes=axes)[..., -3:]  # remove the denoised predictions
+    for i_t, ts in enumerate(np.linspace(0.1, 1, 19)):
+
+        shape = (*image_data.shape[:-1], 3)
+        predictions = np.zeros(shape, dtype=np.float32)
+
+        # TODO: why can't we predict all samples in one go?
+        for i_s in range(shape[0]):
+            # predict and select only the segmentation predictions
+            predictions[i_s, ...] = model.predict(image_data[i_s, ...], axes=axes[1:])[..., -3:]
 
         # threshold prediction and convert to int type
         lab_gt = label_data.astype(np.int64)
-        lab_pred = (prediction >= ts).astype(np.int64)
+        lab_pred = (predictions >= ts).astype(np.int64)
 
         score = measure_precision()(lab_gt, lab_pred)
 
@@ -497,7 +504,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         if widget is not None and widget.state != State.RUNNING:
             break
 
-        yield i, ts, score
+        yield i_t, ts, score
 
 
 def reshape_napari(x, axes: str):

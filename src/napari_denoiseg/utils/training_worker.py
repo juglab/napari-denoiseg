@@ -89,6 +89,17 @@ def training_worker(widget, pretrained_model=None):
     widget.model = train_args[0]
 
     # threshold validation data to estimate the best threshold
+    widget.threshold = get_best_threshold(widget, X_val, Y_val_onehot)
+
+    # save input/output for bioimage.io
+    widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
+    widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
+    np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
+    np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
+                                                 axes=widget.new_axes))
+
+
+def get_best_threshold(widget, X_val, Y_val):
     gen = optimize_threshold(widget.model, X_val, Y_val, widget.new_axes, widget=widget)
     best_threshold = -1
     best_score = -1
@@ -104,14 +115,7 @@ def training_worker(widget, pretrained_model=None):
         else:
             break
 
-    widget.threshold = best_threshold
-
-    # save input/output for bioimage.io
-    widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
-    widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
-    np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
-    np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
-                                                 axes=widget.new_axes))
+    return best_threshold
 
 
 def load_images(widget):
