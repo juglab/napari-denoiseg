@@ -6,8 +6,11 @@ from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_p
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk
 
 
+# TODO test with data of different shapes, thus getting a list of images
 # TODO: test from layers, and all with thresholding.
 # TODO: test the prediction worker itself
+
+@pytest.mark.timeout(5)
 @pytest.mark.parametrize('shape, axes',  # they are already reshaped
                          [((1, 16, 16, 1), 'SYXC'),
                           ((5, 16, 16, 1), 'SYXC'),
@@ -17,7 +20,7 @@ from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_f
                           ((5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_prediction_from_disk(tmp_path, make_napari_viewer, shape, axes):
     n = 10
-    new_shape_seg = (n * shape[0], *shape[1:-1], 3 + 2 * shape[-1])
+    new_shape_seg = (n * shape[0], *shape[1:-1], 3)
     new_shape_den = (n * shape[0], *shape[1:])
 
     class MonkeyPatchWidget:
@@ -37,7 +40,7 @@ def test_run_prediction_from_disk(tmp_path, make_napari_viewer, shape, axes):
     # create files
     save_img(tmp_path, n, shape)
 
-    # instantiate generator
+    # instantiate loader
     images = load_from_disk(tmp_path, axes)
     assert images.shape == new_shape_den
 

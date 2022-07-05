@@ -106,7 +106,7 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
 
     # start predicting
     while True:
-        t = next(gen)
+        t = next(gen, None)
 
         if t is not None:
             _x, new_axes, i = t
@@ -118,6 +118,7 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
             if is_list:
                 model.config = generate_config(_x, patch, 1, 1, 1)
 
+            # TODO refactor the separation between denoised and segmented into a testable function
             # predict
             prediction = model.predict(_x, axes=new_axes)
 
@@ -137,6 +138,8 @@ def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
             # check if stop requested
             if widget.state != State.RUNNING:
                 break
+        else:
+            break
 
     # update done
     yield {UpdateType.DONE}
