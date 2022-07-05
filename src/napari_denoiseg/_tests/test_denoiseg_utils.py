@@ -152,6 +152,8 @@ def test_generate_valid_config(shape, patch_shape):
     config = generate_config(np.zeros(shape), patch_shape)
     assert config.is_valid()
 
+# TODO test with lists and generator that generate_config works
+
 
 @pytest.mark.parametrize('shape, patch_shape', [((1, 16, 16, 1), (8, 16, 16)),
                                                 ((1, 8, 16, 16, 1), (16, 16))])
@@ -484,15 +486,25 @@ def test_lazy_generator(tmp_path):
         next(gen)
 
 
+# TODO add more tests
 @pytest.mark.parametrize('shape, axes', [((1, 16, 16, 1), 'SYXC')])
 def test_optimize_threshold(tmp_path, shape, axes):
+    from denoiseg.utils.seg_utils import convert_to_oneHot
+
     # create model and data
     model = create_model(tmp_path, shape)
     X_val = np.random.random(shape)
-    Y_val = np.random.randint(0, 255, shape, dtype=np.uint16)
+
+    if 'C' in axes:
+        y_shape = shape[:-1]
+    else:
+        y_shape = shape
+
+    Y_val = np.random.randint(0, 255, y_shape, dtype=np.int16)
+    _y_onehot = convert_to_oneHot(Y_val)
 
     # instantiate generator
-    gen = optimize_threshold(model, X_val, Y_val, axes)
+    gen = optimize_threshold(model, X_val, _y_onehot, axes)
 
     thresholds = []
     while True:

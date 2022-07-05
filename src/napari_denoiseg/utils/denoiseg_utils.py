@@ -123,10 +123,20 @@ def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
 
     # assert len(X.shape)-2 == len(patch_shape)
     # TODO: what if generator or list
-    conf = DenoiSegConfig(X, unet_kern_size=3, n_channel_out=4, relative_weights=[1.0, 1.0, 5.0],
-                          train_steps_per_epoch=n_steps, train_epochs=n_epochs,
-                          batch_norm=True, train_batch_size=batch_size, n2v_patch_shape=patch_shape,
-                          unet_n_first=32, unet_n_depth=4, denoiseg_alpha=0.5, train_tensorboard=True)
+    conf = DenoiSegConfig(X,
+                          unet_kern_size=3,
+                          n_channel_out=4,
+                          relative_weights=[1.0, 1.0, 5.0],
+                          train_steps_per_epoch=n_steps,
+                          train_epochs=n_epochs,
+                          batch_norm=True,
+                          train_batch_size=batch_size,
+                          n2v_patch_shape=patch_shape,
+                          unet_n_first=32,
+                          unet_n_depth=4,
+                          denoiseg_alpha=0.5,
+                          n_channel_in=X.shape[-1],
+                          train_tensorboard=True)
 
     return conf
 
@@ -469,13 +479,19 @@ def are_axes_valid(axes: str):
     return True
 
 
-def optimize_threshold(model, image_data, label_data, axes, widget=None, measure=measure_precision):
+def optimize_threshold(model, image_data, label_data, axes, widget=None):
     """
 
     :return:
     """
     for i, ts in enumerate(np.linspace(0.1, 1, 19)):
-        _, _, score, _ = model.predict_label_masks(image_data, label_data, axes[1:], ts, measure())
+        prediction = model.predict(image_data, axes=axes)[..., -3:]  # remove the denoised predictions
+
+        # threshold prediction and convert to int type
+        lab_gt = label_data.astype(np.int64)
+        lab_pred = (prediction >= ts).astype(np.int64)
+
+        score = measure_precision()(lab_gt, lab_pred)
 
         # check if stop requested
         if widget is not None and widget.state != State.RUNNING:

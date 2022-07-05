@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+
 from napari_denoiseg._tests.test_utils import create_model, save_img, save_weights_h5
 from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_prediction
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk

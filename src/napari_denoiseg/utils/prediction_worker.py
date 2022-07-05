@@ -158,8 +158,8 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
 
             yield {UpdateType.IMAGE: i}
 
-            # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model
-            if i == 0:
+            # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model?
+            if i == 1:
                 # instantiate model
                 config = generate_config(image, patch, 1, 1, 1)
                 model = DenoiSeg(config, 'DenoiSeg', 'models')

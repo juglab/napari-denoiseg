@@ -72,7 +72,7 @@ def save_weights_h5(model, basedir):
     return path_to_weights
 
 
-@pytest.mark.timeout(1000)
+@pytest.mark.timeout(5)
 @pytest.mark.parametrize('shape', [(1, 8, 8, 1),
                                    (1, 8, 16, 1),
                                    (1, 8, 16, 16, 1),

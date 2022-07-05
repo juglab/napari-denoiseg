@@ -1,3 +1,4 @@
+from pathlib import Path
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -102,7 +103,7 @@ class ThresholdWidget(QWidget):
 
         # actions
         self.tabs.currentChanged.connect(self._update_tab_axes)
-        self.optimize_button.clicked.connect(self.start_optimization)
+        self.optimize_button.clicked.connect(self._start_optimization)
         self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
         self.enable_3d.stateChanged.connect(self._update_3D)
 
@@ -153,9 +154,9 @@ class ThresholdWidget(QWidget):
         else:
             self._update_layer_axes()
 
-    def start_optimization(self):
+    def _start_optimization(self):
         if self.state == State.IDLE:
-            if self.axes_widget.is_valid():
+            if self.axes_widget.is_valid() and Path(self.get_model_path()).exists():
                 self.state = State.RUNNING
 
                 # register which data tab: layers or disk
@@ -165,8 +166,8 @@ class ThresholdWidget(QWidget):
                 self.table.clearContents()
 
                 self.worker = optimizer_worker(self)
-                self.worker.returned.connect(self.done)
-                self.worker.yielded.connect(lambda x: self.update(x))
+                self.worker.returned.connect(self._done)
+                self.worker.yielded.connect(lambda x: self._update(x))
                 self.worker.start()
             else:
                 # TODO: feedback to user?
@@ -174,14 +175,17 @@ class ThresholdWidget(QWidget):
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
-    def update(self, score_tuple):
+    def _update(self, score_tuple):
         (i, t, m) = score_tuple
         self.table.setItem(i, 0, QTableWidgetItem("{:.2f}".format(t)))
         self.table.setItem(i, 1, QTableWidgetItem("{:.2f}".format(m)))
 
-    def done(self):
+    def _done(self):
         self.state = State.IDLE
         self.optimize_button.setText('Optimize')
+
+    def get_model_path(self):
+        return self.load_model_button.Model.value
 
 
 if __name__ == "__main__":
