@@ -125,7 +125,8 @@ def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
     # TODO: what if generator or list
     conf = DenoiSegConfig(X,
                           unet_kern_size=3,
-                          n_channel_out=4,
+                          n_channel_out=X.shape[-1]+3,
+                          n_channel_in=X.shape[-1],
                           relative_weights=[1.0, 1.0, 5.0],
                           train_steps_per_epoch=n_steps,
                           train_epochs=n_epochs,
@@ -135,7 +136,6 @@ def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
                           unet_n_first=32,
                           unet_n_depth=4,
                           denoiseg_alpha=0.5,
-                          n_channel_in=X.shape[-1],
                           train_tensorboard=True)
 
     return conf

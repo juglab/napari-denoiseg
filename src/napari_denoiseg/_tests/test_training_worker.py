@@ -749,12 +749,13 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
     assert new_axes == final_axes
 
 
+@pytest.mark.timeout(10)
 @pytest.mark.parametrize('shape1, shape2, axes',
-                         [((20, 64, 64), (10, 64, 64), 'SYX'),
-                          ((20, 5, 64, 64), (10, 5, 64, 64), 'STYX'),
-                          ((20, 32, 64, 64), (10, 32, 64, 64), 'SZYX'),
-                          ((20, 3, 64, 64), (10, 64, 64), 'SCYX'),
-                          ((32, 5, 20, 64, 64), (32, 5, 20, 64, 64), 'ZTSYX')])
+                         [((10, 16, 16), (10, 16, 16), 'SYX'),
+                          ((10, 5, 16, 16), (10, 5, 16, 16), 'STYX'),
+                          ((10, 16, 16, 16), (10, 16, 16, 16), 'SZYX'),
+                          ((10, 3, 16, 16), (10, 16, 16), 'SCYX'),
+                          ((16, 5, 10, 16, 16), (16, 5, 10, 16, 16), 'ZTSYX')])
 def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes):
 
     class Value:
@@ -774,7 +775,7 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
 
             self.images = Value(napari_viewer.layers['X'])
             self.labels = Value(napari_viewer.layers['Y'])
-            self.perc_train_slider = Slider(lambda: 60)
+            self.perc_train_slider = Slider(lambda: 80)
             self.axes = axes
             self.n_epochs = 2
             self.n_steps = 2

@@ -157,12 +157,12 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
         next_tuple = next(generator, None)
 
         if next_tuple is not None:
-            image, file, i = next_tuple
+            image, file, i_im = next_tuple
 
-            yield {UpdateType.IMAGE: i}
+            yield {UpdateType.IMAGE: i_im}
 
             # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model?
-            if i == 1:
+            if i_im == 1:
                 # instantiate model
                 config = generate_config(image, patch, 1, 1, 1)
                 model = DenoiSeg(config, 'DenoiSeg', 'models')
@@ -180,7 +180,15 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
             x, new_axes = reshape_data_single(image, axes)
 
             # run prediction
-            prediction = model.predict(x, axes=new_axes)
+            # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
+            if 'S' in axes:  # predict S, slice per slice
+                shape_out = (*x.shape[:-1], x.shape[-1] + 3)
+                prediction = np.zeros(shape_out, dtype=np.float32)
+
+                for i_s in range(x.shape[0]):
+                    prediction[i_s, ...] = model.predict(x[i_s, ...], axes=new_axes[1:])
+            else:
+                prediction = model.predict(x, axes=new_axes)
 
             # split predictions and threshold if requested
             # TODO does this work with napari layers? YX dims at the end
