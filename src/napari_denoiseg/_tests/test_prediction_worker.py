@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from napari_denoiseg._tests.test_utils import create_model, save_img
+from napari_denoiseg._tests.test_utils import create_model, save_img, save_weights_h5
 from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_prediction
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk
 
@@ -20,13 +20,18 @@ def test_run_prediction_from_disk(tmp_path, make_napari_viewer, shape, axes):
     new_shape_den = (n * shape[0], *shape[1:])
 
     class MonkeyPatchWidget:
-        def __init__(self):
+        def __init__(self, path):
+            self.path = path
             self.state = State.RUNNING
             self.seg_prediction = np.zeros(new_shape_seg)
             self.denoi_prediction = np.zeros(new_shape_den)
 
+        def get_model_path(self):
+            return self.path
+
     # create model and save it to disk
     model = create_model(tmp_path, shape)
+    path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
     save_img(tmp_path, n, shape)
@@ -36,8 +41,8 @@ def test_run_prediction_from_disk(tmp_path, make_napari_viewer, shape, axes):
     assert images.shape == new_shape_den
 
     # run prediction (it is a generator)
-    mk = MonkeyPatchWidget()
-    hist = list(_run_prediction(mk, model, axes, images))
+    mk = MonkeyPatchWidget(path_to_h5)
+    hist = list(_run_prediction(mk, axes, images))
     assert hist[-1] == {UpdateType.DONE}
     assert len(hist) == new_shape_seg[0]+2
 
@@ -51,11 +56,16 @@ def test_run_prediction_from_disk(tmp_path, make_napari_viewer, shape, axes):
                           ((5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_lazy_prediction(tmp_path, shape, axes):
     class MonkeyPatchWidget:
-        def __init__(self):
+        def __init__(self, path):
+            self.path = path
             self.state = State.RUNNING
+
+        def get_model_path(self):
+            return self.path
 
     # create model and save it to disk
     model = create_model(tmp_path, shape)
+    path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
     n = 10
@@ -66,8 +76,8 @@ def test_run_lazy_prediction(tmp_path, shape, axes):
     assert m == n
 
     # run prediction (it is a generator)
-    mk = MonkeyPatchWidget()
-    hist = list(_run_lazy_prediction(mk, model, axes, gen))
+    mk = MonkeyPatchWidget(path_to_h5)
+    hist = list(_run_lazy_prediction(mk, axes, gen))
     assert hist[-1] == {UpdateType.DONE}
     assert len(hist) == n+1
 

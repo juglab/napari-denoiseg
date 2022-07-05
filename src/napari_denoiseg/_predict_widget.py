@@ -1,6 +1,8 @@
 """
 
 """
+from pathlib import Path
+
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -73,8 +75,8 @@ class PredictWidget(QWidget):
         # others
 
         # load model button
-        self.load_button = load_button()
-        self.layout().addWidget(self.load_button.native)
+        self.load_model_button = load_button()
+        self.layout().addWidget(self.load_model_button.native)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
@@ -195,8 +197,7 @@ class PredictWidget(QWidget):
 
     def _start_prediction(self):
         if self.state == State.IDLE:
-            # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
-            if self.axes_widget.is_valid():
+            if self.axes_widget.is_valid() and Path(self.get_model_path()).exists():
 
                 self.state = State.RUNNING
 
@@ -238,6 +239,9 @@ class PredictWidget(QWidget):
     def _done(self):
         self.state = State.IDLE
         self.predict_button.setText('Predict again')
+
+    def get_model_path(self):
+        return self.load_model_button.Model.value
 
 
 if __name__ == "__main__":

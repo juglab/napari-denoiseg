@@ -8,6 +8,10 @@ from napari.qt.threading import thread_worker
 from napari_denoiseg.utils import UpdateType, State, generate_config, reshape_data_single, load_weights
 
 
+# TODO: Because of the loading yielding np.array, list or generator, the model is now instantiated in the prediction
+#  loop. We might need to revisit this, as it is not very elegant.
+
+
 @thread_worker(start_thread=False)
 def prediction_worker(widget):
     from napari_denoiseg.utils import load_from_disk, lazy_load_generator
@@ -41,11 +45,10 @@ def prediction_worker(widget):
         yield from _run_prediction(widget, axes, images, is_threshold, threshold)
 
 
-def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0.8):
+def _run_prediction(widget, axes, images, is_threshold=False, threshold=0.8):
     """
 
     :param widget:
-    :param model:
     :param axes:
     :param images:
     :param is_threshold:
@@ -95,9 +98,11 @@ def _run_prediction(widget, model, axes, images, is_threshold=False, threshold=0
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
     # load model weights
-    weight_name = widget.load_button.Model.value
-    assert len(weight_name.name) > 0, 'Model path cannot be empty.'
-    load_weights(model, weight_name)
+    weight_path = widget.get_model_path()
+    if not Path(weight_path).exists():
+        raise ValueError('Invalid model path.')
+
+    load_weights(model, weight_path)
 
     # start predicting
     while True:
@@ -160,9 +165,11 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
                 model = DenoiSeg(config, 'DenoiSeg', 'models')
 
                 # load model weights
-                weight_name = widget.load_button.Model.value
-                assert len(weight_name.name) > 0, 'Model path cannot be empty.'
-                load_weights(model, weight_name)
+                weight_path = widget.get_model_path()
+                if not Path(weight_path).exists():
+                    raise ValueError('Invalid model path.')
+
+                load_weights(model, weight_path)
             else:
                 model.config = generate_config(image, patch, 1, 1, 1)
 

@@ -475,7 +475,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None, measure
     :return:
     """
     for i, ts in enumerate(np.linspace(0.1, 1, 19)):
-        _, _, score, _ = model.predict(image_data, label_data, axes[1:], ts, measure())
+        _, _, score, _ = model.predict_label_masks(image_data, label_data, axes[1:], ts, measure())
 
         # check if stop requested
         if widget is not None and widget.state != State.RUNNING:
