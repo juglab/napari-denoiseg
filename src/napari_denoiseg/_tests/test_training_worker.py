@@ -755,7 +755,7 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
                           ((10, 5, 16, 16), (10, 5, 16, 16), 'STYX'),
                           ((10, 16, 16, 16), (10, 16, 16, 16), 'SZYX'),
                           ((10, 3, 16, 16), (10, 16, 16), 'SCYX'),
-                          ((16, 5, 10, 16, 16), (16, 5, 10, 16, 16), 'ZTSYX')])
+                          ((16, 2, 8, 16, 16), (16, 2, 8, 16, 16), 'ZTSYX')])
 def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes):
 
     class Value:
