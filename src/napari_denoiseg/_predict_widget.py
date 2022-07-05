@@ -134,10 +134,10 @@ class PredictWidget(QWidget):
 
     def _update_layer_axes(self):
         if self.images.value is not None:
-            shape = self.images.value.data.shape
+            self.shape = self.images.value.data.shape
 
             # update shape length in the axes widget
-            self.axes_widget.update_axes_number(len(shape))
+            self.axes_widget.update_axes_number(len(self.shape))
             self.axes_widget.set_text_field(self.axes_widget.get_default_text())
 
     def _add_image(self, image):

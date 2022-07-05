@@ -489,7 +489,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         shape = (*image_data.shape[:-1], 3)
         predictions = np.zeros(shape, dtype=np.float32)
 
-        # TODO: why can't we predict all samples in one go?
+        # TODO: can't predict all S dim together in CSBDeep?
         for i_s in range(shape[0]):
             # predict and select only the segmentation predictions
             predictions[i_s, ...] = model.predict(image_data[i_s, ...], axes=axes[1:])[..., -3:]

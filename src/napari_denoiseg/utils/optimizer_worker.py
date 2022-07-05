@@ -31,7 +31,7 @@ def optimizer_worker(widget):
     # reshape data
     _x, _y, new_axes = reshape_data(images, labels, axes)
     assert _x.shape[0] > 0
-    assert _x.shape[:-1] == _y.shape[:-1]  # exclude channels
+    assert _x.shape[:-1] == _y.shape, 'Image and labels should have the same shape (except C dimension)'
 
     # convert to onehot
     _y_onehot = convert_to_oneHot(_y)
@@ -52,4 +52,4 @@ def optimizer_worker(widget):
     load_weights(model, weight_path)
 
     # threshold data to estimate the best threshold
-    yield from optimize_threshold(model, _x, _y_onehot, widget)
+    yield from optimize_threshold(model, _x, _y_onehot, new_axes, widget=widget)
