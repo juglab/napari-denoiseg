@@ -162,7 +162,7 @@ class ThresholdWidget(QWidget):
                 self.load_from_disk = self.tabs.currentIndex() == 1
 
                 self.optimize_button.setText('Stop')
-                self.table.clear()
+                self.table.clearContents()
 
                 self.worker = optimizer_worker(self)
                 self.worker.returned.connect(self.done)
@@ -185,9 +185,9 @@ class ThresholdWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_2D_n0
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n10
 
-    data = denoiseg_data_2D_n0()
+    data = denoiseg_data_2D_n10()
 
     # create a Viewer
     viewer = napari.Viewer()
