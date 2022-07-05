@@ -534,6 +534,7 @@ def reshape_napari(x, axes_in: str, axes_out: str = NAPARI_AXES):
     return _x, new_axes
 
 
+# TODO write tests
 def get_napari_shapes(shape_in, axes_in):
     """
     Transform shape into what DenoiSeg expect and return the denoised and segmented output shapes in napari axes order.
@@ -546,12 +547,18 @@ def get_napari_shapes(shape_in, axes_in):
     shape_denoiseg, denoiseg_axes, _ = get_shape_order(shape_in, REF_AXES, axes_in)
 
     # denoised and segmented image shapes
-    shape_denoised = shape_denoiseg
-    shape_segmented = (*shape_denoiseg[:-1], 3)
+    if 'C' in axes_in:
+        shape_denoised = shape_denoiseg
+        shape_segmented = (*shape_denoiseg[:-1], 3)
+        segmented_axes = denoiseg_axes
+    else:
+        shape_denoised = shape_denoiseg
+        shape_segmented = (*shape_denoiseg, 3)
+        segmented_axes = denoiseg_axes + 'C'
 
     # shape and axes for napari
     shape_denoised_out, _, _ = get_shape_order(shape_denoised, NAPARI_AXES, denoiseg_axes)
-    shape_segmented_out, _, _ = get_shape_order(shape_segmented, NAPARI_AXES, denoiseg_axes)
+    shape_segmented_out, _, _ = get_shape_order(shape_segmented, NAPARI_AXES, segmented_axes)
 
     return shape_denoised_out, shape_segmented_out
 

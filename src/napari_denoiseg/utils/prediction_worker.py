@@ -60,27 +60,15 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
 
     :param widget:
     :param axes:
-    :param images:
+    :param images: np.array
     :param is_threshold:
     :param threshold:
     :return:
     """
-    def generator(data, axes_order):
-        """
 
-        :param data:
-        :param axes_order:
-        :return:
-        """
-        _data, _axes = reshape_data_single(data, axes_order)
-        yield _data.shape[0]
-
-        for k in range(_data.shape[0]):
-            yield _data[np.newaxis, k, ...], _axes, k
-
-    gen = generator(images, axes)
-    n_img = next(gen)
-    yield {UpdateType.N_IMAGES: n_img}
+    # reshape data
+    _data, new_axes = reshape_data_single(images, axes)
+    yield {UpdateType.N_IMAGES: _data.shape[0]}
 
     # if the images were loaded from disk, the layers in napari have the wrong shape
     if is_from_disk:
@@ -94,7 +82,7 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
     else:
         patch = (16, 16)
 
-    config = generate_config(images, patch, 1, 1, 1)
+    config = generate_config(_data, patch, 1, 1, 1)
     model = DenoiSeg(config, 'DenoiSeg', 'models')
 
     # this is to prevent the memory from saturating on the gpu on my machine
@@ -109,35 +97,30 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
     load_weights(model, weight_path)
 
     # start predicting
-    while True:
-        t = next(gen, None)
+    for i_slice in range(_data.shape[0]):
+        _x = _data[np.newaxis, i_slice, ...]  # replace S dimension with singleton
 
-        if t is not None:
-            _x, new_axes, i = t
+        # yield image number + 1
+        yield {UpdateType.IMAGE: i_slice + 1}
 
-            # yield image number + 1
-            yield {UpdateType.IMAGE: i + 1}
+        # TODO refactor the separation between denoised and segmented into a testable function
+        # predict
+        prediction = model.predict(_x, axes=new_axes)
 
-            # TODO refactor the separation between denoised and segmented into a testable function
-            # predict
-            prediction = model.predict(_x, axes=new_axes)
-
-            # split predictions and threshold if requested
-            if is_threshold:
-                denoised = prediction[0, ..., 0:-3]  # denoised channels
-                segmented = prediction[0, ..., -3:] >= threshold
-            else:
-                denoised = prediction[0, ..., 0:-3]
-                segmented = prediction[0, ..., -3:]
-
-            # update the layers in napari
-            widget.seg_prediction[i, ...], _ = reshape_napari(segmented, new_axes[1:])
-            widget.denoi_prediction[i, ...], _ = reshape_napari(denoised, new_axes[1:])
-
-            # check if stop requested
-            if widget.state != State.RUNNING:
-                break
+        # split predictions and threshold if requested
+        if is_threshold:
+            denoised = prediction[0, ..., 0:-3]  # denoised channels
+            segmented = prediction[0, ..., -3:] >= threshold
         else:
+            denoised = prediction[0, ..., 0:-3]
+            segmented = prediction[0, ..., -3:]
+
+        # update the layers in napari
+        widget.seg_prediction[i_slice, ...], _ = reshape_napari(segmented, new_axes[1:])
+        widget.denoi_prediction[i_slice, ...], _ = reshape_napari(denoised, new_axes[1:])
+
+        # check if stop requested
+        if widget.state != State.RUNNING:
             break
 
     # update done

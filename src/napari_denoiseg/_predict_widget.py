@@ -230,7 +230,7 @@ class PredictWidget(QWidget):
                         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
                     else:
                         self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32)
-                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                        viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
 
                     self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
@@ -241,7 +241,7 @@ class PredictWidget(QWidget):
                         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
                     else:
                         self.seg_prediction = np.zeros(self.shape, dtype=np.float32)
-                        viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                        viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
 
                     self.denoi_prediction = np.zeros(self.shape, dtype=np.float32)
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
