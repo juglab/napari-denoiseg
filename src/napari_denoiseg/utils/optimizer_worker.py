@@ -30,7 +30,7 @@ def optimizer_worker(widget):
 
     # reshape data
     _x, _y, new_axes = reshape_data(images, labels, axes)
-    assert len(_x.shape[0]) > 0
+    assert _x.shape[0] > 0
     assert _x.shape[:-1] == _y.shape[:-1]  # exclude channels
 
     # convert to onehot
