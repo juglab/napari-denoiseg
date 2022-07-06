@@ -116,8 +116,8 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
             segmented = prediction[0, ..., -3:]
 
         # update the layers in napari
-        widget.seg_prediction[i_slice, ...], _ = reshape_napari(segmented, new_axes[1:])
-        widget.denoi_prediction[i_slice, ...], _ = reshape_napari(denoised, new_axes[1:])
+        widget.seg_prediction[i_slice, ...] = reshape_napari(segmented, new_axes[1:])[0].squeeze()
+        widget.denoi_prediction[i_slice, ...] = reshape_napari(denoised, new_axes[1:])[0].squeeze()
 
         # check if stop requested
         if widget.state != State.RUNNING:

@@ -226,24 +226,24 @@ class PredictWidget(QWidget):
 
                     # create place-holders using the final shape
                     if self.threshold_cbox.isChecked():
-                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32)
+                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32).squeeze()
                         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
                     else:
-                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32)
+                        self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32).squeeze()
                         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
 
-                    self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
+                    self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32).squeeze()
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
                 else:
                     # load from disk, we create place-holders with the shape of the sample image
                     if self.threshold_cbox.isChecked():
-                        self.seg_prediction = np.zeros(self.shape, dtype=np.int32)
+                        self.seg_prediction = np.zeros(self.shape, dtype=np.int32).squeeze()
                         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
                     else:
-                        self.seg_prediction = np.zeros(self.shape, dtype=np.float32)
+                        self.seg_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
                         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
 
-                    self.denoi_prediction = np.zeros(self.shape, dtype=np.float32)
+                    self.denoi_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
                     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
                 # start the prediction worker
