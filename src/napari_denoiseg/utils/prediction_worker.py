@@ -146,11 +146,11 @@ def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=
         """
         yield len(data[0])
         counter = 0
-        for im, file in zip(*data):
+        for im, f in zip(*data):
             # reshape from napari to S(Z)YXC
             _data, _axes = reshape_data_single(im, axes_order)
             counter += counter + 1
-            yield _data, file, _axes, counter
+            yield _data, f, _axes, counter
 
     gen = generator(images, axes)
     n_img = next(gen)
