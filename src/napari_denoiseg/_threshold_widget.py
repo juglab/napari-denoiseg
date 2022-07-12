@@ -157,7 +157,7 @@ class ThresholdWidget(QWidget):
 
     def _start_optimization(self):
         if self.state == State.IDLE:
-            if self.axes_widget.is_valid() and Path(self.get_model_path()).exists():
+            if self.axes_widget.is_valid() and not Path(self.get_model_path()).is_dir():
                 self.state = State.RUNNING
 
                 # register which data tab: layers or disk

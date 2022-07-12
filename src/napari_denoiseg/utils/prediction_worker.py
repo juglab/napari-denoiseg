@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import numpy as np
@@ -96,6 +97,9 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
 
     load_weights(model, weight_path)
 
+    final_image_d = np.zeros(_data.shape, dtype=np.float32).squeeze()
+    final_image_s = np.zeros((*_data.shape[:-1], 3), dtype=np.float32).squeeze()
+
     # start predicting
     for i_slice in range(_data.shape[0]):
         _x = _data[np.newaxis, i_slice, ...]  # replace S dimension with singleton
@@ -107,24 +111,34 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
         # predict
         prediction = model.predict(_x, axes=new_axes)
 
-        # split predictions and threshold if requested
-        if is_threshold:
-            denoised = prediction[0, ..., 0:-3]  # denoised channels
-            segmented = prediction[0, ..., -3:] >= threshold
-        else:
-            denoised = prediction[0, ..., 0:-3]
-            segmented = prediction[0, ..., -3:]
+        # split predictions
 
         # update the layers in napari
-        widget.seg_prediction[i_slice, ...] = reshape_napari(segmented, new_axes[1:])[0].squeeze()
-        widget.denoi_prediction[i_slice, ...] = reshape_napari(denoised, new_axes[1:])[0].squeeze()
+        # widget.seg_prediction[:, i_slice, ...] = reshape_napari(segmented, new_axes[1:])[0]
+        # widget.denoi_prediction[i_slice, ...] = reshape_napari(denoised, new_axes[1:])[0].squeeze()
+        final_image_d[i_slice, ...] = prediction[0, ..., 0:-3].squeeze()
+        final_image_s[i_slice, ...] = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
 
         # check if stop requested
         if widget.state != State.RUNNING:
             break
 
+    if is_threshold:
+        final_image_s_t = final_image_s >= threshold
+
+        # Important: viewer.add_image seems to convert images to YX dims at the end, but not viewer.add_labels
+        final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
+
+    widget.seg_prediction = final_image_s
+    widget.denoi_prediction = final_image_d
+
     # update done
     yield {UpdateType.DONE}
+
+
+# TODO: remove when the softmax will be done in the denoiseg.predict method
+def softmax(x, axis=0):
+    return np.exp(x) / np.tile(np.sum(np.exp(x), axis=axis, keepdims=True), 3)
 
 
 def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=0.8):
@@ -233,10 +247,13 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
 
             yield {UpdateType.IMAGE: i_im}
 
+            # reshape data
+            _x, new_axes = reshape_data_single(image.squeeze(), axes)
+
             # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model?
             if i_im == 1:
                 # instantiate model
-                config = generate_config(image, patch, 1, 1, 1)
+                config = generate_config(_x, patch, 1, 1, 1)
                 model = DenoiSeg(config, 'DenoiSeg', 'models')
 
                 # load model weights
@@ -246,21 +263,18 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
 
                 load_weights(model, weight_path)
             else:
-                model.config = generate_config(image, patch, 1, 1, 1)
-
-            # reshape data
-            x, new_axes = reshape_data_single(image, axes)
+                model.config = generate_config(_x, patch, 1, 1, 1)
 
             # run prediction
             # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
             if 'S' in axes:  # predict S, slice per slice
-                shape_out = (*x.shape[:-1], x.shape[-1] + 3)
+                shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
                 prediction = np.zeros(shape_out, dtype=np.float32)
 
-                for i_s in range(x.shape[0]):
-                    prediction[i_s, ...] = model.predict(x[i_s, ...], axes=new_axes[1:])
+                for i_s in range(_x.shape[0]):
+                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
             else:
-                prediction = model.predict(x, axes=new_axes)
+                prediction = model.predict(_x, axes=new_axes)
 
             # split predictions and threshold if requested
             if is_threshold:

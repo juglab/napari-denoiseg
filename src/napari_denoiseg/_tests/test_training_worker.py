@@ -133,7 +133,7 @@ def test_get_shape_order(shape, axes, final_shape, final_axes):
     ref_axes = 'TSZYXC'
     x = np.zeros(shape)
 
-    new_shape, new_axes, _ = get_shape_order(x.shape, ref_axes, axes)
+    new_shape, new_axes, _ = get_shape_order(x.shape, axes, ref_axes)
     assert new_shape == final_shape
     assert new_axes == final_axes
 

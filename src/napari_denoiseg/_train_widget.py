@@ -405,20 +405,20 @@ class TrainWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_2D_n0, denoiseg_data_3D_n10
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n10, denoiseg_data_3D_n10
 
     dims = '2D'  # '2D'
     if dims == '3D':
         data = denoiseg_data_3D_n10()
     else:
-        data = denoiseg_data_2D_n0()
+        data = denoiseg_data_2D_n10()
 
     # create a Viewer
     viewer = napari.Viewer()
 
     # add images
-    viewer.add_image(data[0][0][0:60], name=data[0][1]['name'])
-    viewer.add_labels(data[1][0][0:15], name=data[1][1]['name'])
+    viewer.add_image(data[0][0][:300], name=data[0][1]['name'])
+    viewer.add_labels(data[1][0][:50], name=data[1][1]['name'])
 
     # add our plugin
     viewer.window.add_dock_widget(TrainWidget(viewer))

@@ -13,7 +13,11 @@ from denoiseg.models import DenoiSeg
 from itertools import permutations
 
 REF_AXES = 'TSZYXC'
-NAPARI_AXES = 'STCZYX'
+
+# this is arbitrary, but allows having S same for input to the plugin and output
+# eg. input is SYX, DenoiSeg output are SYX (denoised) and CSYX (seg). If C is placed after S, then we cannot compare
+# input and output on the same axes anymore.
+NAPARI_AXES = 'CTSZYX'
 
 
 class State(Enum):
@@ -285,8 +289,7 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                 )
 
 
-# TODO swap order ref_axes and axes_in
-def get_shape_order(shape_in, ref_axes, axes_in):
+def get_shape_order(shape_in, axes_in, ref_axes):
     """
     Return the new shape and axes order of x, if the axes were to be ordered according to
     the reference axes.
@@ -296,11 +299,13 @@ def get_shape_order(shape_in, ref_axes, axes_in):
     :param axes_in: New axes as a list of strings
     :return:
     """
-    # build indices look-up table: indices of each axe in `axes`
+    assert len(shape_in) == len(axes_in), 'Mismatch between shape and axes sizes'
+
+    # build indices look-up table: indices of each axis in `axes`
     indices = [axes_in.find(k) for k in ref_axes]
 
     # remove all non-existing axes (index == -1)
-    indices = tuple(filter(lambda k: k != -1, indices))
+    indices = list(filter(lambda k: k != -1, indices))
 
     # find axes order and get new shape
     new_axes = [axes_in[ind] for ind in indices]
@@ -317,114 +322,6 @@ def list_diff(l1, l2):
     :return: list of elements in l1 that are not in l2.
     """
     return list(set(l1) - set(l2))
-
-
-def reshape_data(x, y, axes: str):
-    """
-    Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
-    points are considered independent and stacked along the S dimension.
-
-    Differences between x and y:
-    - y can have a different S and T dimension size
-    - y doesn't have C dimension
-
-    :param x: Raw data.
-    :param y: Ground-truth data.
-    :param axes: Current axes order of X
-    :return: Reshaped x, reshaped y, new axes order
-    """
-    _x = x
-    _y = y
-    _axes = axes
-
-    # sanity checks TODO: raise error rather than assert?
-    if 'X' not in axes or 'Y' not in axes:
-        raise ValueError('X or Y dimension missing in axes.')
-
-    if 'C' in _axes:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
-            raise ValueError('Incompatible data and axes.')
-    else:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
-            raise ValueError('Incompatible data and axes.')
-
-    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
-
-    # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x.shape, REF_AXES, _axes)
-
-    if 'C' in _axes:  # Y does not have a C dimension
-        axes_y = _axes.replace('C', '')
-        ref_axes_y = REF_AXES.replace('C', '')
-        new_y_shape, _, _ = get_shape_order(_y.shape, ref_axes_y, axes_y)
-    else:
-        new_y_shape = tuple([_y.shape[ind] for ind in indices])
-
-    # if S is not in the list of axes, then add a singleton S
-    if 'S' not in new_axes:
-        new_axes = 'S' + new_axes
-        _x = _x[np.newaxis, ...]
-        _y = _y[np.newaxis, ...]
-        new_x_shape = (1,) + new_x_shape
-        new_y_shape = (1,) + new_y_shape
-
-    # remove T if necessary
-    if 'T' in new_axes:
-        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
-        new_y_shape = (-1,) + new_y_shape[2:]
-        new_axes = new_axes.replace('T', '')
-
-    # reshape
-    _x = _x.reshape(new_x_shape)
-    _y = _y.reshape(new_y_shape)
-
-    # add channel
-    if 'C' not in new_axes:
-        _x = _x[..., np.newaxis]
-        new_axes = new_axes + 'C'
-
-    return _x, _y, new_axes
-
-
-# TODO: this is a copy of reshape_data but without Y...
-def reshape_data_single(x, axes: str):
-    """
-    """
-    _x = x
-    _axes = axes
-
-    # sanity checks
-    if 'X' not in axes or 'Y' not in axes:
-        raise ValueError('X or Y dimension missing in axes.')
-
-    if len(_axes) != len(_x.shape):
-        raise ValueError('Incompatible data and axes.')
-
-    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
-
-    # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x.shape, REF_AXES, _axes)
-
-    # if S is not in the list of axes, then add a singleton S
-    if 'S' not in new_axes:
-        new_axes = 'S' + new_axes
-        _x = _x[np.newaxis, ...]
-        new_x_shape = (1,) + new_x_shape
-
-    # remove T if necessary
-    if 'T' in new_axes:
-        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
-        new_axes = new_axes.replace('T', '')
-
-    # reshape
-    _x = _x.reshape(new_x_shape)
-
-    # add channel
-    if 'C' not in new_axes:
-        _x = _x[..., np.newaxis]
-        new_axes = new_axes + 'C'
-
-    return _x, new_axes
 
 
 def remove_C_dim(shape, axes):
@@ -509,9 +406,144 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         yield i_t, ts, score
 
 
+def reshape_data(x, y, axes: str):
+    """
+    Reshape the data to 'SZXYC' depending on the available `axes`. If a T dimension is present, the different time
+    points are considered independent and stacked along the S dimension.
+
+    Differences between x and y:
+    - y can have a different S and T dimension size
+    - y doesn't have C dimension
+
+    :param x: Raw data.
+    :param y: Ground-truth data.
+    :param axes: Current axes order of X
+    :return: Reshaped x, reshaped y, new axes order
+    """
+    _x = x
+    _y = y
+    _axes = axes
+
+    # sanity checks TODO: raise error rather than assert?
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
+
+    if 'C' in _axes:
+        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
+            raise ValueError('Incompatible data and axes.')
+    else:
+        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
+            raise ValueError('Incompatible data and axes.')
+
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, REF_AXES)
+
+    if 'C' in _axes:  # Y does not have a C dimension
+        index_c = indices[-1]
+        indices_y = indices[:-1]  # remove position of C
+
+        # correct the axes that were places after C
+        for i, ind in enumerate(indices_y):
+            if ind > index_c:
+                indices_y[i] = ind - 1
+
+        axes_y = _axes.replace('C', '')
+        ref_axes_y = REF_AXES.replace('C', '')
+        new_y_shape, _, _ = get_shape_order(_y.shape, axes_y, ref_axes_y)
+
+    else:
+        new_y_shape = tuple([_y.shape[ind] for ind in indices])
+        indices_y = indices
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in new_axes:
+        new_axes = 'S' + new_axes
+        _x = _x[np.newaxis, ...]
+        _y = _y[np.newaxis, ...]
+        new_x_shape = (1,) + new_x_shape
+        new_y_shape = (1,) + new_y_shape
+
+        # need to change the array of indices
+        indices = [0] + [1+i for i in indices]
+        indices_y = [0] + [1+i for i in indices_y]
+
+    # reshape by moving axes
+    destination = [i for i in range(len(indices))]
+    destination_y = [i for i in range(len(indices_y))]
+    _x = np.moveaxis(_x, indices, destination)
+    _y = np.moveaxis(_y, indices_y, destination_y)
+
+    # remove T if necessary
+    if 'T' in new_axes:
+        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
+        new_y_shape = (-1,) + new_y_shape[2:]
+        new_axes = new_axes.replace('T', '')
+
+        # reshape arrays
+        _x = _x.reshape(new_x_shape)
+        _y = _y.reshape(new_y_shape)
+
+    # add channel
+    if 'C' not in new_axes:
+        _x = _x[..., np.newaxis]
+        new_axes = new_axes + 'C'
+
+    return _x, _y, new_axes
+
+
+def reshape_data_single(x, axes: str):
+    """
+    Same as reshape_data but for a single array
+    """
+    _x = x
+    _axes = axes
+
+    # sanity checks
+    if 'X' not in axes or 'Y' not in axes:
+        raise ValueError('X or Y dimension missing in axes.')
+
+    if len(_axes) != len(_x.shape):
+        raise ValueError('Incompatible data and axes.')
+
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+
+    # get new x shape
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, REF_AXES)
+
+    # if S is not in the list of axes, then add a singleton S
+    if 'S' not in new_axes:
+        new_axes = 'S' + new_axes
+        _x = _x[np.newaxis, ...]
+        new_x_shape = (1,) + new_x_shape
+
+        # need to change the array of indices
+        indices = [0] + [1+i for i in indices]
+
+    # reshape by moving axes
+    destination = [i for i in range(len(indices))]
+    _x = np.moveaxis(_x, indices, destination)
+
+    # remove T if necessary
+    if 'T' in new_axes:
+        new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
+        new_axes = new_axes.replace('T', '')
+
+        # reshape S and T together
+        _x = _x.reshape(new_x_shape)
+
+    # add channel
+    if 'C' not in new_axes:
+        _x = _x[..., np.newaxis]
+        new_axes = new_axes + 'C'
+
+    return _x, new_axes
+
+
 def reshape_napari(x, axes_in: str, axes_out: str = NAPARI_AXES):
     """
-
+    Reshape the data according to the napari axes order (or any order if axes_out) it set.
     """
     _x = x
     _axes = axes_in
@@ -526,10 +558,11 @@ def reshape_napari(x, axes_in: str, axes_out: str = NAPARI_AXES):
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
     # get new x shape
-    new_x_shape, new_axes, indices = get_shape_order(_x.shape, axes_out, _axes)
+    new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, axes_out)
 
-    # reshape
-    _x = _x.reshape(new_x_shape)
+    # reshape by moving the axes
+    destination = [i for i in range(len(indices))]
+    _x = np.moveaxis(_x, indices, destination)
 
     return _x, new_axes
 
@@ -543,8 +576,9 @@ def get_napari_shapes(shape_in, axes_in):
     :param axes_in:
     :return:
     """
+    # TODO where is this called? does it suffer from the same issues than reshape ?
     # shape and axes for DenoiSeg
-    shape_denoiseg, denoiseg_axes, _ = get_shape_order(shape_in, REF_AXES, axes_in)
+    shape_denoiseg, denoiseg_axes, _ = get_shape_order(shape_in, axes_in, REF_AXES)
 
     # denoised and segmented image shapes
     if 'C' in axes_in:
@@ -557,8 +591,8 @@ def get_napari_shapes(shape_in, axes_in):
         segmented_axes = denoiseg_axes + 'C'
 
     # shape and axes for napari
-    shape_denoised_out, _, _ = get_shape_order(shape_denoised, NAPARI_AXES, denoiseg_axes)
-    shape_segmented_out, _, _ = get_shape_order(shape_segmented, NAPARI_AXES, segmented_axes)
+    shape_denoised_out, _, _ = get_shape_order(shape_denoised, denoiseg_axes, NAPARI_AXES)
+    shape_segmented_out, _, _ = get_shape_order(shape_segmented, segmented_axes, NAPARI_AXES)
 
     return shape_denoised_out, shape_segmented_out
 
