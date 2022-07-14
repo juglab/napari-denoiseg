@@ -430,6 +430,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
 
     # validation_Y is also validation_X plus a concatenated masking channel.
     # To speed things up, we precompute the masking vo the validation data.
+    # TODO validation data loader
     validation_Y = np.concatenate((validation_X, np.zeros(validation_X.shape, dtype=validation_X.dtype)),
                                   axis=axes.index('C'))
     n2v_utils.manipulate_val_data(validation_X, validation_Y,

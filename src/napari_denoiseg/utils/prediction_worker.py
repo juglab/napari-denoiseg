@@ -111,11 +111,7 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
         # predict
         prediction = model.predict(_x, axes=new_axes)
 
-        # split predictions
-
-        # update the layers in napari
-        # widget.seg_prediction[:, i_slice, ...] = reshape_napari(segmented, new_axes[1:])[0]
-        # widget.denoi_prediction[i_slice, ...] = reshape_napari(denoised, new_axes[1:])[0].squeeze()
+        # split predictions and update the layers in napari
         final_image_d[i_slice, ...] = prediction[0, ..., 0:-3].squeeze()
         final_image_s[i_slice, ...] = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
 
@@ -208,18 +204,20 @@ def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=
             prediction = model.predict(_x, axes=new_axes)
 
             # split predictions and threshold if requested
+            final_image_d = prediction[0, ..., 0:-3].squeeze()
+            final_image_s = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
+
             if is_threshold:
-                denoised = prediction[0, ..., 0:-3]  # denoised channels
-                segmented = prediction[0, ..., -3:] >= threshold
-            else:
-                denoised = prediction[0, ..., 0:-3]
-                segmented = prediction[0, ..., -3:]
+                final_image_s_t = final_image_s >= threshold
+
+            # Save napari axes order (XY at the end) in case we want to reopen it
+            final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
 
             # save predictions
             new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
             new_file_path_seg = Path(file.parent, file.stem + '_segmented' + file.suffix)
-            imwrite(new_file_path_denoi, denoised)
-            imwrite(new_file_path_seg, segmented)
+            imwrite(new_file_path_denoi, final_image_d)
+            imwrite(new_file_path_seg, final_image_s)
 
             # check if stop requested
             if widget.state != State.RUNNING:
@@ -276,19 +274,21 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
             else:
                 prediction = model.predict(_x, axes=new_axes)
 
-            # split predictions and threshold if requested
+            # split predictions
+            final_image_d = prediction[0, ..., 0:-3].squeeze()
+            final_image_s = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
+
             if is_threshold:
-                denoised = prediction[0, ..., 0:-3]  # denoised channels
-                segmented = prediction[0, ..., -3:] >= threshold
-            else:
-                denoised = prediction[0, ..., 0:-3]
-                segmented = prediction[0, ..., -3:]
+                final_image_s_t = final_image_s >= threshold
+
+            # Save napari axes order (XY at the end) in case we want to reopen it
+            final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
 
             # save predictions
             new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
             new_file_path_seg = Path(file.parent, file.stem + '_segmented' + file.suffix)
-            imwrite(new_file_path_denoi, denoised)
-            imwrite(new_file_path_seg, segmented)
+            imwrite(new_file_path_denoi, final_image_d)
+            imwrite(new_file_path_seg, final_image_s)
 
             # check if stop requested
             if widget.state != State.RUNNING:
