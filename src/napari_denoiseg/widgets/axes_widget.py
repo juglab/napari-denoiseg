@@ -118,6 +118,9 @@ class AxesWidget(QWidget):
     def set_text_field(self, text):
         self.text_field.setText(text)
 
+    def get_textfield(self):
+        return self.text_field
+
 
 if __name__ == "__main__":
     import napari
