@@ -12,8 +12,10 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabWidget,
     QGroupBox,
-    QScrollArea
+    QScrollArea,
+    QLayout
 )
+from qtpy.QtCore import Qt
 from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
@@ -25,15 +27,25 @@ from napari_denoiseg.widgets.widget_provider import create_qspinbox, create_prog
 SAMPLE = 'Sample data'
 
 
-class TrainWidget(QScrollArea):
+class TrainingWidgetWrapper(QScrollArea):
+    def __init__(self, napari_viewer):
+        super().__init__()
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        trainWidget = TrainWidget(napari_viewer)
+        self.setWidget(trainWidget)
+
+
+class TrainWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
 
         self.state = State.IDLE
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())
-        self.setMinimumSize(200, 800)
 
+        self.setMinimumWidth(200)
         self.layout().addWidget(QBannerWidget("C:/mpicbg/workspace_py/napari_denoiseg/src/resources/teaser.png",
                                               "https://github.com/juglab/napari_denoiseg",
                                               "https://github.com/juglab/napari_denoiseg",
@@ -72,6 +84,8 @@ class TrainWidget(QScrollArea):
         self.train_group = QGroupBox()
         self.train_group.setTitle("Train and Save")
         self.train_group.setLayout(QVBoxLayout())
+        # self.train_group.setMinimumWidth(400)
+        # self.train_group.setMinimumHeight(300)
         # train button
         train_buttons = QWidget()
         train_buttons.setLayout(QHBoxLayout())
@@ -103,6 +117,8 @@ class TrainWidget(QScrollArea):
         # progress bars
         self.progress_group.setLayout(QVBoxLayout())
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
+        # self.progress_group.setMinimumWidth(400)
+        # self.progress_group.setMinimumHeight(450)
         self.pb_epochs = create_progressbar(0, self.n_epochs_spin.value(), 0, True, True,
                                             f'Epoch ?/{self.n_epochs_spin.value()}')
         self.pb_steps = create_progressbar(0, self.n_steps_spin.value(), 0, True, True,
@@ -158,6 +174,10 @@ class TrainWidget(QScrollArea):
         ###############################
         self.training_param_group = QGroupBox()
         self.training_param_group.setTitle("Training parameters")
+        self.training_param_group.setMinimumWidth(100)
+        self.training_expert_btn = QPushButton("ⓘ")
+        self.training_expert_btn.clicked.connect(self._training_expert_setter)
+        self.training_expert_btn.setFixedSize(30, 30)
 
         # axes
         self.axes_widget = AxesWidget()
@@ -182,8 +202,12 @@ class TrainWidget(QScrollArea):
         formLayout.addRow('Batch size', self.batch_size_spin)
         formLayout.addRow('Patch XY', self.patch_size_XY)
         formLayout.addRow('Patch Z', self.patch_size_Z)
-        self.training_param_group.setLayout(formLayout)
-        self.training_param_group.layout().setContentsMargins(0, 20, 0, 0)
+        formLayout.minimumSize()
+        hlayout = QVBoxLayout()
+        hlayout.addWidget(self.training_expert_btn, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        hlayout.addLayout(formLayout)
+        self.training_param_group.setLayout(hlayout)
+        self.training_param_group.layout().setContentsMargins(5, 20, 5, 10)
         self.layout().addWidget(self.training_param_group)
 
     def _start_training(self, pretrained_model=None):
@@ -376,6 +400,14 @@ class TrainWidget(QScrollArea):
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
 
+    def _training_expert_setter(self):
+        self.expert_settings = QScrollArea()
+        self.expert_settings.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.expert_settings.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.expert_settings.setFixedWidth(1000)
+        self.expert_settings.setMinimumHeight(800)
+        self.expert_settings.show()
+
 
 if __name__ == "__main__":
     from napari_denoiseg._sample_data import denoiseg_data_2D_n10, denoiseg_data_3D_n10
@@ -394,6 +426,6 @@ if __name__ == "__main__":
     viewer.add_labels(data[1][0][:50], name=data[1][1]['name'])
 
     # add our plugin
-    viewer.window.add_dock_widget(TrainWidget(viewer))
+    viewer.window.add_dock_widget(TrainingWidgetWrapper(viewer))
 
     napari.run()

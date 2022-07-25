@@ -10,6 +10,8 @@ def create_qspinbox(min: int = 1, max: int = 1000, val: int = 2, step: int = 1, 
     qspinbox.setValue(val)
     qspinbox.setVisible(visible)
     qspinbox.setToolTip(tooltip)
+    qspinbox.setMinimumHeight(50)
+    qspinbox.setContentsMargins(0,3,0,3)
     return qspinbox
 
 
@@ -23,4 +25,5 @@ def create_progressbar(min: int = 0, max: int = 100, val: int = 0, text_visible:
     qprogressbar.setTextVisible(text_visible)
     qprogressbar.setFormat(format)
     qprogressbar.setToolTip(tooltip)
+    qprogressbar.setMinimumHeight(30)
     return qprogressbar
