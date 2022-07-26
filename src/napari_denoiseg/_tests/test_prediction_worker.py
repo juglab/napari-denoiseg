@@ -44,7 +44,7 @@ def test_run_lazy_prediction(tmp_path, shape, axes):
 
     # run prediction (it is a generator)
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_lazy_prediction(mk, axes, gen))
+    hist = list(_run_lazy_prediction(mk, model, axes, gen))
     assert hist[-1] == {UpdateType.DONE}
     assert len(hist) == n+1
 
@@ -78,6 +78,6 @@ def test_run_prediction_from_disk(tmp_path, shape, axes):
 
     # run prediction (it is a generator)
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_prediction(mk, axes, images, True))
+    hist = list(_run_prediction(mk, model, axes, images, True))
     assert hist[-1] == {UpdateType.DONE}
     assert len(hist) == new_shape_seg[0]+2
