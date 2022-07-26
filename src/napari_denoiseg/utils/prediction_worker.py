@@ -1,24 +1,17 @@
-import os
 from pathlib import Path
 
 import numpy as np
 from tifffile import imwrite
-from denoiseg.models import DenoiSeg
 
 from napari.qt.threading import thread_worker
 from napari_denoiseg.utils import (
     UpdateType,
     State,
-    generate_config,
     reshape_data_single,
-    load_weights,
+    load_model,
     reshape_napari,
     get_napari_shapes
 )
-
-
-# TODO: Because of the loading yielding np.array, list or generator, the model is now instantiated in the prediction
-#  loop. We might need to revisit this, as it is not very elegant.
 
 
 @thread_worker(start_thread=False)
@@ -33,6 +26,10 @@ def prediction_worker(widget):
 
     # get axes
     axes = widget.axes_widget.get_axes()
+
+    # load model
+    weight_path = widget.get_model_path()
+    model = load_model(weight_path)
 
     # grab images
     if is_from_disk:
@@ -53,13 +50,14 @@ def prediction_worker(widget):
     elif is_from_disk and type(images) == tuple:
         yield from _run_prediction_to_disk(widget, axes, images, is_threshold, threshold)
     else:
-        yield from _run_prediction(widget, axes, images, is_from_disk, is_threshold, threshold)
+        yield from _run_prediction(widget, model, axes, images, is_from_disk, is_threshold, threshold)
 
 
-def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, threshold=0.8):
+def _run_prediction(widget, model, axes, images, is_from_disk, is_threshold=False, threshold=0.8):
     """
 
     :param widget:
+    :param model:
     :param axes:
     :param images: np.array
     :param is_threshold:
@@ -77,25 +75,9 @@ def _run_prediction(widget, axes, images, is_from_disk, is_threshold=False, thre
         widget.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
         widget.seg_prediction = np.zeros(shape_segmented, dtype=widget.seg_prediction.dtype)
 
-    # instantiate model with dummy values
-    if 'Z' in axes:
-        patch = (16, 16, 16)
-    else:
-        patch = (16, 16)
-
-    config = generate_config(_data, patch, 1, 1, 1)
-    model = DenoiSeg(config, 'DenoiSeg', 'models')
-
     # this is to prevent the memory from saturating on the gpu on my machine
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-
-    # load model weights
-    weight_path = widget.get_model_path()
-    if not Path(weight_path).exists():
-        raise ValueError('Invalid model path.')
-
-    load_weights(model, weight_path)
 
     final_image_d = np.zeros(_data.shape, dtype=np.float32).squeeze()
     final_image_s = np.zeros((*_data.shape[:-1], 3), dtype=np.float32).squeeze()
@@ -137,10 +119,11 @@ def softmax(x, axis=0):
     return np.exp(x) / np.tile(np.sum(np.exp(x), axis=axis, keepdims=True), 3)
 
 
-def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=0.8):
+def _run_prediction_to_disk(widget, model, axes, images, is_threshold=False, threshold=0.8):
     """
 
     :param widget:
+    :param model:
     :param axes:
     :param images:
     :param is_threshold:
@@ -166,25 +149,9 @@ def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=
     n_img = next(gen)
     yield {UpdateType.N_IMAGES: n_img}
 
-    # instantiate model with dummy values
-    if 'Z' in axes:
-        patch = (16, 16, 16)
-    else:
-        patch = (16, 16)
-
-    config = generate_config(images[0][0], patch, 1, 1, 1)
-    model = DenoiSeg(config, 'DenoiSeg', 'models')
-
     # this is to prevent the memory from saturating on the gpu on my machine
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-
-    # load model weights
-    weight_path = widget.get_model_path()
-    if not Path(weight_path).exists():
-        raise ValueError('Invalid model path.')
-
-    load_weights(model, weight_path)
 
     # start predicting
     while True:
@@ -195,9 +162,6 @@ def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=
 
             # yield image number
             yield {UpdateType.IMAGE: i}
-
-            # update std and mean
-            model.config = generate_config(_x, patch, 1, 1, 1)
 
             # TODO refactor the separation between denoised and segmented into a testable function
             # predict
@@ -229,14 +193,17 @@ def _run_prediction_to_disk(widget, axes, images, is_threshold=False, threshold=
     yield {UpdateType.DONE}
 
 
-def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=0.8):
-    # instantiate model with dummy values
-    if 'Z' in axes:
-        patch = (16, 16, 16)
-    else:
-        patch = (16, 16)
+def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, threshold=0.8):
+    """
 
-    config, model = None, None
+    :param widget:
+    :param model:
+    :param axes:
+    :param generator:
+    :param is_threshold:
+    :param threshold:
+    :return:
+    """
     while True:
         next_tuple = next(generator, None)
 
@@ -247,21 +214,6 @@ def _run_lazy_prediction(widget, axes, generator, is_threshold=False, threshold=
 
             # reshape data
             _x, new_axes = reshape_data_single(image.squeeze(), axes)
-
-            # TODO: stupid to instantiate model there, update DenoiSeg to not need images to instantiate model?
-            if i_im == 1:
-                # instantiate model
-                config = generate_config(_x, patch, 1, 1, 1)
-                model = DenoiSeg(config, 'DenoiSeg', 'models')
-
-                # load model weights
-                weight_path = widget.get_model_path()
-                if not Path(weight_path).exists():
-                    raise ValueError('Invalid model path.')
-
-                load_weights(model, weight_path)
-            else:
-                model.config = generate_config(_x, patch, 1, 1, 1)
 
             # run prediction
             # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch

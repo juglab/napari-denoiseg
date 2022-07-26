@@ -1,5 +1,7 @@
 """
 """
+from pathlib import Path
+
 import napari
 from qtpy.QtWidgets import (
     QWidget,
@@ -16,9 +18,9 @@ from qtpy.QtWidgets import (
 )
 from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
-from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.widgets import enable_3d
-from napari_denoiseg.utils import training_worker, loading_worker
+from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
+from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
 
 
 SAMPLE = 'Sample data'
@@ -383,6 +385,7 @@ class TrainWidget(QWidget):
         Export the model.
         :return:
         """
+        # TODO: refactor somewhere else
         if self.state == State.IDLE:
             if self.model:
                 where = QFileDialog.getSaveFileName(caption='Save model')[0]
@@ -402,6 +405,9 @@ class TrainWidget(QWidget):
                                    axes)
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
+
+                # save configuration as well
+                save_configuration(self.model.config, Path(where).parent)
 
 
 if __name__ == "__main__":

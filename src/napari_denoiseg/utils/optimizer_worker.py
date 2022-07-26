@@ -1,19 +1,15 @@
-from pathlib import Path
 from napari.qt.threading import thread_worker
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import (
-    generate_config,
     load_pairs_from_disk,
-    load_weights,
     optimize_threshold,
-    reshape_data
+    reshape_data,
+    load_model
 )
 
 
 @thread_worker(start_thread=False)
 def optimizer_worker(widget):
-    from denoiseg.models import DenoiSeg
-
     # loading images from disk?
     is_from_disk = widget.load_from_disk
 
@@ -36,20 +32,9 @@ def optimizer_worker(widget):
     # convert to onehot
     _y_onehot = convert_to_oneHot(_y)
 
-    # instantiate model with dummy values
-    if 'Z' in new_axes:
-        patch = (16, 16, 16)
-    else:
-        patch = (16, 16)
-    config = generate_config(_x, patch, 1, 1, 1)
-    model = DenoiSeg(config, 'DenoiSeg', 'models')
-
-    # load model weights
+    # load model
     weight_path = widget.get_model_path()
-    if not Path(weight_path).exists():
-        raise ValueError('Invalid model path.')
-
-    load_weights(model, weight_path)
+    model = load_model(weight_path)
 
     # threshold data to estimate the best threshold
     yield from optimize_threshold(model, _x, _y_onehot, new_axes, widget=widget)
