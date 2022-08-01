@@ -27,6 +27,8 @@ from napari_denoiseg.utils import (
     reshape_data_single,
     reshape_napari,
     get_shape_order,
+    load_configuration,
+    save_configuration,
     REF_AXES,
     NAPARI_AXES
 )
@@ -165,6 +167,37 @@ def test_generate_config_wrong_patches_shape(shape, patch_shape):
     config = generate_config(np.zeros(shape), patch_shape)
     with pytest.raises(AssertionError):
         assert config.is_valid()
+
+
+@pytest.mark.parametrize('shape, patch_shape', [((1, 16, 16, 1), (16, 16)),
+                                                ((1, 16, 16, 16, 1), (16, 16, 16))])
+def test_save_configuration(tmp_path, shape, patch_shape):
+    config = generate_config(np.zeros(shape), patch_shape)
+
+    # sanity check
+    assert config.is_valid()
+
+    # save config
+    save_configuration(config, tmp_path)
+
+    # check if exists
+    assert Path(tmp_path / 'config.json').exists()
+
+
+@pytest.mark.parametrize('shape, patch_shape', [((1, 16, 16, 1), (16, 16)),
+                                                ((1, 16, 16, 16, 1), (16, 16, 16))])
+def test_load_configuration(tmp_path, shape, patch_shape):
+    config = generate_config(np.zeros(shape), patch_shape)
+
+    # sanity check
+    assert config.is_valid()
+
+    # save config
+    save_configuration(config, tmp_path)
+
+    # load config
+    config_loaded = load_configuration(tmp_path / 'config.json')
+    assert config_loaded.is_valid()
 
 
 ###################################################################

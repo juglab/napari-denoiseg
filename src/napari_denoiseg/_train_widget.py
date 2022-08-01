@@ -1,5 +1,7 @@
 """
 """
+from pathlib import Path
+
 import napari
 from qtpy.QtWidgets import (
     QWidget,
@@ -19,10 +21,9 @@ from qtpy.QtCore import Qt
 from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
+from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
 from napari_denoiseg.widgets import enable_3d
-from napari_denoiseg.utils import training_worker, loading_worker
-from napari_denoiseg.widgets.banner_widget import QBannerWidget
-from napari_denoiseg.widgets.widget_provider import create_qspinbox, create_progressbar
+
 
 SAMPLE = 'Sample data'
 
@@ -380,6 +381,7 @@ class TrainWidget(QWidget):
         Export the model.
         :return:
         """
+        # TODO: refactor somewhere else
         if self.state == State.IDLE:
             if self.model:
                 where = QFileDialog.getSaveFileName(caption='Save model')[0]
@@ -399,6 +401,8 @@ class TrainWidget(QWidget):
                                    axes)
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
+                # save configuration as well
+                save_configuration(self.model.config, Path(where).parent)
 
     def _training_expert_setter(self):
         self.expert_settings = QScrollArea()
