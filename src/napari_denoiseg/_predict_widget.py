@@ -10,7 +10,8 @@ from qtpy.QtWidgets import (
     QPushButton,
     QTabWidget,
     QProgressBar,
-    QCheckBox
+    QCheckBox,
+    QGroupBox
 )
 
 import napari
@@ -45,9 +46,14 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(400)
+
 
         ###############################
+        self.loader_group = QGroupBox()
+        self.loader_group.setMaximumHeight(400)
+        self.loader_group.setTitle("Data and Model Selection")
+        self.loader_group.setLayout(QVBoxLayout())
+        self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
         # QTabs
         self.tabs = QTabWidget()
         tab_layers = QWidget()
@@ -72,7 +78,8 @@ class PredictWidget(QWidget):
         tab_disk.layout().addWidget(self.images_folder)
 
         # add to main layout
-        self.layout().addWidget(self.tabs)
+        self.loader_group.layout().addWidget(self.tabs)
+        self.layout().addWidget(self.loader_group)
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
 
         ###############################
@@ -80,22 +87,34 @@ class PredictWidget(QWidget):
 
         # load model button
         self.load_model_button = load_button()
-        self.layout().addWidget(self.load_model_button.native)
+        self.loader_group.layout().addWidget(self.load_model_button.native)
+
+        self.prediction_param_group = QGroupBox()
+        self.prediction_param_group.setTitle("Parameters")
+        self.prediction_param_group.setLayout(QVBoxLayout())
+        self.prediction_param_group.layout().setContentsMargins(20, 20, 20, 0)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
-        self.layout().addWidget(self.enable_3d)
+        self.prediction_param_group.layout().addWidget(self.enable_3d)
 
         # axes widget
         self.axes_widget = AxesWidget()
-        self.layout().addWidget(self.axes_widget)
+        self.prediction_param_group.layout().addWidget(self.axes_widget)
 
         # threshold slider
         self.threshold_cbox = QCheckBox('Apply threshold')
-        self.layout().addWidget(self.threshold_cbox)
+        self.prediction_param_group.layout().addWidget(self.threshold_cbox)
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
-        self.layout().addWidget(self.threshold_spin.native)
+        self.prediction_param_group.layout().addWidget(self.threshold_spin.native)
+
+        self.layout().addWidget(self.prediction_param_group)
+
+        self.prediction_group = QGroupBox()
+        self.prediction_group.setTitle("Prediction")
+        self.prediction_group.setLayout(QVBoxLayout())
+        self.prediction_group.layout().setContentsMargins(20, 20, 20, 0)
 
         # progress bar
         self.pb_prediction = QProgressBar()
@@ -104,14 +123,15 @@ class PredictWidget(QWidget):
         self.pb_prediction.setMaximum(100)
         self.pb_prediction.setTextVisible(True)
         self.pb_prediction.setFormat(f'Images ?/?')
-        self.layout().addWidget(self.pb_prediction)
+        self.prediction_group.layout().addWidget(self.pb_prediction)
 
         # predict button
         self.worker = None
         self.seg_prediction = None
         self.denoi_prediction = None
         self.predict_button = QPushButton("Predict", self)
-        self.layout().addWidget(self.predict_button)
+        self.prediction_group.layout().addWidget(self.predict_button)
+        self.layout().addWidget(self.prediction_group)
 
         # actions
         self.tabs.currentChanged.connect(self._update_tab_axes)
