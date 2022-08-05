@@ -15,15 +15,15 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QGroupBox,
     QScrollArea,
-    QLayout
 )
 from qtpy.QtCore import Qt
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
+from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, QBannerWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
 from napari_denoiseg.widgets import enable_3d
-
+from napari_denoiseg.widgets.training_expert_settings_widget import TrainingSettingsWidget
+from napari_denoiseg.widgets.widget_provider import create_qspinbox, create_progressbar
 
 SAMPLE = 'Sample data'
 
@@ -34,27 +34,26 @@ class TrainingWidgetWrapper(QScrollArea):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidgetResizable(True)
-        trainWidget = TrainWidget(napari_viewer)
+        trainWidget = TrainWidget(self, napari_viewer)
         self.setWidget(trainWidget)
 
 
 class TrainWidget(QWidget):
-    def __init__(self, napari_viewer):
+    def __init__(self, parent: QWidget, napari_viewer: napari.Viewer):
         super().__init__()
-
         self.state = State.IDLE
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())
-
         self.setMinimumWidth(200)
         self.layout().addWidget(QBannerWidget("C:/mpicbg/workspace_py/napari_denoiseg/src/resources/teaser.png",
                                               "https://github.com/juglab/napari_denoiseg",
                                               "https://github.com/juglab/napari_denoiseg",
                                               "https://github.com/juglab/napari_denoiseg"))
         self._build_data_selection_widgets(napari_viewer)
-        self._build_training_param_widgets()
+        self._build_training_param_widgets(parent)
         self._build_train_save_widgets()
         self._build_progress_widgets()
+        self.expert_settings = None
 
         # place-holder for models and parameters (e.g. bioimage.io)
         self.is_3D = False
@@ -171,13 +170,13 @@ class TrainWidget(QWidget):
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
         self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
-    def _build_training_param_widgets(self):
+    def _build_training_param_widgets(self, parent):
         ###############################
         self.training_param_group = QGroupBox()
         self.training_param_group.setTitle("Training parameters")
         self.training_param_group.setMinimumWidth(100)
         self.training_expert_btn = QPushButton("ⓘ")
-        self.training_expert_btn.clicked.connect(self._training_expert_setter)
+        self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
         self.training_expert_btn.setFixedSize(30, 30)
 
         # axes
@@ -404,12 +403,9 @@ class TrainWidget(QWidget):
                 # save configuration as well
                 save_configuration(self.model.config, Path(where).parent)
 
-    def _training_expert_setter(self):
-        self.expert_settings = QScrollArea()
-        self.expert_settings.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.expert_settings.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.expert_settings.setFixedWidth(1000)
-        self.expert_settings.setMinimumHeight(800)
+    def _training_expert_setter(self, parent):
+        if self.expert_settings == None:
+            self.expert_settings = TrainingSettingsWidget(parent, self.viewer)
         self.expert_settings.show()
 
 
