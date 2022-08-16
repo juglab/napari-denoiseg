@@ -244,7 +244,6 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc=
                 test_inputs=[inputs],
                 test_outputs=[outputs],
                 input_axes=[axes],
-                # TODO are the axes in and out always the same? (output has 3 seg classes and 1 denoised channels)
                 output_axes=[axes],
                 output_path=path,
                 name='DenoiSeg',

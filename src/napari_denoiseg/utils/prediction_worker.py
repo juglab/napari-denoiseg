@@ -213,27 +213,30 @@ def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, thr
             yield {UpdateType.IMAGE: i_im}
 
             # reshape data
-            _x, new_axes = reshape_data_single(image.squeeze(), axes)
+            _x, new_axes = reshape_data_single(image, axes)
 
             # run prediction
-            # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
-            if 'S' in axes:  # predict S, slice per slice
-                shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
-                prediction = np.zeros(shape_out, dtype=np.float32)
+            shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
+            prediction = np.zeros(shape_out, dtype=np.float32)
 
-                for i_s in range(_x.shape[0]):
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
-            else:
-                prediction = model.predict(_x, axes=new_axes)
+            # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
+            for i_s in range(_x.shape[0]):
+                prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+
+            # if only one sample, then update new axes
+            if prediction.shape[0] == 1:
+                new_axes = new_axes[1:]
 
             # split predictions
-            final_image_d = prediction[0, ..., 0:-3].squeeze()
-            final_image_s = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
+            final_image_d = prediction[..., 0:-3].squeeze()
+            final_image_s = softmax(prediction[..., -3:].squeeze(), axis=-1)
 
             if is_threshold:
                 final_image_s_t = final_image_s >= threshold
+            else:
+                final_image_s_t = final_image_s
 
-            # Save napari axes order (XY at the end) in case we want to reopen it
+            # Save napari with axes order (XY at the end) in case we want to reopen it
             final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
 
             # save predictions
