@@ -2,9 +2,10 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabe
 from qtpy.QtGui import QIcon, QPixmap, QImage
 from qtpy import QtCore
 
+
 class QBannerWidget(QWidget):
 
-    def __init__(self, img_path: str, short_desc: str,  wiki_link: str, github_link: str):
+    def __init__(self, img_path: str, short_desc: str, wiki_link: str, github_link: str):
         super().__init__()
 
         layout = QHBoxLayout()
@@ -21,10 +22,10 @@ class QBannerWidget(QWidget):
         icon = QPixmap(img_path)
         img_widget = QLabel()
         img_widget.setPixmap(icon)
-        #img_widget.setIconSize(QtCore.QSize(200, 200))
+        # img_widget.setIconSize(QtCore.QSize(200, 200))
         img_widget.setFixedSize(200, 200)
-        #img_widget.setIcon(icon)
-        #img_widget.setEnabled(False)
+        # img_widget.setIcon(icon)
+        # img_widget.setEnabled(False)
         layout.addWidget(img_widget)
         layout.addWidget(link_widget)
 

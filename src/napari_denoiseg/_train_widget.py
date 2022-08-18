@@ -268,14 +268,14 @@ class TrainWidget(QWidget):
             self.zero_model_button.setText('')
             self.zero_model_button.setEnabled(False)
 
-    def _update_3D(self, event):
+    def _update_3D(self, val):
         """
         Update the UI based on the status of the 3D checkbox.
-        :param event:
+        :param val:
         :return:
         """
         # TODO in magicgui 0.4 even becomes a Bool
-        self.is_3D = event.value
+        self.is_3D = val
         self.patch_size_Z.setVisible(self.is_3D)
 
         # update axes widget
