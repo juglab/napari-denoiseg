@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import napari
+from qtpy import QtGui
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,7 +15,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabWidget,
     QGroupBox,
-    QScrollArea,
+    QScrollArea
 )
 from qtpy.QtCore import Qt
 from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, QBannerWidget
@@ -172,10 +173,18 @@ class TrainWidget(QWidget):
 
     def _build_training_param_widgets(self, parent):
         ###############################
+
+        icon = QtGui.QIcon('../resources/icons/gear16.png')
+
+
         self.training_param_group = QGroupBox()
         self.training_param_group.setTitle("Training parameters")
         self.training_param_group.setMinimumWidth(100)
-        self.training_expert_btn = QPushButton("ⓘ")
+
+        self.training_expert_btn = QPushButton(icon, '')
+
+
+
         self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
         self.training_expert_btn.setFixedSize(30, 30)
 

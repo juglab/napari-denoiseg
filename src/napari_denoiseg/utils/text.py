@@ -1,5 +1,4 @@
-
-#labels
+# labels
 AXES = "Axes"
 ENABLE_3D = "Enable 3D"
 EPOCHS = "# of Epochs"
@@ -11,7 +10,8 @@ TRAIN_LABEL_PCT = "Train to Label ratio"
 THRESHOLD = "Threshold"
 THRESHOLD_ENABLE = "Enable threshold"
 MODEL = "Select model"
-#tooltips
+
+# tooltips
 AXES_TOOLTIP = ""
 ENABLE_3D_TOOLTIP = ""
 EPOCHS_TOOLTIP = ""
@@ -23,4 +23,5 @@ TRAIN_LABEL_PCT_TOOLTIP = ""
 THRESHOLD_TOOLTIP = ""
 THRESHOLD_ENABLE_TOOLTIP = ""
 MODEL_TOOLTIP = ""
-#banner info
+
+# banner info
