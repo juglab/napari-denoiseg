@@ -9,6 +9,7 @@ from napari_denoiseg import (
 )
 
 
+@pytest.mark.skip('Ignore to avoid downloading data on Github action server')
 @pytest.mark.parametrize('load_dataset', [denoiseg_data_2D_n0,
                                           denoiseg_data_2D_n10,
                                           denoiseg_data_2D_n20,

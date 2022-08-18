@@ -1,11 +1,8 @@
 """
 """
-from __future__ import annotations
-
 import os
 import urllib
 import zipfile
-from pathlib import Path
 
 import numpy as np
 
@@ -26,7 +23,7 @@ def _download_data_2D(noise_level):
     zipPath = "data/DSB2018_{}.zip".format(noise_level)
     if not os.path.exists(zipPath):
         # download and unzip data
-        data = urllib.request.urlretrieve(link, zipPath)
+        urllib.request.urlretrieve(link, zipPath)
         with zipfile.ZipFile(zipPath, 'r') as zip_ref:
             zip_ref.extractall("data")
 
@@ -42,7 +39,7 @@ def _download_data_3D(noise_level):
     # check if data has been downloaded already
     zipPath = 'data/Mouse-Organoid-Cells-CBG-128_{}.zip'.format(noise_level)
     if not os.path.exists(zipPath):
-        data = urllib.request.urlretrieve(link, zipPath)
+        urllib.request.urlretrieve(link, zipPath)
 
     # unzip the files
     if not os.path.exists(zipPath[:-4]):
@@ -61,7 +58,7 @@ def _load_data_2D(noise_level):
 
 def _load_data_3D(noise_level):
     train_data = np.load(
-        'data/Mouse-Organoid-Cells-CBG-128_{}/train/train_data_{}.npz'.format(noise_level),
+        'data/Mouse-Organoid-Cells-CBG-128/train_data_{}.npz'.format(noise_level),
         allow_pickle=True
     )
     X_train = train_data['X_train'].astype(np.float32)
