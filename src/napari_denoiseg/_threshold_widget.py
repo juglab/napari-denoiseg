@@ -17,7 +17,7 @@ from qtpy.QtCore import Qt
 import napari
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
-from widgets import BannerWidget
+from widgets import BannerWidget, create_gpu_label
 
 T = 't'
 M = 'metrics'
@@ -51,6 +51,11 @@ class ThresholdWidget(QWidget):
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',
                                              'https://github.com/juglab/napari_denoiseg'))
+
+        # add GPU button
+        gpu_button = create_gpu_label()
+        gpu_button.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.layout().addWidget(gpu_button)
 
         ###############################
         # QTabs

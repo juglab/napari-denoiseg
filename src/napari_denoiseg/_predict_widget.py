@@ -2,7 +2,7 @@
 
 """
 from pathlib import Path
-
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -27,7 +27,7 @@ from napari_denoiseg.widgets import (
     load_button,
     threshold_spin
 )
-from widgets import BannerWidget
+from widgets import BannerWidget, create_gpu_label
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -50,6 +50,11 @@ class PredictWidget(QWidget):
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',
                                              'https://github.com/juglab/napari_denoiseg'))
+
+        # add GPU button
+        gpu_button = create_gpu_label()
+        gpu_button.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.layout().addWidget(gpu_button)
 
         # tabs
         self.tabs = QTabWidget()
