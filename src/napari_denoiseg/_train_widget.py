@@ -3,44 +3,146 @@
 from pathlib import Path
 
 import napari
+from qtpy import QtGui
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
-    QProgressBar,
-    QSpinBox,
     QFormLayout,
     QComboBox,
     QFileDialog,
     QLabel,
-    QTabWidget
+    QTabWidget,
+    QGroupBox,
+    QScrollArea
 )
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget
+from qtpy.QtCore import Qt
+from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, BannerWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
-from napari_denoiseg.widgets import enable_3d
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
-
+from napari_denoiseg.widgets import enable_3d
+from napari_denoiseg.widgets.training_expert_settings_widget import TrainingSettingsWidget
+from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
 
 SAMPLE = 'Sample data'
 
 
-class TrainWidget(QWidget):
+class TrainingWidgetWrapper(QScrollArea):
     def __init__(self, napari_viewer):
         super().__init__()
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        trainWidget = TrainWidget(self, napari_viewer)
+        self.setWidget(trainWidget)
 
+
+class TrainWidget(QWidget):
+    def __init__(self, parent: QWidget, napari_viewer: napari.Viewer):
+        super().__init__()
         self.state = State.IDLE
         self.viewer = napari_viewer
-
         self.setLayout(QVBoxLayout())
+        self.setMinimumWidth(200)
+        self.layout().addWidget(BannerWidget('DenoiSeg - Training',
+                                             '../resources/icons/Jug_logo_128.png',
+                                             'A joint denoising and segmentation algorithm requiring '
+                                             'only a few annotated ground truth images.',
+                                             'https://github.com/juglab/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg'))
+        self._build_data_selection_widgets(napari_viewer)
+        self._build_training_param_widgets(parent)
+        self._build_train_save_widgets()
+        self._build_progress_widgets()
+        self.expert_settings = None
 
-        ###############################
+        # place-holder for models and parameters (e.g. bioimage.io)
+        self.is_3D = False
+        self.worker = None
+        self.model, self.threshold = None, None
+        self.inputs, self.outputs = [], []
+        self.tf_version = None
+        self.load_from_disk = False
+
+        self._set_actions()
+
+        # update axes widget in case of data
+        self._update_layer_axes()
+
+    def _set_actions(self):
+        # actions
+        self.tabs.currentChanged.connect(self._update_tab_axes)
+        self.enable_3d.use3d.changed.connect(self._update_3D)
+        self.images.changed.connect(self._update_layer_axes)
+        self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
+        self.train_button.clicked.connect(lambda: self._start_training(self.model))
+        self.zero_model_button.clicked.connect(self._zero_model)
+        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
+        self.n_steps_spin.valueChanged.connect(self._update_steps)
+        self.save_button.clicked.connect(self._save_model)
+
+    def _build_train_save_widgets(self):
+        self.train_group = QGroupBox()
+        self.train_group.setTitle("Train and Save")
+        self.train_group.setLayout(QVBoxLayout())
+        # self.train_group.setMinimumWidth(400)
+        # self.train_group.setMinimumHeight(300)
+
+        # train button
+        train_buttons = QWidget()
+        train_buttons.setLayout(QHBoxLayout())
+        self.train_button = QPushButton('Train', self)
+        self.zero_model_button = QPushButton('', self)
+        self.zero_model_button.setEnabled(False)
+        train_buttons.layout().addWidget(self.zero_model_button)
+        train_buttons.layout().addWidget(self.train_button)
+        self.train_group.layout().addWidget(train_buttons)
+
+        # Threshold
+        self.threshold_label = QLabel()
+        self.threshold_label.setText("Best threshold: ?")
+        self.train_group.layout().addWidget(self.threshold_label)
+
+        # Save button
+        save_widget = QWidget()
+        save_widget.setLayout(QHBoxLayout())
+        self.save_choice = QComboBox()
+        self.save_choice.addItems(ModelSaveMode.list())
+        self.save_button = QPushButton("Save model", self)
+        self.save_button.setEnabled(False)
+        save_widget.layout().addWidget(self.save_button)
+        save_widget.layout().addWidget(self.save_choice)
+        self.train_group.layout().addWidget(save_widget)
+        self.layout().addWidget(self.train_group)
+
+    def _build_progress_widgets(self):
+        self.progress_group = QGroupBox()
+        self.progress_group.setTitle("Training progress")
+
+        # progress bars
+        self.progress_group.setLayout(QVBoxLayout())
+        self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
+        # self.progress_group.setMinimumWidth(400)
+        # self.progress_group.setMinimumHeight(450)
+        self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
+                                            text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
+        self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
+                                           text_format=f'Step ?/{self.n_steps_spin.value()}')
+        self.progress_group.layout().addWidget(self.pb_epochs)
+        self.progress_group.layout().addWidget(self.pb_steps)
+
+        # plot widget
+        self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
+        self.progress_group.layout().addWidget(self.plot.native)
+        self.layout().addWidget(self.progress_group)
+
+    def _build_data_selection_widgets(self, napari_viewer):
         # QTabs
         self.tabs = QTabWidget()
         tab_layers = QWidget()
         tab_layers.setLayout(QVBoxLayout())
-
         tab_disk = QWidget()
         tab_disk.setLayout(QVBoxLayout())
 
@@ -54,7 +156,6 @@ class TrainWidget(QWidget):
         self.images = self.layer_choice.Images
         self.labels = self.layer_choice.Labels
         tab_layers.layout().addWidget(self.layer_choice.native)
-
         self.perc_train_slider = percentage_slider()
         perc_widget = QWidget()
         perc_widget.setLayout(QFormLayout())
@@ -66,15 +167,12 @@ class TrainWidget(QWidget):
         self.train_labels_folder = FolderWidget('Choose')
         self.val_images_folder = FolderWidget('Choose')
         self.val_labels_folder = FolderWidget('Choose')
-
         buttons = QWidget()
         form = QFormLayout()
-
         form.addRow('Train images', self.train_images_folder)
         form.addRow('Train labels', self.train_labels_folder)
         form.addRow('Val images', self.val_images_folder)
         form.addRow('Val labels', self.val_labels_folder)
-
         buttons.setLayout(form)
         tab_disk.layout().addWidget(buttons)
 
@@ -83,138 +181,52 @@ class TrainWidget(QWidget):
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
         self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
-        ###############################
+    def _build_training_param_widgets(self, parent):
+        self.training_param_group = QGroupBox()
+        self.training_param_group.setTitle("Training parameters")
+        self.training_param_group.setMinimumWidth(100)
+
+        # expert settings
+        icon = QtGui.QIcon('../resources/icons/gear16.png')
+        self.training_expert_btn = QPushButton(icon, '')
+        self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
+        self.training_expert_btn.setFixedSize(30, 30)
+        self.training_expert_btn.setToolTip('Advanced settings')
+
         # axes
         self.axes_widget = AxesWidget()
 
         # others
-        self.n_epochs_spin = QSpinBox()
-        self.n_epochs_spin.setMinimum(1)
-        self.n_epochs_spin.setMaximum(1000)
-        self.n_epochs_spin.setValue(2)
+        self.n_epochs_spin = create_int_spinbox(1, 1000, 2)
         self.n_epochs = self.n_epochs_spin.value()
-
-        self.n_steps_spin = QSpinBox()
-        self.n_steps_spin.setMaximum(1000)
-        self.n_steps_spin.setMinimum(1)
-        self.n_steps_spin.setValue(10)
+        self.n_steps_spin = create_int_spinbox(1, 1000, 10)
         self.n_steps = self.n_steps_spin.value()
 
         # batch size
-        self.batch_size_spin = QSpinBox()
-        self.batch_size_spin.setMaximum(512)
-        self.batch_size_spin.setMinimum(0)
-        self.batch_size_spin.setSingleStep(8)
-        self.batch_size_spin.setValue(16)
+        self.batch_size_spin = create_int_spinbox(0, 512, 16, 8)
 
         # patch size
-        self.patch_size_XY = QSpinBox()
-        self.patch_size_XY.setMaximum(512)
-        self.patch_size_XY.setMinimum(16)
-        self.patch_size_XY.setSingleStep(8)
-        self.patch_size_XY.setValue(16)
+        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8)
 
         # 3D checkbox
         self.enable_3d = enable_3d()
-        self.patch_size_Z = QSpinBox()
-        self.patch_size_Z.setMaximum(512)
-        self.patch_size_Z.setMinimum(16)
-        self.patch_size_Z.setSingleStep(8)
-        self.patch_size_Z.setValue(16)
-        self.patch_size_Z.setVisible(False)
-
+        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False)
         # TODO add tooltips
-        others = QWidget()
         formLayout = QFormLayout()
-        formLayout.addRow('', self.axes_widget)
+        formLayout.addRow(self.axes_widget.label.text(), self.axes_widget.text_field)
         formLayout.addRow('Enable 3D', self.enable_3d.native)
         formLayout.addRow('N epochs', self.n_epochs_spin)
         formLayout.addRow('N steps', self.n_steps_spin)
         formLayout.addRow('Batch size', self.batch_size_spin)
         formLayout.addRow('Patch XY', self.patch_size_XY)
         formLayout.addRow('Patch Z', self.patch_size_Z)
-        others.setLayout(formLayout)
-        self.layout().addWidget(others)
-
-        # progress bars
-        progress_widget = QWidget()
-        progress_widget.setLayout(QVBoxLayout())
-
-        self.pb_epochs = QProgressBar()
-        self.pb_epochs.setValue(0)
-        self.pb_epochs.setMinimum(0)
-        self.pb_epochs.setMaximum(100)
-        self.pb_epochs.setTextVisible(True)
-        self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
-
-        self.pb_steps = QProgressBar()
-        self.pb_steps.setValue(0)
-        self.pb_steps.setMinimum(0)
-        self.pb_steps.setMaximum(100)
-        self.pb_steps.setTextVisible(True)
-        self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
-
-        progress_widget.layout().addWidget(self.pb_epochs)
-        progress_widget.layout().addWidget(self.pb_steps)
-        self.layout().addWidget(progress_widget)
-
-        # train button
-        train_buttons = QWidget()
-        train_buttons.setLayout(QHBoxLayout())
-
-        self.train_button = QPushButton('Train', self)
-        self.zero_model_button = QPushButton('', self)
-        self.zero_model_button.setEnabled(False)
-
-        train_buttons.layout().addWidget(self.zero_model_button)
-        train_buttons.layout().addWidget(self.train_button)
-
-        self.layout().addWidget(train_buttons)
-
-        # Threshold
-        self.threshold_label = QLabel()
-        self.threshold_label.setText("Best threshold: ?")
-        self.layout().addWidget(self.threshold_label)
-
-        # Save button
-        save_widget = QWidget()
-        save_widget.setLayout(QHBoxLayout())
-
-        self.save_choice = QComboBox()
-        self.save_choice.addItems(ModelSaveMode.list())
-
-        self.save_button = QPushButton("Save model", self)
-        self.save_button.setEnabled(False)
-
-        save_widget.layout().addWidget(self.save_button)
-        save_widget.layout().addWidget(self.save_choice)
-        self.layout().addWidget(save_widget)
-
-        # plot widget
-        self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
-        self.layout().addWidget(self.plot.native)
-
-        # place-holder for models and parameters (e.g. bioimage.io)
-        self.is_3D = False
-        self.worker = None
-        self.model, self.threshold = None, None
-        self.inputs, self.outputs = [], []
-        self.tf_version = None
-        self.load_from_disk = False
-
-        # actions
-        self.tabs.currentChanged.connect(self._update_tab_axes)
-        self.enable_3d.use3d.changed.connect(self._update_3D)
-        self.images.changed.connect(self._update_layer_axes)
-        self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
-        self.train_button.clicked.connect(lambda: self._start_training(self.model))
-        self.zero_model_button.clicked.connect(self._zero_model)
-        self.n_epochs_spin.valueChanged.connect(self._update_epochs)
-        self.n_steps_spin.valueChanged.connect(self._update_steps)
-        self.save_button.clicked.connect(self._save_model)
-
-        # update axes widget in case of data
-        self._update_layer_axes()
+        formLayout.minimumSize()
+        hlayout = QVBoxLayout()
+        hlayout.addWidget(self.training_expert_btn, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        hlayout.addLayout(formLayout)
+        self.training_param_group.setLayout(hlayout)
+        self.training_param_group.layout().setContentsMargins(5, 20, 5, 10)
+        self.layout().addWidget(self.training_param_group)
 
     def _start_training(self, pretrained_model=None):
         """
@@ -274,14 +286,14 @@ class TrainWidget(QWidget):
             self.zero_model_button.setText('')
             self.zero_model_button.setEnabled(False)
 
-    def _update_3D(self, event):
+    def _update_3D(self, val):
         """
         Update the UI based on the status of the 3D checkbox.
-        :param event:
+        :param val:
         :return:
         """
         # TODO in magicgui 0.4 even becomes a Bool
-        self.is_3D = event.value
+        self.is_3D = val
         self.patch_size_Z.setVisible(self.is_3D)
 
         # update axes widget
@@ -306,6 +318,7 @@ class TrainWidget(QWidget):
 
         :return:
         """
+
         def add_image(widget, image):
             if image is not None:
                 if SAMPLE in widget.viewer.layers:
@@ -367,14 +380,12 @@ class TrainWidget(QWidget):
         if self.state == State.RUNNING:
             if UpdateType.EPOCH in updates:
                 val = updates[UpdateType.EPOCH]
-                e_perc = int(100 * updates[UpdateType.EPOCH] / self.n_epochs + 0.5)
-                self.pb_epochs.setValue(e_perc)
+                self.pb_epochs.setValue(val)
                 self.pb_epochs.setFormat(f'Epoch {val}/{self.n_epochs}')
 
             if UpdateType.BATCH in updates:
                 val = updates[UpdateType.BATCH]
-                s_perc = int(100 * val / self.n_steps + 0.5)
-                self.pb_steps.setValue(s_perc)
+                self.pb_steps.setValue(val)
                 self.pb_steps.setFormat(f'Step {val}/{self.n_steps}')
 
             if UpdateType.LOSS in updates:
@@ -405,9 +416,13 @@ class TrainWidget(QWidget):
                                    axes)
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
-
                 # save configuration as well
                 save_configuration(self.model.config, Path(where).parent)
+
+    def _training_expert_setter(self, parent):
+        if self.expert_settings is None:
+            self.expert_settings = TrainingSettingsWidget(parent)
+        self.expert_settings.show()
 
 
 if __name__ == "__main__":
@@ -427,6 +442,6 @@ if __name__ == "__main__":
     viewer.add_labels(data[1][0][:50], name=data[1][1]['name'])
 
     # add our plugin
-    viewer.window.add_dock_widget(TrainWidget(viewer))
+    viewer.window.add_dock_widget(TrainingWidgetWrapper(viewer))
 
     napari.run()

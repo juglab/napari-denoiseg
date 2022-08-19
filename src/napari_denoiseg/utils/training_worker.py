@@ -65,7 +65,7 @@ def training_worker(widget, pretrained_model=None):
     denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
 
     # prepare training
-    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
+    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, widget, pretrained_model)
     train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
 
     # start training
@@ -375,7 +375,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     return X, Y, X_val, Y_val, y_val_no_hot, new_axes
 
 
-def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
+def prepare_training(conf, X_train, Y_train, X_val, Y_val, widget, pretrained_model=None):
     from datetime import date
     import tensorflow as tf
     from denoiseg.models import DenoiSeg

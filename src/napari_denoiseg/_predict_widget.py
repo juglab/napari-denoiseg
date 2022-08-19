@@ -3,14 +3,14 @@
 """
 from pathlib import Path
 
-import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QPushButton,
     QTabWidget,
     QProgressBar,
-    QCheckBox
+    QCheckBox,
+    QGroupBox
 )
 
 import napari
@@ -18,11 +18,7 @@ from napari_denoiseg.utils import (
     State,
     UpdateType,
     prediction_worker,
-    loading_worker,
-    get_shape_order,
-    get_napari_shapes,
-    REF_AXES,
-    NAPARI_AXES
+    loading_worker
 )
 from napari_denoiseg.widgets import (
     FolderWidget,
@@ -31,6 +27,7 @@ from napari_denoiseg.widgets import (
     load_button,
     threshold_spin
 )
+from widgets import BannerWidget
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -45,10 +42,16 @@ class PredictWidget(QWidget):
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(400)
 
-        ###############################
-        # QTabs
+        # add banner
+        self.layout().addWidget(BannerWidget('DenoiSeg - Prediction',
+                                             '../resources/icons/Jug_logo_128.png',
+                                             'A joint denoising and segmentation algorithm requiring '
+                                             'only a few annotated ground truth images.',
+                                             'https://github.com/juglab/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg'))
+
+        # tabs
         self.tabs = QTabWidget()
         tab_layers = QWidget()
         tab_layers.setLayout(QVBoxLayout())
@@ -75,27 +78,46 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.tabs)
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
 
+        # load model button
+        self.loader_group = QGroupBox()
+        self.loader_group.setMaximumHeight(400)
+        self.loader_group.setTitle("Model Selection")
+        self.loader_group.setLayout(QVBoxLayout())
+        self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
+
+        self.load_model_button = load_button()
+        self.loader_group.layout().addWidget(self.load_model_button.native)
+        self.layout().addWidget(self.loader_group)
+
         ###############################
         # others
-
-        # load model button
-        self.load_model_button = load_button()
-        self.layout().addWidget(self.load_model_button.native)
+        self.prediction_param_group = QGroupBox()
+        self.prediction_param_group.setTitle("Parameters")
+        self.prediction_param_group.setLayout(QVBoxLayout())
+        self.prediction_param_group.layout().setContentsMargins(20, 20, 20, 0)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
-        self.layout().addWidget(self.enable_3d)
+        self.prediction_param_group.layout().addWidget(self.enable_3d)
 
         # axes widget
         self.axes_widget = AxesWidget()
-        self.layout().addWidget(self.axes_widget)
+        self.prediction_param_group.layout().addWidget(self.axes_widget)
 
         # threshold slider
         self.threshold_cbox = QCheckBox('Apply threshold')
-        self.layout().addWidget(self.threshold_cbox)
+        self.prediction_param_group.layout().addWidget(self.threshold_cbox)
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
-        self.layout().addWidget(self.threshold_spin.native)
+        self.prediction_param_group.layout().addWidget(self.threshold_spin.native)
+
+        self.layout().addWidget(self.prediction_param_group)
+
+        # prediction group
+        self.prediction_group = QGroupBox()
+        self.prediction_group.setTitle("Prediction")
+        self.prediction_group.setLayout(QVBoxLayout())
+        self.prediction_group.layout().setContentsMargins(20, 20, 20, 10)
 
         # progress bar
         self.pb_prediction = QProgressBar()
@@ -104,14 +126,15 @@ class PredictWidget(QWidget):
         self.pb_prediction.setMaximum(100)
         self.pb_prediction.setTextVisible(True)
         self.pb_prediction.setFormat(f'Images ?/?')
-        self.layout().addWidget(self.pb_prediction)
+        self.prediction_group.layout().addWidget(self.pb_prediction)
 
         # predict button
         self.worker = None
         self.seg_prediction = None
         self.denoi_prediction = None
         self.predict_button = QPushButton("Predict", self)
-        self.layout().addWidget(self.predict_button)
+        self.prediction_group.layout().addWidget(self.predict_button)
+        self.layout().addWidget(self.prediction_group)
 
         # actions
         self.tabs.currentChanged.connect(self._update_tab_axes)
@@ -193,8 +216,8 @@ class PredictWidget(QWidget):
             perc = int(100 * val / self.n_im + 0.5)
             self.pb_prediction.setValue(perc)
             self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
-            #self.viewer.layers[SEGMENTATION].refresh()
-            #self.viewer.layers[DENOISING].refresh()
+            # self.viewer.layers[SEGMENTATION].refresh()
+            # self.viewer.layers[DENOISING].refresh()
 
         if UpdateType.DONE in updates:
             self.pb_prediction.setValue(100)
