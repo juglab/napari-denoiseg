@@ -26,11 +26,13 @@ def _create_link(link: str, text: str) -> QLabel:
     # label.setStyleSheet("font-weight: bold; color: green; text-decoration: underline")
     return label
 
+
 def _open_link(link: str):
     def link_opener(event):
         webbrowser.open(link)
 
     return link_opener
+
 
 class QBannerWidget(QWidget):
 

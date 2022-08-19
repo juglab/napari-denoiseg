@@ -1,13 +1,23 @@
 from qtpy.QtWidgets import QSpinBox, QProgressBar, QDoubleSpinBox
 
 
+class SpinBox(QSpinBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+
+class DoubleSpinBox(QDoubleSpinBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+
 def create_double_spinbox(min_value: float = 0,
                           max_value: float = 1,
                           value: float = 0.5,
                           step: float = 0.1,
                           visible: bool = True,
-                          tooltip: str = None) -> QSpinBox:
-    spin_box = QDoubleSpinBox()
+                          tooltip: str = None) -> DoubleSpinBox:
+    spin_box = DoubleSpinBox()
     spin_box.setMinimum(min_value)
     spin_box.setMaximum(max_value)
     spin_box.setSingleStep(step)
@@ -24,8 +34,8 @@ def create_int_spinbox(min_value: int = 1,
                        value: int = 2,
                        step: int = 1,
                        visible: bool = True,
-                       tooltip: str = None) -> QSpinBox:
-    spin_box = QSpinBox()
+                       tooltip: str = None) -> SpinBox:
+    spin_box = SpinBox()
     spin_box.setMinimum(min_value)
     spin_box.setMaximum(max_value)
     spin_box.setSingleStep(step)

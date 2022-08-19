@@ -133,7 +133,6 @@ class TrainWidget(QWidget):
         self.layout().addWidget(self.progress_group)
 
     def _build_data_selection_widgets(self, napari_viewer):
-        ###############################
         # QTabs
         self.tabs = QTabWidget()
         tab_layers = QWidget()
