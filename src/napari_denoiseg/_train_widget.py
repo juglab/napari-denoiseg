@@ -47,8 +47,8 @@ class TrainWidget(QWidget):
         self.setLayout(QVBoxLayout())
         self.setMinimumWidth(200)
         self.layout().addWidget(QBannerWidget('../resources/icons/Jug_logo_128.png',
-                                              'A joint denoising and segmentation algorithm trained '
-                                              'on only a few annotated ground truth images.',
+                                              'A joint denoising and segmentation algorithm requiring '
+                                              'only a few annotated ground truth images.',
                                               'https://github.com/juglab/napari_denoiseg',
                                               'https://github.com/juglab/napari_denoiseg'))
         self._build_data_selection_widgets(napari_viewer)
@@ -121,10 +121,10 @@ class TrainWidget(QWidget):
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
         # self.progress_group.setMinimumWidth(400)
         # self.progress_group.setMinimumHeight(450)
-        self.pb_epochs = create_progressbar(0, self.n_epochs_spin.value(), 0, True, True,
-                                            f'Epoch ?/{self.n_epochs_spin.value()}')
-        self.pb_steps = create_progressbar(0, self.n_steps_spin.value(), 0, True, True,
-                                           f'Epoch ?/{self.n_steps_spin.value()}')
+        self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
+                                            text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
+        self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
+                                           text_format=f'Step ?/{self.n_steps_spin.value()}')
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
         # plot widget
@@ -370,14 +370,12 @@ class TrainWidget(QWidget):
         if self.state == State.RUNNING:
             if UpdateType.EPOCH in updates:
                 val = updates[UpdateType.EPOCH]
-                e_perc = int(100 * updates[UpdateType.EPOCH] / self.n_epochs + 0.5)
-                self.pb_epochs.setValue(e_perc)
+                self.pb_epochs.setValue(val)
                 self.pb_epochs.setFormat(f'Epoch {val}/{self.n_epochs}')
 
             if UpdateType.BATCH in updates:
                 val = updates[UpdateType.BATCH]
-                s_perc = int(100 * val / self.n_steps + 0.5)
-                self.pb_steps.setValue(s_perc)
+                self.pb_steps.setValue(val)
                 self.pb_steps.setFormat(f'Step {val}/{self.n_steps}')
 
             if UpdateType.LOSS in updates:
