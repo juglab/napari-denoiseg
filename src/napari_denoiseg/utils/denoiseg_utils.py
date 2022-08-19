@@ -125,13 +125,24 @@ def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
     return RawData(_gen, n_images, description)
 
 
-def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
+def generate_config(X,
+                    patch_shape,
+                    n_epochs=20,
+                    n_steps=400,
+                    batch_size=16,
+                    unet_kern_size=3,
+                    unet_n_first=32,
+                    unet_n_depth=4,
+                    train_learning_rate=0.0004,
+                    n2v_perc_pix=1.5,
+                    n2v_neighborhood_radius=5,
+                    denoiseg_alpha=0.5):
     from denoiseg.models import DenoiSegConfig
 
     # assert len(X.shape)-2 == len(patch_shape)
     # TODO: what if generator or list
     conf = DenoiSegConfig(X,
-                          unet_kern_size=3,
+                          unet_kern_size=unet_kern_size,
                           n_channel_out=X.shape[-1]+3,
                           n_channel_in=X.shape[-1],
                           relative_weights=[1.0, 1.0, 5.0],
@@ -140,9 +151,12 @@ def generate_config(X, patch_shape, n_epochs=20, n_steps=400, batch_size=16):
                           batch_norm=True,
                           train_batch_size=batch_size,
                           n2v_patch_shape=patch_shape,
-                          unet_n_first=32,
-                          unet_n_depth=4,
-                          denoiseg_alpha=0.5,
+                          unet_n_first=unet_n_first,
+                          unet_n_depth=unet_n_depth,
+                          train_learning_rate=train_learning_rate,
+                          n2v_perc_pix=n2v_perc_pix,
+                          n2v_neighborhood_radius=n2v_neighborhood_radius,
+                          denoiseg_alpha=denoiseg_alpha,
                           train_tensorboard=True)
 
     return conf

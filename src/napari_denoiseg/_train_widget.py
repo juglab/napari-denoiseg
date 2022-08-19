@@ -253,7 +253,9 @@ class TrainWidget(QWidget):
                 self.save_button.setEnabled(False)
 
                 # instantiate worker and start training
-                self.worker = training_worker(self, pretrained_model=pretrained_model)
+                self.worker = training_worker(self,
+                                              pretrained_model=pretrained_model,
+                                              expert_settings=self.expert_settings)
                 self.worker.yielded.connect(lambda x: self._update_all(x))
                 self.worker.returned.connect(self._done)
                 self.worker.start()

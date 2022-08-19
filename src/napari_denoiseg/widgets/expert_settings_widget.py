@@ -71,3 +71,12 @@ class TrainingSettingsWidget(QDialog):
         form.addRow(label_denoiseg_alpha, self.denoiseg_alpha)
 
         self.setLayout(form)
+
+    def get_settings(self):
+        return {'unet_kern_size': self.unet_kernelsize.value(),
+                'unet_n_first': self.unet_n_first.value(),
+                'unet_n_depth': self.unet_depth.value(),
+                'train_learning_rate': self.train_learning_rate.value(),
+                'n2v_perc_pix': self.n2v_perc_pix.value(),
+                'n2v_neighborhood_radius': self.n2v_neighborhood_radius.value(),
+                'denoiseg_alpha': self.denoiseg_alpha.value()}

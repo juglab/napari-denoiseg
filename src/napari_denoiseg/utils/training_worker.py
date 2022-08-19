@@ -41,7 +41,7 @@ class TrainingCallback(Callback):
 
 
 @thread_worker(start_thread=False)
-def training_worker(widget, pretrained_model=None):
+def training_worker(widget, pretrained_model=None, expert_settings=None):
     import os
     import threading
     from napari_denoiseg.utils import UpdateType, generate_config
@@ -62,7 +62,16 @@ def training_worker(widget, pretrained_model=None):
     else:
         patch_shape = (patch_shape_XY, patch_shape_XY)
 
-    denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
+    # create configuration
+    if expert_settings is None:
+        denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
+    else:
+        denoiseg_conf = generate_config(X_train,
+                                        patch_shape,
+                                        n_epochs,
+                                        n_steps,
+                                        batch_size,
+                                        **expert_settings.get_settings())
 
     # prepare training
     args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, widget, pretrained_model)
