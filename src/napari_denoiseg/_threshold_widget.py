@@ -1,6 +1,7 @@
 from pathlib import Path
 from qtpy.QtWidgets import (
     QWidget,
+    QScrollArea,
     QVBoxLayout,
     QPushButton,
     QFormLayout,
@@ -8,26 +9,48 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QTableWidgetItem,
     QHeaderView,
-    QCheckBox
+    QCheckBox,
+    QGroupBox
 )
+from qtpy.QtCore import Qt
+
 import napari
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
+from widgets import BannerWidget
 
 T = 't'
 M = 'metrics'
 SAMPLE = 'Sample data'
 
 
-class ThresholdWidget(QWidget):
+class ThresholdWidgetWrapper(QScrollArea):
     def __init__(self, napari_viewer):
+        super().__init__()
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        trainWidget = ThresholdWidget(self, napari_viewer)
+        self.setWidget(trainWidget)
+
+
+class ThresholdWidget(QWidget):
+    def __init__(self, parent: QWidget, napari_viewer: napari.Viewer):
         super().__init__()
 
         self.state = State.IDLE
         self.viewer = napari_viewer
 
         self.setLayout(QVBoxLayout())
-        self.setMaximumHeight(600)
+
+        ###############################
+        # Banner
+        self.layout().addWidget(BannerWidget('DenoiSeg - Threshold',
+                                             '../resources/icons/Jug_logo_128.png',
+                                             'A joint denoising and segmentation algorithm requiring '
+                                             'only a few annotated ground truth images.',
+                                             'https://github.com/juglab/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg'))
 
         ###############################
         # QTabs
@@ -71,32 +94,49 @@ class ThresholdWidget(QWidget):
         # other
 
         # load model button
+        self.loader_group = QGroupBox()
+        self.loader_group.setMaximumHeight(400)
+        self.loader_group.setTitle("Model Selection")
+        self.loader_group.setLayout(QVBoxLayout())
+        self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
+
         self.load_model_button = load_button()
-        self.layout().addWidget(self.load_model_button.native)
+        self.loader_group.layout().addWidget(self.load_model_button.native)
+        self.layout().addWidget(self.loader_group)
+
+        ###############################
+        # Parameters
+        self.prediction_param_group = QGroupBox()
+        self.prediction_param_group.setTitle("Parameters")
+        self.prediction_param_group.setLayout(QVBoxLayout())
+        self.prediction_param_group.layout().setContentsMargins(20, 20, 20, 10)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
-        self.layout().addWidget(self.enable_3d)
+        self.prediction_param_group.layout().addWidget(self.enable_3d)
 
         # axes widget
         self.axes_widget = AxesWidget()
         self.layout().addWidget(self.axes_widget)
+        self.prediction_param_group.layout().addWidget(self.axes_widget)
+
+        self.layout().addWidget(self.prediction_param_group)
+
+        # optimize button
+        self.optimize_button = QPushButton("Optimize", self)
+        self.layout().addWidget(self.optimize_button)
 
         # feedback table to users
         self.table = QTableWidget()
         self.table.setRowCount(19)
         self.table.setColumnCount(2)
+        self.table.setMinimumHeight(400)
 
         self.table.setHorizontalHeaderLabels([T, M])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.resizeRowsToContents()
         self.layout().addWidget(self.table)
-
-        # optimize button
-        self.optimize_button = QPushButton("Optimize", self)
-        self.layout().addWidget(self.optimize_button)
-
         # set variables
         self.worker = None
         self.load_from_disk = 0
@@ -198,7 +238,7 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
 
     # add our plugin
-    viewer.window.add_dock_widget(ThresholdWidget(viewer))
+    viewer.window.add_dock_widget(ThresholdWidgetWrapper(viewer))
 
     # add images
     viewer.add_image(data[0][0][0:15], name=data[0][1]['name'])
