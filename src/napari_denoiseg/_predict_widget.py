@@ -14,6 +14,8 @@ from qtpy.QtWidgets import (
 )
 
 import napari
+import napari.utils.notifications as ntf
+
 from napari_denoiseg.utils import (
     State,
     UpdateType,
@@ -280,8 +282,8 @@ class PredictWidget(QWidget):
                 self.worker.returned.connect(self._done)
                 self.worker.start()
             else:
-                # TODO feedback to users
-                pass
+                ntf.show_error('Invalid axes')
+
         elif self.state == State.RUNNING:
             # stop requested
             self.state = State.IDLE
