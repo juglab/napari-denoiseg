@@ -1,4 +1,8 @@
-from qtpy.QtWidgets import QSpinBox, QProgressBar, QDoubleSpinBox
+from qtpy.QtWidgets import (
+    QSpinBox,
+    QProgressBar,
+    QDoubleSpinBox,
+)
 
 
 class SpinBox(QSpinBox):

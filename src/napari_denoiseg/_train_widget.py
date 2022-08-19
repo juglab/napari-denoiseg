@@ -25,6 +25,7 @@ from napari_denoiseg.utils import training_worker, loading_worker, save_configur
 from napari_denoiseg.widgets import enable_3d
 from napari_denoiseg.widgets.expert_settings_widget import TrainingSettingsWidget
 from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
+from widgets import create_gpu_label
 
 SAMPLE = 'Sample data'
 
@@ -46,12 +47,21 @@ class TrainWidget(QWidget):
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())
         self.setMinimumWidth(200)
+
+        # add banner
         self.layout().addWidget(BannerWidget('DenoiSeg - Training',
                                              '../resources/icons/Jug_logo_128.png',
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',
                                              'https://github.com/juglab/napari_denoiseg'))
+
+        # add GPU button
+        gpu_button = create_gpu_label()
+        gpu_button.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.layout().addWidget(gpu_button)
+
+        # other widgets
         self._build_data_selection_widgets(napari_viewer)
         self._build_training_param_widgets(parent)
         self._build_train_save_widgets()
