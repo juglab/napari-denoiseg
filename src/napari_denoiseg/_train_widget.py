@@ -24,7 +24,7 @@ from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
 from napari_denoiseg.widgets import enable_3d
 from napari_denoiseg.widgets.training_expert_settings_widget import TrainingSettingsWidget
-from napari_denoiseg.widgets.widget_provider import create_qspinbox, create_progressbar
+from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
 
 SAMPLE = 'Sample data'
 
@@ -172,36 +172,34 @@ class TrainWidget(QWidget):
         self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
     def _build_training_param_widgets(self, parent):
-        ###############################
-
-        icon = QtGui.QIcon('../resources/icons/gear16.png')
-
-
         self.training_param_group = QGroupBox()
         self.training_param_group.setTitle("Training parameters")
         self.training_param_group.setMinimumWidth(100)
 
+        # expert settings
+        icon = QtGui.QIcon('../resources/icons/gear16.png')
         self.training_expert_btn = QPushButton(icon, '')
-
-
-
         self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
         self.training_expert_btn.setFixedSize(30, 30)
 
         # axes
         self.axes_widget = AxesWidget()
+
         # others
-        self.n_epochs_spin = create_qspinbox(1, 1000, 2)
+        self.n_epochs_spin = create_int_spinbox(1, 1000, 2)
         self.n_epochs = self.n_epochs_spin.value()
-        self.n_steps_spin = create_qspinbox(1, 1000, 10)
+        self.n_steps_spin = create_int_spinbox(1, 1000, 10)
         self.n_steps = self.n_steps_spin.value()
+
         # batch size
-        self.batch_size_spin = create_qspinbox(0, 512, 16, 8)
+        self.batch_size_spin = create_int_spinbox(0, 512, 16, 8)
+
         # patch size
-        self.patch_size_XY = create_qspinbox(16, 512, 16, 8)
+        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8)
+
         # 3D checkbox
         self.enable_3d = enable_3d()
-        self.patch_size_Z = create_qspinbox(16, 512, 16, 8, False)
+        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False)
         # TODO add tooltips
         formLayout = QFormLayout()
         formLayout.addRow(self.axes_widget.label.text(), self.axes_widget.text_field)
@@ -413,8 +411,8 @@ class TrainWidget(QWidget):
                 save_configuration(self.model.config, Path(where).parent)
 
     def _training_expert_setter(self, parent):
-        if self.expert_settings == None:
-            self.expert_settings = TrainingSettingsWidget(parent, self.viewer)
+        if self.expert_settings is None:
+            self.expert_settings = TrainingSettingsWidget(parent)
         self.expert_settings.show()
 
 

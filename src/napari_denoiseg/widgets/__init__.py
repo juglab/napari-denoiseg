@@ -11,3 +11,8 @@ from .magicgui_widgets import (
     load_button,
     enable_3d
 )
+from .qt_widgets import (
+    create_double_spinbox,
+    create_int_spinbox,
+    create_progressbar
+)
