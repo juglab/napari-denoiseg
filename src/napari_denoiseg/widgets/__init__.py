@@ -2,7 +2,7 @@
 from .folder_widget import FolderWidget
 from .tbplot_widget import TBPlotWidget
 from .axes_widget import AxesWidget
-from .banner_widget import QBannerWidget
+from .banner_widget import BannerWidget
 from .magicgui_widgets import (
     percentage_slider,
     threshold_spin,

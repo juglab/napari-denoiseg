@@ -34,9 +34,9 @@ def _open_link(link: str):
     return link_opener
 
 
-class QBannerWidget(QWidget):
+class BannerWidget(QWidget):
 
-    def __init__(self, img_path: str, short_desc: str, wiki_link: str, github_link: str):
+    def __init__(self, title: str, img_path: str, short_desc: str, wiki_link: str, github_link: str):
         super().__init__()
 
         layout = QHBoxLayout()
@@ -58,7 +58,7 @@ class QBannerWidget(QWidget):
         right_widget.setLayout(right_layout)
 
         # title
-        title = QLabel('DenoiSeg')
+        title = QLabel(title)
         title.setStyleSheet("font-weight: bold;")
 
         # description

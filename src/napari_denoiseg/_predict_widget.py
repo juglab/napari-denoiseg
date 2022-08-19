@@ -3,7 +3,6 @@
 """
 from pathlib import Path
 
-import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -19,11 +18,7 @@ from napari_denoiseg.utils import (
     State,
     UpdateType,
     prediction_worker,
-    loading_worker,
-    get_shape_order,
-    get_napari_shapes,
-    REF_AXES,
-    NAPARI_AXES
+    loading_worker
 )
 from napari_denoiseg.widgets import (
     FolderWidget,
@@ -32,6 +27,7 @@ from napari_denoiseg.widgets import (
     load_button,
     threshold_spin
 )
+from widgets import BannerWidget
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -47,14 +43,15 @@ class PredictWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
+        # add banner
+        self.layout().addWidget(BannerWidget('DenoiSeg - Prediction',
+                                             '../resources/icons/Jug_logo_128.png',
+                                             'A joint denoising and segmentation algorithm requiring '
+                                             'only a few annotated ground truth images.',
+                                             'https://github.com/juglab/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg'))
 
-        ###############################
-        self.loader_group = QGroupBox()
-        self.loader_group.setMaximumHeight(400)
-        self.loader_group.setTitle("Data and Model Selection")
-        self.loader_group.setLayout(QVBoxLayout())
-        self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
-        # QTabs
+        # tabs
         self.tabs = QTabWidget()
         tab_layers = QWidget()
         tab_layers.setLayout(QVBoxLayout())
@@ -78,17 +75,22 @@ class PredictWidget(QWidget):
         tab_disk.layout().addWidget(self.images_folder)
 
         # add to main layout
-        self.loader_group.layout().addWidget(self.tabs)
-        self.layout().addWidget(self.loader_group)
+        self.layout().addWidget(self.tabs)
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
+
+        # load model button
+        self.loader_group = QGroupBox()
+        self.loader_group.setMaximumHeight(400)
+        self.loader_group.setTitle("Model Selection")
+        self.loader_group.setLayout(QVBoxLayout())
+        self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
+
+        self.load_model_button = load_button()
+        self.loader_group.layout().addWidget(self.load_model_button.native)
+        self.layout().addWidget(self.loader_group)
 
         ###############################
         # others
-
-        # load model button
-        self.load_model_button = load_button()
-        self.loader_group.layout().addWidget(self.load_model_button.native)
-
         self.prediction_param_group = QGroupBox()
         self.prediction_param_group.setTitle("Parameters")
         self.prediction_param_group.setLayout(QVBoxLayout())
@@ -111,10 +113,11 @@ class PredictWidget(QWidget):
 
         self.layout().addWidget(self.prediction_param_group)
 
+        # prediction group
         self.prediction_group = QGroupBox()
         self.prediction_group.setTitle("Prediction")
         self.prediction_group.setLayout(QVBoxLayout())
-        self.prediction_group.layout().setContentsMargins(20, 20, 20, 0)
+        self.prediction_group.layout().setContentsMargins(20, 20, 20, 10)
 
         # progress bar
         self.pb_prediction = QProgressBar()
@@ -213,8 +216,8 @@ class PredictWidget(QWidget):
             perc = int(100 * val / self.n_im + 0.5)
             self.pb_prediction.setValue(perc)
             self.pb_prediction.setFormat(f'Prediction {val}/{self.n_im}')
-            #self.viewer.layers[SEGMENTATION].refresh()
-            #self.viewer.layers[DENOISING].refresh()
+            # self.viewer.layers[SEGMENTATION].refresh()
+            # self.viewer.layers[DENOISING].refresh()
 
         if UpdateType.DONE in updates:
             self.pb_prediction.setValue(100)

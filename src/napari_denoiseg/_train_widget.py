@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QScrollArea
 )
 from qtpy.QtCore import Qt
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, QBannerWidget
+from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, BannerWidget
 from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
@@ -46,11 +46,12 @@ class TrainWidget(QWidget):
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())
         self.setMinimumWidth(200)
-        self.layout().addWidget(QBannerWidget('../resources/icons/Jug_logo_128.png',
-                                              'A joint denoising and segmentation algorithm requiring '
-                                              'only a few annotated ground truth images.',
-                                              'https://github.com/juglab/napari_denoiseg',
-                                              'https://github.com/juglab/napari_denoiseg'))
+        self.layout().addWidget(BannerWidget('DenoiSeg - Training',
+                                             '../resources/icons/Jug_logo_128.png',
+                                             'A joint denoising and segmentation algorithm requiring '
+                                             'only a few annotated ground truth images.',
+                                             'https://github.com/juglab/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg'))
         self._build_data_selection_widgets(napari_viewer)
         self._build_training_param_widgets(parent)
         self._build_train_save_widgets()
@@ -88,6 +89,7 @@ class TrainWidget(QWidget):
         self.train_group.setLayout(QVBoxLayout())
         # self.train_group.setMinimumWidth(400)
         # self.train_group.setMinimumHeight(300)
+
         # train button
         train_buttons = QWidget()
         train_buttons.setLayout(QHBoxLayout())
@@ -97,10 +99,12 @@ class TrainWidget(QWidget):
         train_buttons.layout().addWidget(self.zero_model_button)
         train_buttons.layout().addWidget(self.train_button)
         self.train_group.layout().addWidget(train_buttons)
+
         # Threshold
         self.threshold_label = QLabel()
         self.threshold_label.setText("Best threshold: ?")
         self.train_group.layout().addWidget(self.threshold_label)
+
         # Save button
         save_widget = QWidget()
         save_widget.setLayout(QHBoxLayout())
@@ -116,6 +120,7 @@ class TrainWidget(QWidget):
     def _build_progress_widgets(self):
         self.progress_group = QGroupBox()
         self.progress_group.setTitle("Training progress")
+
         # progress bars
         self.progress_group.setLayout(QVBoxLayout())
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
@@ -127,6 +132,7 @@ class TrainWidget(QWidget):
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
+
         # plot widget
         self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
         self.progress_group.layout().addWidget(self.plot.native)
@@ -139,10 +145,12 @@ class TrainWidget(QWidget):
         tab_layers.setLayout(QVBoxLayout())
         tab_disk = QWidget()
         tab_disk.setLayout(QVBoxLayout())
+
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
         self.tabs.setMaximumHeight(200)
+
         # layer tabs
         self.layer_choice = two_layers_choice()
         self.images = self.layer_choice.Images
@@ -153,6 +161,7 @@ class TrainWidget(QWidget):
         perc_widget.setLayout(QFormLayout())
         perc_widget.layout().addRow('Train label %', self.perc_train_slider.native)
         tab_layers.layout().addWidget(perc_widget)
+
         # disk tab
         self.train_images_folder = FolderWidget('Choose')
         self.train_labels_folder = FolderWidget('Choose')
@@ -166,6 +175,7 @@ class TrainWidget(QWidget):
         form.addRow('Val labels', self.val_labels_folder)
         buttons.setLayout(form)
         tab_disk.layout().addWidget(buttons)
+
         # add to main layout
         self.layout().addWidget(self.tabs)
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
