@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import napari
+import napari.utils.notifications as ntf
+
 from qtpy import QtGui
 from qtpy.QtWidgets import (
     QWidget,
@@ -251,6 +253,8 @@ class TrainWidget(QWidget):
             if self.axes_widget.is_valid():
                 self.state = State.RUNNING
 
+                ntf.show_info('Started training')
+
                 # register which data tab: layers or disk
                 self.load_from_disk = self.tabs.currentIndex() == 1
 
@@ -371,6 +375,7 @@ class TrainWidget(QWidget):
         if self.state == State.IDLE:
             self.n_epochs = self.n_epochs_spin.value()
             self.pb_epochs.setValue(0)
+            self.pb_epochs.setMaximum(self.n_epochs_spin.value())
             self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
 
     def _update_steps(self):
@@ -381,6 +386,7 @@ class TrainWidget(QWidget):
         if self.state == State.IDLE:
             self.n_steps = self.n_steps_spin.value()
             self.pb_steps.setValue(0)
+            self.pb_steps.setMaximum(self.n_steps_spin.value())
             self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
 
     def _update_all(self, updates):
