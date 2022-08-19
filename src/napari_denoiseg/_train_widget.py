@@ -23,7 +23,7 @@ from napari_denoiseg.widgets import two_layers_choice, percentage_slider
 from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
 from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
 from napari_denoiseg.widgets import enable_3d
-from napari_denoiseg.widgets.training_expert_settings_widget import TrainingSettingsWidget
+from napari_denoiseg.widgets.expert_settings_widget import TrainingSettingsWidget
 from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
 
 SAMPLE = 'Sample data'
@@ -191,7 +191,7 @@ class TrainWidget(QWidget):
         self.training_expert_btn = QPushButton(icon, '')
         self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
         self.training_expert_btn.setFixedSize(30, 30)
-        self.training_expert_btn.setToolTip('Advanced settings')
+        self.training_expert_btn.setToolTip('Expert settings')
 
         # axes
         self.axes_widget = AxesWidget()

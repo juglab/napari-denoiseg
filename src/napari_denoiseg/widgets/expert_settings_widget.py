@@ -11,7 +11,7 @@ class TrainingSettingsWidget(QDialog):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle('Advanced settings')
+        self.setWindowTitle('Expert settings')
 
         # create widgets
         label_unet_depth = QLabel('U-Net depth')
@@ -35,13 +35,16 @@ class TrainingSettingsWidget(QDialog):
 
         label_train_learning_rate = QLabel('Learning rate')
         desc_train_learning_rate = 'Fixed learning rate'
-        self.train_learning_rate = create_double_spinbox(value=0.0004, step=0.0001)
+        self.train_learning_rate = create_double_spinbox(step=0.0001)
+        self.train_learning_rate.setDecimals(4)
+        self.train_learning_rate.setValue(0.0004)  # TODO: bug? cannot be set in create_double_spinbox.
         label_train_learning_rate.setToolTip(desc_train_learning_rate)
         self.train_learning_rate.setToolTip(desc_train_learning_rate)
 
         label_n2v_perc_pix = QLabel('N2V pixel %')
         desc_n2v_perc_pix = 'Percentage of pixel to mask per patch'
         self.n2v_perc_pix = create_double_spinbox(value=1.5, step=0.1, max_value=100)
+        self.n2v_perc_pix.setDecimals(1)
         self.n2v_perc_pix.setToolTip(desc_n2v_perc_pix)
         label_n2v_perc_pix.setToolTip(desc_n2v_perc_pix)
 
