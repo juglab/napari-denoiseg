@@ -1,7 +1,36 @@
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from qtpy.QtGui import QIcon, QPixmap, QImage
-from qtpy import QtCore
+import webbrowser
 
+from qtpy import QtCore
+from qtpy.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit
+)
+from qtpy.QtGui import QPixmap, QCursor
+
+
+def _create_link(link: str, text: str) -> QLabel:
+    """
+
+    :param link: the string this label should link to
+    :return: returns a QLabel object with a hyperlink
+    :rtype: object
+    """
+    label = QLabel()
+    label.setContentsMargins(0, 5, 0, 5)
+    # TODO: is there a non-dark mode in napari?
+    label.setText("<a href=\'{}\' style=\'color:white\'>{}</a>".format(link, text))
+    label.setOpenExternalLinks(True)
+    # label.setStyleSheet("font-weight: bold; color: green; text-decoration: underline")
+    return label
+
+def _open_link(link: str):
+    def link_opener(event):
+        webbrowser.open(link)
+
+    return link_opener
 
 class QBannerWidget(QWidget):
 
@@ -12,33 +41,53 @@ class QBannerWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        link_layout = QVBoxLayout()
-        link_layout.setContentsMargins(5, 0, 0, 0)
-        link_widget = QWidget()
-        link_widget.setLayout(link_layout)
-        link_layout.addWidget(QLabel(short_desc))
-        link_layout.addWidget(self._create_link(wiki_link, "Documentation"))
-        link_layout.addWidget(self._create_link(github_link, "GitHub"))
+        # logo
         icon = QPixmap(img_path)
         img_widget = QLabel()
         img_widget.setPixmap(icon)
+        img_widget.setFixedSize(128, 128)
         # img_widget.setIconSize(QtCore.QSize(200, 200))
-        img_widget.setFixedSize(200, 200)
         # img_widget.setIcon(icon)
         # img_widget.setEnabled(False)
+
+        # right panel
+        right_layout = QVBoxLayout()
+        right_widget = QWidget()
+        right_widget.setLayout(right_layout)
+
+        # title
+        title = QLabel('DenoiSeg')
+        title.setStyleSheet("font-weight: bold;")
+
+        # description
+        description_widget = QPlainTextEdit()
+        description_widget.setPlainText(short_desc)
+        description_widget.setFixedSize(256, 80)
+
+        # bottom widget
+        bottom_widget = QWidget()
+        bottom_widget.setLayout(QHBoxLayout())
+
+        # github logo
+        gh_icon = QPixmap('../resources/icons/GitHub-Mark-Light-32px.png')
+        gh_widget = QLabel()
+        gh_widget.setPixmap(gh_icon)
+        gh_widget.mousePressEvent = _open_link(github_link)
+        gh_widget.setCursor(QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+
+        # add widgets
+        bottom_widget.layout().addWidget(_create_link(wiki_link, "Documentation"))
+        bottom_widget.layout().addWidget(gh_widget)
+
+        right_widget.layout().addWidget(title)
+        right_widget.layout().addWidget(description_widget)
+        right_widget.layout().addWidget(bottom_widget)
+
+        # right_widget.setLayout(right_layout)
+        # right_layout.addWidget(QLabel(short_desc))
+        # right_layout.addWidget(_create_link(wiki_link, "Documentation"))
+        # right_layout.addWidget(_create_link(github_link, "GitHub"))
+
+        # add widgets
         layout.addWidget(img_widget)
-        layout.addWidget(link_widget)
-
-    def _create_link(self, link: str, text: str) -> QLabel:
-        """
-
-        :param link: the string this label should link to
-        :return: returns a QLabel object with a hyperlink
-        :rtype: object
-        """
-        label = QLabel()
-        label.setContentsMargins(0, 5, 0, 5)
-        label.setText("<a href=\"{}\">{}</a>".format(link, text))
-        label.setOpenExternalLinks(True)
-        label.setStyleSheet("font-weight: bold; color: green; text-decoration: underline")
-        return label
+        layout.addWidget(right_widget)

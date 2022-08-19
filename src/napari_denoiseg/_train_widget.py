@@ -46,10 +46,11 @@ class TrainWidget(QWidget):
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())
         self.setMinimumWidth(200)
-        self.layout().addWidget(QBannerWidget("C:/mpicbg/workspace_py/napari_denoiseg/src/resources/teaser.png",
-                                              "https://github.com/juglab/napari_denoiseg",
-                                              "https://github.com/juglab/napari_denoiseg",
-                                              "https://github.com/juglab/napari_denoiseg"))
+        self.layout().addWidget(QBannerWidget('../resources/icons/Jug_logo_128.png',
+                                              'A joint denoising and segmentation algorithm trained '
+                                              'on only a few annotated ground truth images.',
+                                              'https://github.com/juglab/napari_denoiseg',
+                                              'https://github.com/juglab/napari_denoiseg'))
         self._build_data_selection_widgets(napari_viewer)
         self._build_training_param_widgets(parent)
         self._build_train_save_widgets()
@@ -181,6 +182,7 @@ class TrainWidget(QWidget):
         self.training_expert_btn = QPushButton(icon, '')
         self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
         self.training_expert_btn.setFixedSize(30, 30)
+        self.training_expert_btn.setToolTip('Advanced settings')
 
         # axes
         self.axes_widget = AxesWidget()
