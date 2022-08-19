@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import napari
+import napari.utils.notifications as ntf
 
 from qtpy import QtGui
 from qtpy.QtWidgets import (
@@ -271,8 +272,7 @@ class TrainWidget(QWidget):
                 self.worker.returned.connect(self._done)
                 self.worker.start()
             else:
-                # TODO feedback to users?
-                pass
+                ntf.show_error('Invalid axes')
 
     def _done(self):
         """

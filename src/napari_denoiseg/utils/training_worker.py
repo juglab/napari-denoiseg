@@ -1,3 +1,4 @@
+from pathlib import Path
 from queue import Queue
 
 import numpy as np
@@ -154,6 +155,18 @@ def load_images(widget):
         path_train_Y = widget.train_labels_folder.get_folder()
         path_val_X = widget.val_images_folder.get_folder()
         path_val_Y = widget.val_labels_folder.get_folder()
+
+        if not Path(path_train_X).exists():
+            ntf.show_error('X train folder doesn\'t exist')
+
+        if not Path(path_train_Y).exists():
+            ntf.show_error('Y train folder doesn\'t exist')
+
+        if not Path(path_val_X).exists():
+            ntf.show_error('X val folder doesn\'t exist')
+
+        if not Path(path_val_Y).exists():
+            ntf.show_error('Y val folder doesn\'t exist')
 
         return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes)
 
