@@ -40,6 +40,8 @@ class UpdateType(Enum):
     EPOCH = 'epoch'
     BATCH = 'batch'
     LOSS = 'loss'
+    THRESHOLD = 'threshold'
+    BEST_THRESHOLD = 'best threshold'
     N_IMAGES = 'number of images'
     IMAGE = 'image'
     DONE = 'done'

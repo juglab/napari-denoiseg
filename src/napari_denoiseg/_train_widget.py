@@ -14,7 +14,6 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QComboBox,
     QFileDialog,
-    QLabel,
     QTabWidget,
     QGroupBox,
     QScrollArea
@@ -66,7 +65,9 @@ class TrainWidget(QWidget):
         # other widgets
         self._build_data_selection_widgets(napari_viewer)
         self._build_training_param_widgets(parent)
-        self._build_train_save_widgets()
+        self._build_train_widgets()
+        self._build_optimize_widgets()
+        self._build_save_widgets()
         self._build_progress_widgets()
         self.expert_settings = None
 
@@ -95,10 +96,10 @@ class TrainWidget(QWidget):
         self.n_steps_spin.valueChanged.connect(self._update_steps)
         self.save_button.clicked.connect(self._save_model)
 
-    def _build_train_save_widgets(self):
-        self.train_group = QGroupBox()
-        self.train_group.setTitle("Train and Save")
-        self.train_group.setLayout(QVBoxLayout())
+    def _build_train_widgets(self):
+        self.optimize_group = QGroupBox()
+        self.optimize_group.setTitle("Train")
+        self.optimize_group.setLayout(QVBoxLayout())
         # self.train_group.setMinimumWidth(400)
         # self.train_group.setMinimumHeight(300)
 
@@ -110,24 +111,9 @@ class TrainWidget(QWidget):
         self.zero_model_button.setEnabled(False)
         train_buttons.layout().addWidget(self.zero_model_button)
         train_buttons.layout().addWidget(self.train_button)
-        self.train_group.layout().addWidget(train_buttons)
+        self.optimize_group.layout().addWidget(train_buttons)
 
-        # Threshold
-        self.threshold_label = QLabel()
-        self.threshold_label.setText("Best threshold: ?")
-        self.train_group.layout().addWidget(self.threshold_label)
-
-        # Save button
-        save_widget = QWidget()
-        save_widget.setLayout(QHBoxLayout())
-        self.save_choice = QComboBox()
-        self.save_choice.addItems(ModelSaveMode.list())
-        self.save_button = QPushButton("Save model", self)
-        self.save_button.setEnabled(False)
-        save_widget.layout().addWidget(self.save_button)
-        save_widget.layout().addWidget(self.save_choice)
-        self.train_group.layout().addWidget(save_widget)
-        self.layout().addWidget(self.train_group)
+        self.layout().addWidget(self.optimize_group)
 
     def _build_progress_widgets(self):
         self.progress_group = QGroupBox()
@@ -240,6 +226,36 @@ class TrainWidget(QWidget):
         self.training_param_group.layout().setContentsMargins(5, 20, 5, 10)
         self.layout().addWidget(self.training_param_group)
 
+    def _build_optimize_widgets(self):
+        self.optimize_group = QGroupBox()
+        self.optimize_group.setTitle("Threshold optimization")
+        self.optimize_group.setLayout(QVBoxLayout())
+
+        # progress bar
+        self.optimize_group.layout().setContentsMargins(20, 20, 20, 10)
+        self.pb_threshold = create_progressbar(max_value=19,
+                                               text_format=f'Threshold: ?')
+        self.optimize_group.layout().addWidget(self.pb_threshold)
+        self.layout().addWidget(self.optimize_group)
+
+    def _build_save_widgets(self):
+        self.save_group = QGroupBox()
+        self.save_group.setTitle("Save")
+        self.save_group.setLayout(QVBoxLayout())
+
+        # Save button
+        save_widget = QWidget()
+        save_widget.setLayout(QHBoxLayout())
+        self.save_choice = QComboBox()
+        self.save_choice.addItems(ModelSaveMode.list())
+        self.save_button = QPushButton("Save model", self)
+        self.save_button.setEnabled(False)
+        save_widget.layout().addWidget(self.save_button)
+        save_widget.layout().addWidget(self.save_choice)
+        self.save_group.layout().addWidget(save_widget)
+
+        self.layout().addWidget(self.save_group)
+
     def _start_training(self, pretrained_model=None):
         """
         Start training from scratch or using a pretrained model.
@@ -258,7 +274,7 @@ class TrainWidget(QWidget):
 
                 # modify UI
                 self.plot.clear_plot()
-                self.threshold_label.setText("Best threshold: ?")
+                self.pb_threshold.setFormat('Threshold: ?')
                 self.train_button.setText('Stop')
                 self.zero_model_button.setText('')
                 self.zero_model_button.setEnabled(False)
@@ -284,9 +300,6 @@ class TrainWidget(QWidget):
         self.train_button.setText('Train new')
         self.zero_model_button.setText('Zero model')
         self.zero_model_button.setEnabled(True)
-
-        self.threshold_label.setText("Best threshold: {:.2f}".format(self.threshold))
-
         self.save_button.setEnabled(True)
 
     def _zero_model(self):
@@ -405,6 +418,16 @@ class TrainWidget(QWidget):
 
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
+
+            if UpdateType.THRESHOLD in updates:
+                val = updates[UpdateType.THRESHOLD]
+                self.pb_threshold.setValue(val[0]+1)
+                self.pb_threshold.setFormat('Threshold: {:.2f}'.format(val[1]))
+
+            if UpdateType.BEST_THRESHOLD in updates:
+                val = updates[UpdateType.BEST_THRESHOLD]
+                self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
+                self.threshold = val
 
     def _save_model(self):
         """

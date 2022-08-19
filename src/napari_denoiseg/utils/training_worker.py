@@ -107,7 +107,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     # threshold validation data to estimate the best threshold
     ntf.show_info('Optimizing threshold')
-    widget.threshold = get_best_threshold(widget, X_val, Y_val_onehot)
+    yield from get_best_threshold(widget, X_val, Y_val_onehot)
 
     # save input/output for bioimage.io
     widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
@@ -127,15 +127,17 @@ def get_best_threshold(widget, X_val, Y_val):
         t = next(gen, None)
 
         if t:
-            _, temp_threshold, temp_score = t
+            i_t, temp_threshold, temp_score = t
 
             if temp_score > best_score:
                 best_score = temp_score
                 best_threshold = temp_threshold
+
+            yield {UpdateType.THRESHOLD: (i_t, temp_threshold)}
         else:
             break
 
-    return best_threshold
+    yield {UpdateType.BEST_THRESHOLD: best_threshold}
 
 
 def load_images(widget):
