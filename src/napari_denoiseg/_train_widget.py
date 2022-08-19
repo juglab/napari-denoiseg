@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import napari
-import napari.utils.notifications as ntf
 
 from qtpy import QtGui
 from qtpy.QtWidgets import (
@@ -252,8 +251,6 @@ class TrainWidget(QWidget):
 
             if self.axes_widget.is_valid():
                 self.state = State.RUNNING
-
-                ntf.show_info('Started training')
 
                 # register which data tab: layers or disk
                 self.load_from_disk = self.tabs.currentIndex() == 1

@@ -5,6 +5,8 @@ import numpy as np
 from tensorflow.keras.callbacks import Callback
 
 from napari.qt.threading import thread_worker
+import napari.utils.notifications as ntf
+
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import (
     State,
@@ -46,6 +48,8 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     import threading
     from napari_denoiseg.utils import UpdateType, generate_config
 
+    ntf.show_info('Shaping data')
+
     # get images and labels
     X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
 
@@ -73,11 +77,14 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
                                         batch_size,
                                         **expert_settings.get_settings())
 
+    ntf.show_info('Preparing data')
+
     # prepare training
     args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, widget, pretrained_model)
     train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
 
     # start training
+    ntf.show_info('Training')
     training = threading.Thread(target=train, args=train_args)
     training.start()
 
@@ -98,6 +105,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     widget.model = train_args[0]
 
     # threshold validation data to estimate the best threshold
+    ntf.show_info('Optimizing threshold')
     widget.threshold = get_best_threshold(widget, X_val, Y_val_onehot)
 
     # save input/output for bioimage.io
@@ -106,6 +114,8 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
     np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
                                                  axes=widget.new_axes))
+
+    ntf.show_info('Done')
 
 
 def get_best_threshold(widget, X_val, Y_val):
