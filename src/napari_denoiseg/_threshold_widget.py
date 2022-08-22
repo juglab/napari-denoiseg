@@ -26,15 +26,10 @@ SAMPLE = 'Sample data'
 class ThresholdWidgetWrapper(ScrollWidgetWrapper):
     def __init__(self, napari_viewer):
         super().__init__(ThresholdWidget(napari_viewer))
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setWidgetResizable(True)
-        threshold_widget = ThresholdWidget(self, napari_viewer)
-        self.setWidget(threshold_widget)
 
 
 class ThresholdWidget(QWidget):
-    def __init__(self, parent: QWidget, napari_viewer: napari.Viewer):
+    def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
 
         self.state = State.IDLE
