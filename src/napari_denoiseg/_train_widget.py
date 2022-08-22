@@ -60,9 +60,9 @@ class TrainWidget(QWidget):
         self._build_data_selection_widgets(napari_viewer)
         self._build_training_param_widgets()
         self._build_train_widgets()
-        self._build_optimize_widgets()
         self._build_save_widgets()
         self._build_progress_widgets()
+        self._build_optimize_widgets()
         self.expert_settings = None
 
         # place-holder for models and parameters (e.g. bioimage.io)
