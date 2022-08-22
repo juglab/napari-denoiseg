@@ -21,6 +21,10 @@ def prediction_worker(widget):
     # from disk, lazy loading and threshold
     is_from_disk = widget.load_from_disk
     is_lazy_loading = widget.lazy_loading.isChecked()
+
+    is_tiled = widget.tiling_cbox.isChecked()
+    n_tiles = widget.tiling_spin.value
+
     is_threshold = widget.threshold_cbox.isChecked()
     threshold = widget.threshold_spin.Threshold.value
 
@@ -43,17 +47,36 @@ def prediction_worker(widget):
         images = widget.images.value.data
         assert len(images.shape) > 0
 
+    # common parameters list
+    parameters = {'widget': widget,
+                  'model': model,
+                  'axes': axes,
+                  'is_threshold': is_threshold,
+                  'threshold': threshold,
+                  'is_tiled': is_tiled,
+                  'n_tiles': n_tiles}
+
     if is_from_disk and is_lazy_loading:
         # yield generator size
         yield {UpdateType.N_IMAGES: n_img}
-        yield from _run_lazy_prediction(widget, axes, images, is_threshold, threshold)
+        yield from _run_lazy_prediction(**parameters, generator=images)
     elif is_from_disk and type(images) == tuple:
-        yield from _run_prediction_to_disk(widget, axes, images, is_threshold, threshold)
+        yield from _run_prediction_to_disk(**parameters, images=images)
     else:
-        yield from _run_prediction(widget, model, axes, images, is_from_disk, is_threshold, threshold)
+        # TODO: check if is_from_disk=True and images not a tuple is possible, otherwise is_from_disk doesn't have to be
+        #  passed as parameter. Then we can simply have the same method signature for all three
+        yield from _run_prediction(**parameters, images=images, is_from_disk=is_from_disk)
 
 
-def _run_prediction(widget, model, axes, images, is_from_disk, is_threshold=False, threshold=0.8):
+def _run_prediction(widget,
+                    model,
+                    axes,
+                    images,
+                    is_from_disk,
+                    is_threshold=False,
+                    threshold=0.8,
+                    is_tiled=False,
+                    n_tiles=4):
     """
 
     :param widget:
@@ -91,7 +114,10 @@ def _run_prediction(widget, model, axes, images, is_from_disk, is_threshold=Fals
 
         # TODO refactor the separation between denoised and segmented into a testable function
         # predict
-        prediction = model.predict(_x, axes=new_axes)
+        if is_tiled:
+            prediction = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
+        else:
+            prediction = model.predict(_x, axes=new_axes)
 
         # split predictions and update the layers in napari
         final_image_d[i_slice, ...] = prediction[0, ..., 0:-3].squeeze()
@@ -119,7 +145,14 @@ def softmax(x, axis=0):
     return np.exp(x) / np.tile(np.sum(np.exp(x), axis=axis, keepdims=True), 3)
 
 
-def _run_prediction_to_disk(widget, model, axes, images, is_threshold=False, threshold=0.8):
+def _run_prediction_to_disk(widget,
+                            model,
+                            axes,
+                            images,
+                            is_threshold=False,
+                            threshold=0.8,
+                            is_tiled=False,
+                            n_tiles=4):
     """
 
     :param widget:
@@ -130,6 +163,7 @@ def _run_prediction_to_disk(widget, model, axes, images, is_threshold=False, thr
     :param threshold:
     :return:
     """
+
     def generator(data, axes_order):
         """
 
@@ -165,7 +199,10 @@ def _run_prediction_to_disk(widget, model, axes, images, is_threshold=False, thr
 
             # TODO refactor the separation between denoised and segmented into a testable function
             # predict
-            prediction = model.predict(_x, axes=new_axes)
+            if is_tiled:
+                prediction = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
+            else:
+                prediction = model.predict(_x, axes=new_axes)
 
             # split predictions and threshold if requested
             final_image_d = prediction[0, ..., 0:-3].squeeze()
@@ -193,7 +230,14 @@ def _run_prediction_to_disk(widget, model, axes, images, is_threshold=False, thr
     yield {UpdateType.DONE}
 
 
-def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, threshold=0.8):
+def _run_lazy_prediction(widget,
+                         model,
+                         axes,
+                         generator,
+                         is_threshold=False,
+                         threshold=0.8,
+                         is_tiled=False,
+                         n_tiles=4):
     """
 
     :param widget:
@@ -221,7 +265,10 @@ def _run_lazy_prediction(widget, model, axes, generator, is_threshold=False, thr
 
             # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
             for i_s in range(_x.shape[0]):
-                prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                if is_tiled:
+                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                else:
+                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
 
             # if only one sample, then update new axes
             if prediction.shape[0] == 1:

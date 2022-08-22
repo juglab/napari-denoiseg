@@ -10,7 +10,8 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QProgressBar,
     QCheckBox,
-    QGroupBox
+    QGroupBox,
+    QFormLayout
 )
 
 import napari
@@ -27,7 +28,8 @@ from napari_denoiseg.widgets import (
     AxesWidget,
     layer_choice,
     load_button,
-    threshold_spin
+    threshold_spin,
+    create_int_spinbox
 )
 from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
 
@@ -102,7 +104,7 @@ class PredictWidget(QWidget):
         self.layout().addWidget(self.loader_group)
 
         ###############################
-        # others
+        # parameters
         self.prediction_param_group = QGroupBox()
         self.prediction_param_group.setTitle("Parameters")
         self.prediction_param_group.setLayout(QVBoxLayout())
@@ -116,14 +118,46 @@ class PredictWidget(QWidget):
         self.axes_widget = AxesWidget()
         self.prediction_param_group.layout().addWidget(self.axes_widget)
 
+        self.layout().addWidget(self.prediction_param_group)
+
+        ###############################
+        # tiling
+        self.tilling_group = QGroupBox()
+        self.tilling_group.setTitle("Tiling (optional)")
+        self.tilling_group.setLayout(QVBoxLayout())
+        self.tilling_group.layout().setContentsMargins(20, 20, 20, 0)
+
+        # checkbox
+        self.tiling_cbox = QCheckBox('Tile prediction')
+        self.tilling_group.layout().addWidget(self.tiling_cbox)
+
+        # tiling spinbox
+        self.tiling_spin = create_int_spinbox(1, 1000, 4, tooltip='Number of tiles')
+        self.tiling_spin.setEnabled(False)
+
+        tiling_form = QFormLayout()
+        tiling_form.addRow('Number of tiles', self.tiling_spin)
+        tiling_widget = QWidget()
+        tiling_widget.setLayout(tiling_form)
+        self.tilling_group.layout().addWidget(tiling_widget)
+
+        self.layout().addWidget(self.tilling_group)
+
+        ###############################
+        # threshold
+        self.threshold_group = QGroupBox()
+        self.threshold_group.setTitle("Threshold (optional)")
+        self.threshold_group.setLayout(QVBoxLayout())
+        self.threshold_group.layout().setContentsMargins(20, 20, 20, 0)
+
         # threshold slider
         self.threshold_cbox = QCheckBox('Apply threshold')
-        self.prediction_param_group.layout().addWidget(self.threshold_cbox)
+        self.threshold_group.layout().addWidget(self.threshold_cbox)
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
-        self.prediction_param_group.layout().addWidget(self.threshold_spin.native)
+        self.threshold_group.layout().addWidget(self.threshold_spin.native)
 
-        self.layout().addWidget(self.prediction_param_group)
+        self.layout().addWidget(self.threshold_group)
 
         # prediction group
         self.prediction_group = QGroupBox()
@@ -148,12 +182,19 @@ class PredictWidget(QWidget):
         self.prediction_group.layout().addWidget(self.predict_button)
         self.layout().addWidget(self.prediction_group)
 
+        # empty space
+        # TODO place holder until we figure out how to not have the banner widget stretching
+        empty_widget = QWidget()
+        empty_widget.setMinimumHeight(100)
+        self.layout().addWidget(empty_widget)
+
         # actions
         self.tabs.currentChanged.connect(self._update_tab_axes)
         self.predict_button.clicked.connect(self._start_prediction)
         self.images.changed.connect(self._update_layer_axes)
         self.images_folder.text_field.textChanged.connect(self._update_disk_axes)
         self.enable_3d.stateChanged.connect(self._update_3D)
+        self.tiling_cbox.stateChanged.connect(self._update_tiling)
         self.threshold_cbox.stateChanged.connect(self._update_threshold)
 
         # members
@@ -166,6 +207,9 @@ class PredictWidget(QWidget):
 
     def _update_threshold(self):
         self.threshold_spin.native.setEnabled(self.threshold_cbox.isChecked())
+
+    def _update_tiling(self):
+        self.tiling_spin.setEnabled(self.tiling_cbox.isChecked())
 
     def _update_3D(self):
         self.axes_widget.update_is_3D(self.enable_3d.isChecked())
