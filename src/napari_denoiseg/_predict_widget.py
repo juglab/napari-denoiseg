@@ -108,7 +108,7 @@ class PredictWidget(QWidget):
         self.prediction_param_group = QGroupBox()
         self.prediction_param_group.setTitle("Parameters")
         self.prediction_param_group.setLayout(QVBoxLayout())
-        self.prediction_param_group.layout().setContentsMargins(20, 20, 20, 0)
+        self.prediction_param_group.layout().setContentsMargins(20, 20, 20, 10)
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
@@ -185,7 +185,7 @@ class PredictWidget(QWidget):
         # empty space
         # TODO place holder until we figure out how to not have the banner widget stretching
         empty_widget = QWidget()
-        empty_widget.setMinimumHeight(100)
+        empty_widget.setMinimumHeight(80)
         self.layout().addWidget(empty_widget)
 
         # actions
@@ -281,55 +281,57 @@ class PredictWidget(QWidget):
 
     def _start_prediction(self):
         if self.state == State.IDLE:
-            if self.axes_widget.is_valid() and not Path(self.get_model_path()).is_dir():
+            if self.axes_widget.is_valid():
+                if not Path(self.get_model_path()).exists():
+                    self.state = State.RUNNING
 
-                self.state = State.RUNNING
+                    self.predict_button.setText('Stop')
 
-                self.predict_button.setText('Stop')
+                    # register which data tab: layers or disk
+                    self.load_from_disk = self.tabs.currentIndex() == 1
 
-                # register which data tab: layers or disk
-                self.load_from_disk = self.tabs.currentIndex() == 1
+                    # remove seg and denoising layers if they are present
+                    if SEGMENTATION in self.viewer.layers:
+                        self.viewer.layers.remove(SEGMENTATION)
+                    if DENOISING in self.viewer.layers:
+                        self.viewer.layers.remove(DENOISING)
 
-                # remove seg and denoising layers if they are present
-                if SEGMENTATION in self.viewer.layers:
-                    self.viewer.layers.remove(SEGMENTATION)
-                if DENOISING in self.viewer.layers:
-                    self.viewer.layers.remove(DENOISING)
+                    # create new seg and denoising layers
+                    # if self.load_from_disk == 0:
+                    #     # load from the layers
+                    #     im_shape = self.images.value.data.shape
+                    #     current_axes = self.get_axes()
+                    #     shape_denoised, shape_segmented = get_napari_shapes(im_shape, current_axes)
+                    #
+                    #     # create place-holders using the final shape
+                    #     if self.threshold_cbox.isChecked():
+                    #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32).squeeze()
+                    #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    #     else:
+                    #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32).squeeze()
+                    #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    #
+                    #     self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32).squeeze()
+                    #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
+                    # else:
+                    #     # load from disk, we create place-holders with the shape of the sample image
+                    #     if self.threshold_cbox.isChecked():
+                    #         self.seg_prediction = np.zeros(self.shape, dtype=np.int32).squeeze()
+                    #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    #     else:
+                    #         self.seg_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
+                    #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
+                    #
+                    #     self.denoi_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
+                    #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
-                # create new seg and denoising layers
-                # if self.load_from_disk == 0:
-                #     # load from the layers
-                #     im_shape = self.images.value.data.shape
-                #     current_axes = self.get_axes()
-                #     shape_denoised, shape_segmented = get_napari_shapes(im_shape, current_axes)
-                #
-                #     # create place-holders using the final shape
-                #     if self.threshold_cbox.isChecked():
-                #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32).squeeze()
-                #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                #     else:
-                #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32).squeeze()
-                #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                #
-                #     self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32).squeeze()
-                #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
-                # else:
-                #     # load from disk, we create place-holders with the shape of the sample image
-                #     if self.threshold_cbox.isChecked():
-                #         self.seg_prediction = np.zeros(self.shape, dtype=np.int32).squeeze()
-                #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                #     else:
-                #         self.seg_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
-                #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                #
-                #     self.denoi_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
-                #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
-
-                # start the prediction worker
-                self.worker = prediction_worker(self)
-                self.worker.yielded.connect(lambda x: self._update(x))
-                self.worker.returned.connect(self._done)
-                self.worker.start()
+                    # start the prediction worker
+                    self.worker = prediction_worker(self)
+                    self.worker.yielded.connect(lambda x: self._update(x))
+                    self.worker.returned.connect(self._done)
+                    self.worker.start()
+                else:
+                    ntf.show_error('Select a model')
             else:
                 ntf.show_error('Invalid axes')
 
