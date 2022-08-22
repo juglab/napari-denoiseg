@@ -126,6 +126,11 @@ class ThresholdWidget(QWidget):
         self.layout().addWidget(self.optimize_button)
 
         # feedback table to users
+        self.results_group = QGroupBox()
+        self.results_group.setTitle("Results")
+        self.results_group.setLayout(QVBoxLayout())
+        self.results_group.layout().setContentsMargins(20, 20, 20, 10)
+
         self.table = QTableWidget()
         self.table.setRowCount(19)
         self.table.setColumnCount(2)
@@ -135,7 +140,10 @@ class ThresholdWidget(QWidget):
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.resizeRowsToContents()
-        self.layout().addWidget(self.table)
+
+        self.results_group.layout().addWidget(self.table)
+        self.layout().addWidget(self.results_group)
+
         # set variables
         self.worker = None
         self.load_from_disk = 0
