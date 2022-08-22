@@ -36,7 +36,12 @@ def _open_link(link: str):
 
 class BannerWidget(QWidget):
 
-    def __init__(self, title: str, img_path: str, short_desc: str, wiki_link: str, github_link: str):
+    def __init__(self,
+                 title: str,
+                 img_path: str,
+                 short_desc: str,
+                 wiki_link: str,
+                 github_link: str):
         super().__init__()
 
         layout = QHBoxLayout()

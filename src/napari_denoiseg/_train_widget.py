@@ -15,8 +15,7 @@ from qtpy.QtWidgets import (
     QComboBox,
     QFileDialog,
     QTabWidget,
-    QGroupBox,
-    QScrollArea
+    QGroupBox
 )
 from qtpy.QtCore import Qt
 from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, BannerWidget
@@ -26,23 +25,18 @@ from napari_denoiseg.utils import training_worker, loading_worker, save_configur
 from napari_denoiseg.widgets import enable_3d
 from napari_denoiseg.widgets.expert_settings_widget import TrainingSettingsWidget
 from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
-from widgets import create_gpu_label
+from widgets import ScrollWidgetWrapper, create_gpu_label
 
 SAMPLE = 'Sample data'
 
 
-class TrainingWidgetWrapper(QScrollArea):
+class TrainingWidgetWrapper(ScrollWidgetWrapper):
     def __init__(self, napari_viewer):
-        super().__init__()
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setWidgetResizable(True)
-        trainWidget = TrainWidget(self, napari_viewer)
-        self.setWidget(trainWidget)
+        super().__init__(TrainWidget(napari_viewer))
 
 
 class TrainWidget(QWidget):
-    def __init__(self, parent: QWidget, napari_viewer: napari.Viewer):
+    def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
         self.state = State.IDLE
         self.viewer = napari_viewer
@@ -64,7 +58,7 @@ class TrainWidget(QWidget):
 
         # other widgets
         self._build_data_selection_widgets(napari_viewer)
-        self._build_training_param_widgets(parent)
+        self._build_training_param_widgets()
         self._build_train_widgets()
         self._build_optimize_widgets()
         self._build_save_widgets()
@@ -179,7 +173,7 @@ class TrainWidget(QWidget):
         self.images.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Image]
         self.labels.choices = [x for x in napari_viewer.layers if type(x) is napari.layers.Labels]
 
-    def _build_training_param_widgets(self, parent):
+    def _build_training_param_widgets(self):
         self.training_param_group = QGroupBox()
         self.training_param_group.setTitle("Training parameters")
         self.training_param_group.setMinimumWidth(100)
@@ -187,7 +181,7 @@ class TrainWidget(QWidget):
         # expert settings
         icon = QtGui.QIcon('../resources/icons/gear16.png')
         self.training_expert_btn = QPushButton(icon, '')
-        self.training_expert_btn.clicked.connect(lambda: self._training_expert_setter(parent))
+        self.training_expert_btn.clicked.connect(self._training_expert_setter)
         self.training_expert_btn.setFixedSize(30, 30)
         self.training_expert_btn.setToolTip('Expert settings')
 
@@ -457,9 +451,9 @@ class TrainWidget(QWidget):
                 # save configuration as well
                 save_configuration(self.model.config, Path(where).parent)
 
-    def _training_expert_setter(self, parent):
+    def _training_expert_setter(self):
         if self.expert_settings is None:
-            self.expert_settings = TrainingSettingsWidget(parent)
+            self.expert_settings = TrainingSettingsWidget(self)
         self.expert_settings.show()
 
 

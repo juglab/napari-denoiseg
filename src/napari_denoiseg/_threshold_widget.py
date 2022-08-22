@@ -1,7 +1,6 @@
 from pathlib import Path
 from qtpy.QtWidgets import (
     QWidget,
-    QScrollArea,
     QVBoxLayout,
     QPushButton,
     QFormLayout,
@@ -17,21 +16,21 @@ from qtpy.QtCore import Qt
 import napari
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
-from widgets import BannerWidget, create_gpu_label
+from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
 
 T = 't'
 M = 'metrics'
 SAMPLE = 'Sample data'
 
 
-class ThresholdWidgetWrapper(QScrollArea):
+class ThresholdWidgetWrapper(ScrollWidgetWrapper):
     def __init__(self, napari_viewer):
-        super().__init__()
+        super().__init__(ThresholdWidget(napari_viewer))
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)  # ScrollBarAsNeeded
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidgetResizable(True)
-        trainWidget = ThresholdWidget(self, napari_viewer)
-        self.setWidget(trainWidget)
+        threshold_widget = ThresholdWidget(self, napari_viewer)
+        self.setWidget(threshold_widget)
 
 
 class ThresholdWidget(QWidget):

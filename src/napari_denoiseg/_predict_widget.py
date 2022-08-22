@@ -29,11 +29,16 @@ from napari_denoiseg.widgets import (
     load_button,
     threshold_spin
 )
-from widgets import BannerWidget, create_gpu_label
+from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
 SAMPLE = 'Sample data'
+
+
+class PredictWidgetWrapper(ScrollWidgetWrapper):
+    def __init__(self, napari_viewer):
+        super().__init__(PredictWidget(napari_viewer))
 
 
 class PredictWidget(QWidget):
@@ -69,7 +74,7 @@ class PredictWidget(QWidget):
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
-        self.tabs.setMaximumHeight(250)
+        self.tabs.setMaximumHeight(120)
 
         # image layer tab
         self.images = layer_choice(annotation=napari.layers.Image, name="Images")
@@ -316,7 +321,7 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
 
     # add our plugin
-    viewer.window.add_dock_widget(PredictWidget(viewer))
+    viewer.window.add_dock_widget(PredictWidgetWrapper(viewer))
 
     # add images
     viewer.add_image(data[0][0][0:30], name=data[0][1]['name'])
