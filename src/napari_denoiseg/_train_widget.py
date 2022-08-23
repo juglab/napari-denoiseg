@@ -62,7 +62,6 @@ class TrainWidget(QWidget):
         self._build_train_widgets()
         self._build_save_widgets()
         self._build_progress_widgets()
-        self._build_optimize_widgets()
         self.expert_settings = None
 
         # place-holder for models and parameters (e.g. bioimage.io)
@@ -117,14 +116,17 @@ class TrainWidget(QWidget):
         # progress bars
         self.progress_group.setLayout(QVBoxLayout())
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
-        # self.progress_group.setMinimumWidth(400)
-        # self.progress_group.setMinimumHeight(450)
+
         self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
                                             text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
         self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
+        self.pb_threshold = create_progressbar(max_value=19,
+                                               text_format=f'Threshold optimization: ?')
+
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
+        self.progress_group.layout().addWidget(self.pb_threshold)
 
         # plot widget
         self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
@@ -220,18 +222,6 @@ class TrainWidget(QWidget):
         self.training_param_group.setLayout(hlayout)
         self.training_param_group.layout().setContentsMargins(5, 20, 5, 10)
         self.layout().addWidget(self.training_param_group)
-
-    def _build_optimize_widgets(self):
-        self.optimize_group = QGroupBox()
-        self.optimize_group.setTitle("Threshold optimization")
-        self.optimize_group.setLayout(QVBoxLayout())
-
-        # progress bar
-        self.optimize_group.layout().setContentsMargins(20, 20, 20, 10)
-        self.pb_threshold = create_progressbar(max_value=19,
-                                               text_format=f'Threshold: ?')
-        self.optimize_group.layout().addWidget(self.pb_threshold)
-        self.layout().addWidget(self.optimize_group)
 
     def _build_save_widgets(self):
         self.save_group = QGroupBox()
