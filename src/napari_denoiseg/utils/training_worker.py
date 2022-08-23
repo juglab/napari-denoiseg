@@ -97,10 +97,11 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
             break
         elif widget.state != State.RUNNING:
             denoiseg_updater.stop_training()
-            yield UpdateType.DONE
             break
         else:
             yield update
+
+    yield {UpdateType.TRAINING_DONE: ''}
 
     # training done, keep model in memory
     widget.model = train_args[0]

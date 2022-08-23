@@ -17,6 +17,7 @@ NAPARI_AXES = 'CTSZYX'
 class State(Enum):
     IDLE = 0
     RUNNING = 1
+    INTERRUPTED = 2
 
 
 class ModelSaveMode(Enum):
@@ -36,6 +37,7 @@ class UpdateType(Enum):
     BEST_THRESHOLD = 'best threshold'
     N_IMAGES = 'number of images'
     IMAGE = 'image'
+    TRAINING_DONE = 'training done'
     DONE = 'done'
 
 
@@ -184,8 +186,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
 
         score = measure_precision()(lab_gt, lab_pred)
 
-        # check if stop requested
-        if widget is not None and widget.state != State.RUNNING:
+        if widget.state == State.IDLE:
             break
 
         yield i_t, ts, score

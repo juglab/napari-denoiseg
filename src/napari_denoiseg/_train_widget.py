@@ -72,6 +72,7 @@ class TrainWidget(QWidget):
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
+        self.training_done = False
 
         self._set_actions()
 
@@ -268,13 +269,15 @@ class TrainWidget(QWidget):
 
                 # set the state to running
                 self.state = State.RUNNING
+                self.training_done = False
 
                 # register which data tab: layers or disk
                 self.load_from_disk = self.tabs.currentIndex() == 1
 
                 # modify UI
                 self.plot.clear_plot()
-                self.pb_threshold.setFormat('Threshold: ?')
+                self.pb_threshold.setFormat('Threshold optimization: ?')
+                self.pb_threshold.setValue(0)
                 self.train_button.setText('Stop')
                 self.zero_model_button.setText('')
                 self.zero_model_button.setEnabled(False)
@@ -290,8 +293,14 @@ class TrainWidget(QWidget):
             else:
                 ntf.show_error('Invalid axes')
         else:
-            # stop the training
-            self.state = State.IDLE
+            if self.training_done:
+                # interrupts threshold
+                self.state = State.IDLE
+                self.pb_threshold.setFormat('Interrupted')
+            else:
+                # stops the training but continue with optimization
+                self.state = State.INTERRUPTED
+                self.train_button.setText('Stop all')
 
     def _done(self):
         """
@@ -422,16 +431,20 @@ class TrainWidget(QWidget):
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
 
-        # threshold can be updated in IDLE state (if training was interrupted)
-        if UpdateType.THRESHOLD in updates:
-            val = updates[UpdateType.THRESHOLD]
-            self.pb_threshold.setValue(val[0]+1)
-            self.pb_threshold.setFormat('Threshold: {:.2f}'.format(val[1]))
+        if self.state == State.RUNNING or self.state == State.INTERRUPTED:
+            if UpdateType.TRAINING_DONE in updates:
+                # this is used to discriminate between training and optimization interruptions
+                self.training_done = True
 
-        if UpdateType.BEST_THRESHOLD in updates:
-            val = updates[UpdateType.BEST_THRESHOLD]
-            self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
-            self.threshold = val
+            if UpdateType.THRESHOLD in updates:
+                val = updates[UpdateType.THRESHOLD]
+                self.pb_threshold.setValue(val[0]+1)
+                self.pb_threshold.setFormat('Threshold optimization: {:.2f}'.format(val[1]))
+
+            if UpdateType.BEST_THRESHOLD in updates:
+                val = updates[UpdateType.BEST_THRESHOLD]
+                self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
+                self.threshold = val
 
     def _save_model(self):
         """
