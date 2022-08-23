@@ -121,7 +121,7 @@ def _run_prediction(widget,
 
         # split predictions and update the layers in napari
         final_image_d[i_slice, ...] = prediction[0, ..., 0:-3].squeeze()
-        final_image_s[i_slice, ...] = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
+        final_image_s[i_slice, ...] = prediction[0, ..., -3:].squeeze()
 
         # check if stop requested
         if widget.state != State.RUNNING:
@@ -138,11 +138,6 @@ def _run_prediction(widget,
 
     # update done
     yield {UpdateType.DONE}
-
-
-# TODO: remove when the softmax will be done in the denoiseg.predict method
-def softmax(x, axis=0):
-    return np.exp(x) / np.tile(np.sum(np.exp(x), axis=axis, keepdims=True), 3)
 
 
 def _run_prediction_to_disk(widget,
@@ -206,7 +201,7 @@ def _run_prediction_to_disk(widget,
 
             # split predictions and threshold if requested
             final_image_d = prediction[0, ..., 0:-3].squeeze()
-            final_image_s = softmax(prediction[0, ..., -3:].squeeze(), axis=-1)
+            final_image_s = prediction[0, ..., -3:].squeeze()
 
             if is_threshold:
                 final_image_s_t = final_image_s >= threshold
@@ -276,7 +271,7 @@ def _run_lazy_prediction(widget,
 
             # split predictions
             final_image_d = prediction[..., 0:-3].squeeze()
-            final_image_s = softmax(prediction[..., -3:].squeeze(), axis=-1)
+            final_image_s = prediction[..., -3:].squeeze()
 
             if is_threshold:
                 final_image_s_t = final_image_s >= threshold
