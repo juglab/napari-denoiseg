@@ -454,6 +454,9 @@ class TrainWidget(QWidget):
                     axes = self.axes_widget.get_axes()
                     axes = axes.replace('S', 'b').lower()
 
+                    if 'c' not in axes:
+                        axes = axes + 'c'
+
                     build_modelzoo(where + '.bioimage.io.zip',
                                    self.model.logdir / "weights_best.h5",
                                    self.inputs,
