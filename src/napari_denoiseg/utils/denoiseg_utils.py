@@ -186,7 +186,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
 
         score = measure_precision()(lab_gt, lab_pred)
 
-        if widget.state == State.IDLE:
+        if widget is not None and widget.state == State.IDLE:
             break
 
         yield i_t, ts, score
