@@ -77,15 +77,22 @@ class PredictWidget(QWidget):
         self.tabs.addTab(tab_disk, 'From disk')
         self.tabs.setMaximumHeight(120)
 
+        self.tabs.setTabToolTip(0, 'Use images from napari layers')
+        self.tabs.setTabToolTip(1, 'Use images saved on the disk')
+
         # image layer tab
         self.images = layer_choice(annotation=napari.layers.Image, name="Images")
         tab_layers.layout().addWidget(self.images.native)
+        self.images.native.setToolTip('Select an image layer')
 
         # disk tab
         self.lazy_loading = QCheckBox('Lazy loading')
+        self.lazy_loading.setToolTip('Select in order to predict one image at a time')
         tab_disk.layout().addWidget(self.lazy_loading)
+
         self.images_folder = FolderWidget('Choose')
         tab_disk.layout().addWidget(self.images_folder)
+        self.images_folder.setToolTip('Select a folder containing the images')
 
         # add to main layout
         self.layout().addWidget(self.tabs)
@@ -99,6 +106,8 @@ class PredictWidget(QWidget):
         self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
 
         self.load_model_button = load_button()
+        self.load_model_button.native.setToolTip('Load a model (weights and configuration)')
+
         self.loader_group.layout().addWidget(self.load_model_button.native)
         self.layout().addWidget(self.loader_group)
 
@@ -111,6 +120,7 @@ class PredictWidget(QWidget):
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
+        self.enable_3d.setToolTip('Use a 3D model')
         self.prediction_param_group.layout().addWidget(self.enable_3d)
 
         # axes widget
@@ -128,10 +138,11 @@ class PredictWidget(QWidget):
 
         # checkbox
         self.tiling_cbox = QCheckBox('Tile prediction')
+        self.tiling_cbox.setToolTip('Select to predict the image by tiles')
         self.tilling_group.layout().addWidget(self.tiling_cbox)
 
         # tiling spinbox
-        self.tiling_spin = create_int_spinbox(1, 1000, 4, tooltip='Number of tiles')
+        self.tiling_spin = create_int_spinbox(1, 1000, 4, tooltip='Minimum number of tiles to use')
         self.tiling_spin.setEnabled(False)
 
         tiling_form = QFormLayout()
@@ -151,9 +162,12 @@ class PredictWidget(QWidget):
 
         # threshold slider
         self.threshold_cbox = QCheckBox('Apply threshold')
+        self.threshold_cbox.setToolTip('Select to apply a threshold to the segmentation prediction')
         self.threshold_group.layout().addWidget(self.threshold_cbox)
+
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
+        self.threshold_spin.native.setToolTip('Threshold to use on all the segmentation channels')
         self.threshold_group.layout().addWidget(self.threshold_spin.native)
 
         self.layout().addWidget(self.threshold_group)
@@ -175,12 +189,15 @@ class PredictWidget(QWidget):
         self.prediction_group.layout().addWidget(self.pb_prediction)
 
         # predict button
+        self.predict_button = QPushButton('Predict', self)
+        self.predict_button.setToolTip('Start predicting')
+        self.prediction_group.layout().addWidget(self.predict_button)
+        self.layout().addWidget(self.prediction_group)
+
+        # placeholders
         self.worker = None
         self.seg_prediction = None
         self.denoi_prediction = None
-        self.predict_button = QPushButton("Predict", self)
-        self.prediction_group.layout().addWidget(self.predict_button)
-        self.layout().addWidget(self.prediction_group)
 
         # empty space
         # TODO place holder until we figure out how to not have the banner widget stretching

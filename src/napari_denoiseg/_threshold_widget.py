@@ -66,15 +66,24 @@ class ThresholdWidget(QWidget):
         self.tabs.addTab(tab_disk, 'From disk')
         self.tabs.setMaximumHeight(150)
 
+        self.tabs.setTabToolTip(0, 'Use images from napari layers')
+        self.tabs.setTabToolTip(1, 'Use images saved on the disk')
+
         # layer tabs
         self.layer_choice = two_layers_choice()
         self.images = self.layer_choice.Images
         self.labels = self.layer_choice.Labels
         tab_layers.layout().addWidget(self.layer_choice.native)
 
+        self.images.native.setToolTip('Select an image layer')
+        self.labels.native.setToolTip('Select a label layer corresponding to the image one')
+
         # disk tab
         self.images_folder = FolderWidget('Choose')
         self.labels_folder = FolderWidget('Choose')
+
+        self.images_folder.setToolTip('Select a folder containing the images')
+        self.labels_folder.setToolTip('Select a folder containing the ground-truths')
 
         buttons = QWidget()
         form = QFormLayout()
@@ -101,6 +110,8 @@ class ThresholdWidget(QWidget):
         self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
 
         self.load_model_button = load_button()
+        self.load_model_button.native.setToolTip('Load a model (weights and configuration)')
+
         self.loader_group.layout().addWidget(self.load_model_button.native)
         self.layout().addWidget(self.loader_group)
 
@@ -113,6 +124,7 @@ class ThresholdWidget(QWidget):
 
         # load 3D enabling checkbox
         self.enable_3d = QCheckBox('Enable 3D')
+        self.enable_3d.setToolTip('Use a 3D model')
         self.prediction_param_group.layout().addWidget(self.enable_3d)
 
         # axes widget
@@ -124,6 +136,7 @@ class ThresholdWidget(QWidget):
 
         # optimize button
         self.optimize_button = QPushButton("Optimize", self)
+        self.optimize_button.setToolTip('Find the optimum threshold')
         self.layout().addWidget(self.optimize_button)
 
         # feedback table to users

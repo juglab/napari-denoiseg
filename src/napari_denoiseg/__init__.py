@@ -9,5 +9,4 @@ from ._sample_data import (
 )
 from ._train_widget import TrainingWidgetWrapper
 from ._predict_widget import PredictWidgetWrapper
-from ._patch_widget import patch_creation
 from ._threshold_widget import ThresholdWidgetWrapper

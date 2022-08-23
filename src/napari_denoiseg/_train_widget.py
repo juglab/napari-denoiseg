@@ -100,9 +100,13 @@ class TrainWidget(QWidget):
         # train button
         train_buttons = QWidget()
         train_buttons.setLayout(QHBoxLayout())
+
         self.train_button = QPushButton('Train', self)
+
         self.reset_model_button = QPushButton('', self)
         self.reset_model_button.setEnabled(False)
+        self.reset_model_button.setToolTip('Reset the weights of the model (forget the training)')
+
         train_buttons.layout().addWidget(self.reset_model_button)
         train_buttons.layout().addWidget(self.train_button)
         self.optimize_group.layout().addWidget(train_buttons)
@@ -119,10 +123,13 @@ class TrainWidget(QWidget):
 
         self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
                                             text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
+
         self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
+
         self.pb_threshold = create_progressbar(max_value=19,
                                                text_format=f'Threshold optimization: ?')
+        self.pb_threshold.setToolTip('Show the progress of the threshold optimization procedure')
 
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
@@ -144,6 +151,8 @@ class TrainWidget(QWidget):
         # add tabs
         self.tabs.addTab(tab_layers, 'From layers')
         self.tabs.addTab(tab_disk, 'From disk')
+        self.tabs.setTabToolTip(0, 'Use images from napari layers')
+        self.tabs.setTabToolTip(1, 'Use patches saved on the disk')
         self.tabs.setMaximumHeight(200)
 
         # layer tabs
@@ -156,6 +165,9 @@ class TrainWidget(QWidget):
         perc_widget.setLayout(QFormLayout())
         perc_widget.layout().addRow('Train label %', self.perc_train_slider.native)
         tab_layers.layout().addWidget(perc_widget)
+
+        self.images.native.setToolTip('Select an image layer')
+        self.labels.native.setToolTip('Select a label layer corresponding to the images')
 
         # disk tab
         self.train_images_folder = FolderWidget('Choose')
@@ -170,6 +182,11 @@ class TrainWidget(QWidget):
         form.addRow('Val labels', self.val_labels_folder)
         buttons.setLayout(form)
         tab_disk.layout().addWidget(buttons)
+
+        self.train_images_folder.setToolTip('Select a folder containing the training image patches')
+        self.train_labels_folder.setToolTip('Select a folder containing the training ground-truth')
+        self.val_images_folder.setToolTip('Select a folder containing the validation images')
+        self.val_labels_folder.setToolTip('Select a folder containing the validation ground-truth')
 
         # add to main layout
         self.layout().addWidget(self.tabs)
@@ -186,27 +203,30 @@ class TrainWidget(QWidget):
         self.training_expert_btn = QPushButton(icon, '')
         self.training_expert_btn.clicked.connect(self._training_expert_setter)
         self.training_expert_btn.setFixedSize(30, 30)
-        self.training_expert_btn.setToolTip('Expert settings')
+        self.training_expert_btn.setToolTip('Open the expert settings menu')
 
         # axes
         self.axes_widget = AxesWidget()
 
         # others
-        self.n_epochs_spin = create_int_spinbox(1, 1000, 2)
+        self.n_epochs_spin = create_int_spinbox(1, 1000, 2, tooltip='Number of epochs')
         self.n_epochs = self.n_epochs_spin.value()
-        self.n_steps_spin = create_int_spinbox(1, 1000, 10)
+
+        self.n_steps_spin = create_int_spinbox(1, 1000, 10, tooltip='Number of steps per epochs')
         self.n_steps = self.n_steps_spin.value()
 
         # batch size
         self.batch_size_spin = create_int_spinbox(0, 512, 16, 8)
+        self.batch_size_spin.setToolTip('Number of patches per batch (decrease if GPU memory is insufficient)')
 
         # patch size
-        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8)
+        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8, tooltip='Dimension of the patches in XY')
 
         # 3D checkbox
         self.enable_3d = enable_3d()
-        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False)
-        # TODO add tooltips
+        self.enable_3d.native.setToolTip('Use a 3D network')
+        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False, tooltip='Dimension of the patches in Z')
+
         formLayout = QFormLayout()
         formLayout.addRow(self.axes_widget.label.text(), self.axes_widget.text_field)
         formLayout.addRow('Enable 3D', self.enable_3d.native)
@@ -219,6 +239,7 @@ class TrainWidget(QWidget):
         hlayout = QVBoxLayout()
         hlayout.addWidget(self.training_expert_btn, alignment=Qt.AlignRight | Qt.AlignVCenter)
         hlayout.addLayout(formLayout)
+
         self.training_param_group.setLayout(hlayout)
         self.training_param_group.layout().setContentsMargins(5, 20, 5, 10)
         self.layout().addWidget(self.training_param_group)
@@ -233,8 +254,12 @@ class TrainWidget(QWidget):
         save_widget.setLayout(QHBoxLayout())
         self.save_choice = QComboBox()
         self.save_choice.addItems(ModelSaveMode.list())
+        self.save_choice.setToolTip('Output format')
+
         self.save_button = QPushButton("Save model", self)
         self.save_button.setEnabled(False)
+        self.save_choice.setToolTip('Save the model weights and configuration')
+
         save_widget.layout().addWidget(self.save_button)
         save_widget.layout().addWidget(self.save_choice)
         self.save_group.layout().addWidget(save_widget)

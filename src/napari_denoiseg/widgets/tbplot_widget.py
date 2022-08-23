@@ -35,6 +35,7 @@ class TBPlotWidget(Container):
 
         # tensorboard button
         tb_button = QPushButton("Open in tensorboard")
+        tb_button.setToolTip('Open TensorBoard in your browser')
         tb_button.clicked.connect(self.open_tb)
 
         # add to layout on the bottom left

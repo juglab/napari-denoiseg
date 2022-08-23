@@ -14,5 +14,6 @@ def create_gpu_label():
 
     gpu_label = QLabel(text)
     gpu_label.setStyleSheet('font-weight: bold; color: #{};'.format(color))
+    gpu_label.setToolTip('Indicates whether DenoiSeg will run on GPU or CPU')
 
     return gpu_label
