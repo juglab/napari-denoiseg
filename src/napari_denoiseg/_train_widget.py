@@ -434,7 +434,7 @@ class TrainWidget(QWidget):
 
             if UpdateType.BEST_THRESHOLD in updates:
                 val = updates[UpdateType.BEST_THRESHOLD]
-                self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
+                self.pb_threshold.setFormat('Best threshold: {:.2f} (m={:.2f})'.format(*val))
                 self.threshold = val
 
     def _save_model(self):

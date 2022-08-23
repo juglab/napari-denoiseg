@@ -138,7 +138,7 @@ def get_best_threshold(widget, X_val, Y_val):
         else:
             break
 
-    yield {UpdateType.BEST_THRESHOLD: best_threshold}
+    yield {UpdateType.BEST_THRESHOLD: (best_threshold, best_score)}
 
 
 def load_images(widget):
