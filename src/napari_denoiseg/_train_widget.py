@@ -261,6 +261,12 @@ class TrainWidget(QWidget):
             # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
 
             if self.axes_widget.is_valid():
+
+                # first update the number of steps and epochs
+                self._update_steps()
+                self._update_epochs()
+
+                # set the state to running
                 self.state = State.RUNNING
 
                 # register which data tab: layers or disk
@@ -283,6 +289,9 @@ class TrainWidget(QWidget):
                 self.worker.start()
             else:
                 ntf.show_error('Invalid axes')
+        else:
+            # stop the training
+            self.state = State.IDLE
 
     def _done(self):
         """
@@ -413,15 +422,16 @@ class TrainWidget(QWidget):
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
 
-            if UpdateType.THRESHOLD in updates:
-                val = updates[UpdateType.THRESHOLD]
-                self.pb_threshold.setValue(val[0]+1)
-                self.pb_threshold.setFormat('Threshold: {:.2f}'.format(val[1]))
+        # threshold can be updated in IDLE state (if training was interrupted)
+        if UpdateType.THRESHOLD in updates:
+            val = updates[UpdateType.THRESHOLD]
+            self.pb_threshold.setValue(val[0]+1)
+            self.pb_threshold.setFormat('Threshold: {:.2f}'.format(val[1]))
 
-            if UpdateType.BEST_THRESHOLD in updates:
-                val = updates[UpdateType.BEST_THRESHOLD]
-                self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
-                self.threshold = val
+        if UpdateType.BEST_THRESHOLD in updates:
+            val = updates[UpdateType.BEST_THRESHOLD]
+            self.pb_threshold.setFormat('Best threshold: {:.2f}'.format(val))
+            self.threshold = val
 
     def _save_model(self):
         """
@@ -448,6 +458,7 @@ class TrainWidget(QWidget):
                                    axes)
                 else:
                     self.model.keras_model.save_weights(where + '.h5')
+
                 # save configuration as well
                 save_configuration(self.model.config, Path(where).parent)
 
