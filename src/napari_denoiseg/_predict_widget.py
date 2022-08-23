@@ -1,7 +1,6 @@
 """
 
 """
-from pathlib import Path
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
@@ -167,6 +166,7 @@ class PredictWidget(QWidget):
 
         # progress bar
         self.pb_prediction = QProgressBar()
+        self.pb_prediction.setMinimumHeight(30)
         self.pb_prediction.setValue(0)
         self.pb_prediction.setMinimum(0)
         self.pb_prediction.setMaximum(100)
@@ -282,7 +282,7 @@ class PredictWidget(QWidget):
     def _start_prediction(self):
         if self.state == State.IDLE:
             if self.axes_widget.is_valid():
-                if not Path(self.get_model_path()).exists():
+                if self.get_model_path().exists():
                     self.state = State.RUNNING
 
                     self.predict_button.setText('Stop')
@@ -295,35 +295,6 @@ class PredictWidget(QWidget):
                         self.viewer.layers.remove(SEGMENTATION)
                     if DENOISING in self.viewer.layers:
                         self.viewer.layers.remove(DENOISING)
-
-                    # create new seg and denoising layers
-                    # if self.load_from_disk == 0:
-                    #     # load from the layers
-                    #     im_shape = self.images.value.data.shape
-                    #     current_axes = self.get_axes()
-                    #     shape_denoised, shape_segmented = get_napari_shapes(im_shape, current_axes)
-                    #
-                    #     # create place-holders using the final shape
-                    #     if self.threshold_cbox.isChecked():
-                    #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.int32).squeeze()
-                    #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                    #     else:
-                    #         self.seg_prediction = np.zeros(shape_segmented, dtype=np.float32).squeeze()
-                    #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                    #
-                    #     self.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32).squeeze()
-                    #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
-                    # else:
-                    #     # load from disk, we create place-holders with the shape of the sample image
-                    #     if self.threshold_cbox.isChecked():
-                    #         self.seg_prediction = np.zeros(self.shape, dtype=np.int32).squeeze()
-                    #         viewer.add_labels(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                    #     else:
-                    #         self.seg_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
-                    #         viewer.add_image(self.seg_prediction, name=SEGMENTATION, opacity=0.5, visible=True)
-                    #
-                    #     self.denoi_prediction = np.zeros(self.shape, dtype=np.float32).squeeze()
-                    #     viewer.add_image(self.denoi_prediction, name=DENOISING, visible=True)
 
                     # start the prediction worker
                     self.worker = prediction_worker(self)

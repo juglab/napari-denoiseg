@@ -1,4 +1,3 @@
-from pathlib import Path
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,6 +13,8 @@ from qtpy.QtWidgets import (
 from qtpy.QtCore import Qt
 
 import napari
+import napari.utils.notifications as ntf
+
 from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
 from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
@@ -204,22 +205,24 @@ class ThresholdWidget(QWidget):
 
     def _start_optimization(self):
         if self.state == State.IDLE:
-            if self.axes_widget.is_valid() and not Path(self.get_model_path()).is_dir():
-                self.state = State.RUNNING
+            if self.axes_widget.is_valid():
+                if self.get_model_path().exists():
+                    self.state = State.RUNNING
 
-                # register which data tab: layers or disk
-                self.load_from_disk = self.tabs.currentIndex() == 1
+                    # register which data tab: layers or disk
+                    self.load_from_disk = self.tabs.currentIndex() == 1
 
-                self.optimize_button.setText('Stop')
-                self.table.clearContents()
+                    self.optimize_button.setText('Stop')
+                    self.table.clearContents()
 
-                self.worker = optimizer_worker(self)
-                self.worker.returned.connect(self._done)
-                self.worker.yielded.connect(lambda x: self._update(x))
-                self.worker.start()
+                    self.worker = optimizer_worker(self)
+                    self.worker.returned.connect(self._done)
+                    self.worker.yielded.connect(lambda x: self._update(x))
+                    self.worker.start()
+                else:
+                    ntf.show_error('Select a model')
             else:
-                # TODO: feedback to user?
-                pass
+                ntf.show_error('Invalid axes')
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
