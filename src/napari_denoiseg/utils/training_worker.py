@@ -59,7 +59,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     n_steps = widget.n_steps
     batch_size = widget.batch_size_spin.value()
 
-    # patch
+    # patch shape
     patch_shape_XY = widget.patch_size_XY.value()
     patch_shape_Z = widget.patch_size_Z.value()
     if widget.is_3D:
