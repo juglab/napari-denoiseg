@@ -85,7 +85,7 @@ class TrainWidget(QWidget):
         self.images.changed.connect(self._update_layer_axes)
         self.train_images_folder.text_field.textChanged.connect(self._update_disk_axes)
         self.train_button.clicked.connect(lambda: self._start_training(self.model))
-        self.zero_model_button.clicked.connect(self._zero_model)
+        self.reset_model_button.clicked.connect(self._reset_model)
         self.n_epochs_spin.valueChanged.connect(self._update_epochs)
         self.n_steps_spin.valueChanged.connect(self._update_steps)
         self.save_button.clicked.connect(self._save_model)
@@ -101,9 +101,9 @@ class TrainWidget(QWidget):
         train_buttons = QWidget()
         train_buttons.setLayout(QHBoxLayout())
         self.train_button = QPushButton('Train', self)
-        self.zero_model_button = QPushButton('', self)
-        self.zero_model_button.setEnabled(False)
-        train_buttons.layout().addWidget(self.zero_model_button)
+        self.reset_model_button = QPushButton('', self)
+        self.reset_model_button.setEnabled(False)
+        train_buttons.layout().addWidget(self.reset_model_button)
         train_buttons.layout().addWidget(self.train_button)
         self.optimize_group.layout().addWidget(train_buttons)
 
@@ -269,8 +269,8 @@ class TrainWidget(QWidget):
                 self.pb_threshold.setFormat('Threshold optimization: ?')
                 self.pb_threshold.setValue(0)
                 self.train_button.setText('Stop')
-                self.zero_model_button.setText('')
-                self.zero_model_button.setEnabled(False)
+                self.reset_model_button.setText('')
+                self.reset_model_button.setEnabled(False)
                 self.save_button.setEnabled(False)
 
                 # instantiate worker and start training
@@ -299,20 +299,21 @@ class TrainWidget(QWidget):
         :return:
         """
         self.state = State.IDLE
-        self.train_button.setText('Train new')
-        self.zero_model_button.setText('Zero model')
-        self.zero_model_button.setEnabled(True)
+        self.train_button.setText('Continue training')
+        self.reset_model_button.setText('Reset model')
+        self.reset_model_button.setEnabled(True)
         self.save_button.setEnabled(True)
 
-    def _zero_model(self):
+    def _reset_model(self):
         """
         Zero the model, causing the next training session to train from scratch.
         :return:
         """
         if self.state == State.IDLE:
             self.model = None
-            self.zero_model_button.setText('')
-            self.zero_model_button.setEnabled(False)
+            self.reset_model_button.setText('')
+            self.reset_model_button.setEnabled(False)
+            self.train_button.setText('Train')
 
     def _update_3D(self, val):
         """
