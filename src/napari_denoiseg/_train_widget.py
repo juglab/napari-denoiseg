@@ -331,7 +331,7 @@ class TrainWidget(QWidget):
 
     def _reset_model(self):
         """
-        Zero the model, causing the next training session to train from scratch.
+        Reset the model, causing the next training session to train from scratch.
         :return:
         """
         if self.state == State.IDLE:

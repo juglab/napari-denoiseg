@@ -16,6 +16,7 @@ from napari_denoiseg.utils import (
     reshape_data,
     optimize_threshold
 )
+from utils import load_model
 
 
 class TrainingCallback(Callback):
@@ -80,8 +81,15 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     ntf.show_info('Preparing data')
 
+    # load model if requested
+    if expert_settings is not None:
+        # priority is given to pretrained model, even if the expert settings point to one (must be a file)
+        # i.e. priority to the most recently trained
+        if expert_settings.has_model() and pretrained_model is None:
+            pretrained_model = load_model(expert_settings.get_model_path())
+
     # prepare training
-    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, widget, pretrained_model)
+    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
     train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
 
     # start training
@@ -388,11 +396,17 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     n_train_labels = int(0.5 + dec_perc_labels * n_labels)
 
     if perc_labels == 0 or perc_labels == 100:
-        raise ValueError('Percentage of training labels cannot be 0 or 100%.')
-    if len(label_indices) == 0 or n_train_labels < 5:  # TODO: hard coded value...
-        raise ValueError('Not enough labeled images for training, label more frames or decrease label percentage.')
+        err = 'Percentage of training labels cannot be 0 or 100%.'
+        ntf.show_error(err)
+        raise ValueError(err)
+    if len(label_indices) == 0 or n_train_labels < 5:
+        err = 'Not enough labeled images for training, label more frames or decrease label percentage.'
+        ntf.show_error(err)
+        raise ValueError(err)
     if n_labels - n_train_labels < 2:
-        raise ValueError('Not enough labeled images for validation, label more frames or decrease label percentage.')
+        err = 'Not enough labeled images for validation, label more frames or decrease label percentage.'
+        ntf.show_error(err)
+        raise ValueError(err)
 
     # split labeled frames between train and val sets
     ind_train = np.random.choice(label_indices, size=n_train_labels, replace=False).tolist()
@@ -410,7 +424,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     return X, Y, X_val, Y_val, y_val_no_hot, new_axes
 
 
-def prepare_training(conf, X_train, Y_train, X_val, Y_val, widget, pretrained_model=None):
+def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
     from datetime import date
     import tensorflow as tf
     from denoiseg.models import DenoiSeg
@@ -431,6 +445,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, widget, pretrained_mo
     # if we continue training, transfer the weights
     # TODO: currently not reusing the same model in case the configuration changed (n epochs, data etc.)
     if pretrained_model:
+        # TODO use the configurations to check whether the networks are compatible
         model.keras_model.set_weights(pretrained_model.keras_model.get_weights())
 
     # normalize axes
@@ -505,10 +520,10 @@ def sanity_check_training_size(X_train, model, axes):
     for a in axes_relevant:
         n = X_train.shape[ax[a]]
         if n % div_by != 0:
-            raise ValueError(
-                "training images must be evenly divisible by %d along axes %s"
-                " (axis %s has incompatible size %d)" % (div_by, axes_relevant, a, n)
-            )
+            err = "training images must be evenly divisible by %d along axes %s (axis %s has " \
+                  "incompatible size %d)" % (div_by, axes_relevant, a, n)
+            ntf.show_error(err)
+            raise ValueError(err)
 
 
 def get_validation_patch_shape(X_val, axes):

@@ -110,7 +110,7 @@ class ThresholdWidget(QWidget):
         self.loader_group.layout().setContentsMargins(20, 20, 20, 0)
 
         self.load_model_button = load_button()
-        self.load_model_button.native.setToolTip('Load a model (weights and configuration)')
+        self.load_model_button.native.setToolTip('Load a trained model (weights and configuration)')
 
         self.loader_group.layout().addWidget(self.load_model_button.native)
         self.layout().addWidget(self.loader_group)
@@ -219,7 +219,7 @@ class ThresholdWidget(QWidget):
     def _start_optimization(self):
         if self.state == State.IDLE:
             if self.axes_widget.is_valid():
-                if self.get_model_path().exists():
+                if self.get_model_path().exists() and self.get_model_path().is_file():
                     self.state = State.RUNNING
 
                     # register which data tab: layers or disk
