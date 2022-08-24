@@ -29,4 +29,3 @@ from .optimizer_worker import optimizer_worker
 from .prediction_worker import prediction_worker
 from .training_worker import training_worker
 from .loading_worker import loading_worker
-from .text import *
