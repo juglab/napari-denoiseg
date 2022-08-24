@@ -6,8 +6,8 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget
 )
-from napari_denoiseg.widgets import create_int_spinbox, create_double_spinbox
-from widgets import load_button
+from .qt_widgets import create_int_spinbox, create_double_spinbox
+from .magicgui_widgets import load_button
 
 
 class TrainingSettingsWidget(QDialog):
