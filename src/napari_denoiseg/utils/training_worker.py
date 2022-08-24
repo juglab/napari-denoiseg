@@ -50,7 +50,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     import threading
     from napari_denoiseg.utils import UpdateType, generate_config
 
-    ntf.show_info('Shaping data')
+    ntf.show_info('Loading data')
 
     # get images and labels
     X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
@@ -68,6 +68,8 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     else:
         patch_shape = (patch_shape_XY, patch_shape_XY)
 
+    ntf.show_info('Creating configuration')
+
     # create configuration
     if expert_settings is None:
         denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
@@ -79,7 +81,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
                                         batch_size,
                                         **expert_settings.get_settings())
 
-    ntf.show_info('Preparing data')
+    ntf.show_info('Preparing training')
 
     # load model if requested
     if expert_settings is not None:
