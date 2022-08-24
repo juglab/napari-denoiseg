@@ -25,6 +25,7 @@ from napari_denoiseg.widgets import (
     load_button
 )
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
+from napari_denoiseg.resources import ICON_JUGLAB
 
 T = 't'
 M = 'metrics'
@@ -48,7 +49,7 @@ class ThresholdWidget(QWidget):
         ###############################
         # Banner
         self.layout().addWidget(BannerWidget('DenoiSeg - Threshold',
-                                             '../resources/icons/Jug_logo_128.png',
+                                             ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',

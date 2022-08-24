@@ -10,6 +10,8 @@ from qtpy.QtWidgets import (
 )
 from qtpy.QtGui import QPixmap, QCursor
 
+from napari_denoiseg.resources import ICON_GITHUB
+
 
 def _create_link(link: str, text: str) -> QLabel:
     """
@@ -23,7 +25,7 @@ def _create_link(link: str, text: str) -> QLabel:
     # TODO: is there a non-dark mode in napari?
     label.setText("<a href=\'{}\' style=\'color:white\'>{}</a>".format(link, text))
     label.setOpenExternalLinks(True)
-    # label.setStyleSheet("font-weight: bold; color: green; text-decoration: underline")
+
     return label
 
 
@@ -53,9 +55,6 @@ class BannerWidget(QWidget):
         img_widget = QLabel()
         img_widget.setPixmap(icon)
         img_widget.setFixedSize(128, 128)
-        # img_widget.setIconSize(QtCore.QSize(200, 200))
-        # img_widget.setIcon(icon)
-        # img_widget.setEnabled(False)
 
         # right panel
         right_layout = QVBoxLayout()
@@ -76,7 +75,7 @@ class BannerWidget(QWidget):
         bottom_widget.setLayout(QHBoxLayout())
 
         # github logo
-        gh_icon = QPixmap('../resources/icons/GitHub-Mark-Light-32px.png')
+        gh_icon = QPixmap(ICON_GITHUB)
         gh_widget = QLabel()
         gh_widget.setPixmap(gh_icon)
         gh_widget.mousePressEvent = _open_link(github_link)
@@ -89,11 +88,6 @@ class BannerWidget(QWidget):
         right_widget.layout().addWidget(title)
         right_widget.layout().addWidget(description_widget)
         right_widget.layout().addWidget(bottom_widget)
-
-        # right_widget.setLayout(right_layout)
-        # right_layout.addWidget(QLabel(short_desc))
-        # right_layout.addWidget(_create_link(wiki_link, "Documentation"))
-        # right_layout.addWidget(_create_link(github_link, "GitHub"))
 
         # add widgets
         layout.addWidget(img_widget)

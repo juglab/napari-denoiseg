@@ -33,6 +33,7 @@ from napari_denoiseg.widgets import (
     threshold_spin,
     create_int_spinbox
 )
+from napari_denoiseg.resources import ICON_JUGLAB
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'
@@ -55,7 +56,7 @@ class PredictWidget(QWidget):
 
         # add banner
         self.layout().addWidget(BannerWidget('DenoiSeg - Prediction',
-                                             '../resources/icons/Jug_logo_128.png',
+                                             ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',

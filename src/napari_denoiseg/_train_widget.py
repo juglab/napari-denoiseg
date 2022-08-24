@@ -40,6 +40,7 @@ from napari_denoiseg.widgets import (
     two_layers_choice,
     percentage_slider
 )
+from napari_denoiseg.resources import ICON_GEAR, ICON_JUGLAB
 
 SAMPLE = 'Sample data'
 
@@ -59,7 +60,7 @@ class TrainWidget(QWidget):
 
         # add banner
         self.layout().addWidget(BannerWidget('DenoiSeg - Training',
-                                             '../resources/icons/Jug_logo_128.png',
+                                             ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
                                              'https://github.com/juglab/napari_denoiseg',
@@ -108,8 +109,6 @@ class TrainWidget(QWidget):
         self.optimize_group = QGroupBox()
         self.optimize_group.setTitle("Train")
         self.optimize_group.setLayout(QVBoxLayout())
-        # self.train_group.setMinimumWidth(400)
-        # self.train_group.setMinimumHeight(300)
 
         # train button
         train_buttons = QWidget()
@@ -213,7 +212,7 @@ class TrainWidget(QWidget):
         self.training_param_group.setMinimumWidth(100)
 
         # expert settings
-        icon = QtGui.QIcon('../resources/icons/gear16.png')
+        icon = QtGui.QIcon(ICON_GEAR)
         self.training_expert_btn = QPushButton(icon, '')
         self.training_expert_btn.clicked.connect(self._training_expert_setter)
         self.training_expert_btn.setFixedSize(30, 30)
