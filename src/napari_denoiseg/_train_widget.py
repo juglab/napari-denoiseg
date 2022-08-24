@@ -106,9 +106,9 @@ class TrainWidget(QWidget):
         self.save_button.clicked.connect(self._save_model)
 
     def _build_train_widgets(self):
-        self.optimize_group = QGroupBox()
-        self.optimize_group.setTitle("Train")
-        self.optimize_group.setLayout(QVBoxLayout())
+        self.train_group = QGroupBox()
+        self.train_group.setTitle("Train")
+        self.train_group.setLayout(QVBoxLayout())
 
         # train button
         train_buttons = QWidget()
@@ -122,9 +122,9 @@ class TrainWidget(QWidget):
 
         train_buttons.layout().addWidget(self.reset_model_button)
         train_buttons.layout().addWidget(self.train_button)
-        self.optimize_group.layout().addWidget(train_buttons)
+        self.train_group.layout().addWidget(train_buttons)
 
-        self.layout().addWidget(self.optimize_group)
+        self.layout().addWidget(self.train_group)
 
     def _build_progress_widgets(self):
         self.progress_group = QGroupBox()
@@ -196,7 +196,7 @@ class TrainWidget(QWidget):
         buttons.setLayout(form)
         tab_disk.layout().addWidget(buttons)
 
-        self.train_images_folder.setToolTip('Select a folder containing the training image patches')
+        self.train_images_folder.setToolTip('Select a folder containing the training images')
         self.train_labels_folder.setToolTip('Select a folder containing the training ground-truth')
         self.val_images_folder.setToolTip('Select a folder containing the validation images')
         self.val_labels_folder.setToolTip('Select a folder containing the validation ground-truth')
@@ -229,7 +229,7 @@ class TrainWidget(QWidget):
         self.n_steps = self.n_steps_spin.value()
 
         # batch size
-        self.batch_size_spin = create_int_spinbox(0, 512, 16, 8)
+        self.batch_size_spin = create_int_spinbox(1, 512, 16, 1)
         self.batch_size_spin.setToolTip('Number of patches per batch (decrease if GPU memory is insufficient)')
 
         # patch size
