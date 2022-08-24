@@ -14,9 +14,9 @@ from napari_denoiseg.utils import (
     UpdateType,
     list_diff,
     reshape_data,
-    optimize_threshold
+    optimize_threshold,
+    load_model
 )
-from utils import load_model
 
 
 class TrainingCallback(Callback):

@@ -25,12 +25,14 @@ from napari_denoiseg.utils import (
 from napari_denoiseg.widgets import (
     FolderWidget,
     AxesWidget,
+    BannerWidget,
+    ScrollWidgetWrapper,
+    create_gpu_label,
     layer_choice,
     load_button,
     threshold_spin,
     create_int_spinbox
 )
-from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
 
 SEGMENTATION = 'segmented'
 DENOISING = 'denoised'

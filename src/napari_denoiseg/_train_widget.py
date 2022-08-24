@@ -6,6 +6,7 @@ import napari
 import napari.utils.notifications as ntf
 
 from qtpy import QtGui
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -17,15 +18,28 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QGroupBox
 )
-from qtpy.QtCore import Qt
-from napari_denoiseg.widgets import TBPlotWidget, FolderWidget, AxesWidget, BannerWidget
-from napari_denoiseg.widgets import two_layers_choice, percentage_slider
-from napari_denoiseg.utils import State, UpdateType, ModelSaveMode
-from napari_denoiseg.utils import training_worker, loading_worker, save_configuration
-from napari_denoiseg.widgets import enable_3d
-from napari_denoiseg.widgets.expert_settings_widget import TrainingSettingsWidget
-from napari_denoiseg.widgets.qt_widgets import create_int_spinbox, create_progressbar
-from widgets import ScrollWidgetWrapper, create_gpu_label
+from napari_denoiseg.utils import (
+    State,
+    UpdateType,
+    ModelSaveMode,
+    training_worker,
+    loading_worker,
+    save_configuration
+)
+from napari_denoiseg.widgets import (
+    TBPlotWidget,
+    FolderWidget,
+    AxesWidget,
+    BannerWidget,
+    TrainingSettingsWidget,
+    ScrollWidgetWrapper,
+    enable_3d,
+    create_int_spinbox,
+    create_progressbar,
+    create_gpu_label,
+    two_layers_choice,
+    percentage_slider
+)
 
 SAMPLE = 'Sample data'
 

@@ -15,9 +15,16 @@ from qtpy.QtCore import Qt
 import napari
 import napari.utils.notifications as ntf
 
-from napari_denoiseg.widgets import FolderWidget, AxesWidget, two_layers_choice, load_button
+from napari_denoiseg.widgets import (
+    FolderWidget,
+    BannerWidget,
+    ScrollWidgetWrapper,
+    AxesWidget,
+    create_gpu_label,
+    two_layers_choice,
+    load_button
+)
 from napari_denoiseg.utils import State, optimizer_worker, loading_worker
-from widgets import BannerWidget, ScrollWidgetWrapper, create_gpu_label
 
 T = 't'
 M = 'metrics'
