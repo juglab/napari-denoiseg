@@ -86,6 +86,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
         # priority is given to pretrained model, even if the expert settings point to one (must be a file)
         # i.e. priority to the most recently trained
         if expert_settings.has_model() and pretrained_model is None:
+            # TODO check if models are compatible
             pretrained_model = load_model(expert_settings.get_model_path())
 
     # prepare training

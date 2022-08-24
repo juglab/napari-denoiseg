@@ -88,6 +88,7 @@ class TrainWidget(QWidget):
         self.load_from_disk = False
         self.training_done = False
 
+        # actions
         self._set_actions()
 
         # update axes widget in case of data
@@ -351,6 +352,8 @@ class TrainWidget(QWidget):
             self.model = None
             self.reset_model_button.setText('')
             self.reset_model_button.setEnabled(False)
+            self.save_button.setText('')
+            self.save_button.setEnabled(False)
             self.train_button.setText('Train')
 
     def _update_3D(self, val):
