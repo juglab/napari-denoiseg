@@ -2,9 +2,11 @@ import warnings
 
 from enum import Enum
 import numpy as np
+from itertools import permutations
+
 from denoiseg.utils.compute_precision_threshold import measure_precision
 
-from itertools import permutations
+from napari_denoiseg.resources import DOC_BIOIMAGE
 
 REF_AXES = 'TSZYXC'
 
@@ -41,14 +43,14 @@ class UpdateType(Enum):
     DONE = 'done'
 
 
-def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc', doc='../resources/documentation.md'):
+def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
     import os
     from bioimageio.core.build_spec import build_model
 
     assert path.endswith('.bioimage.io.zip'), 'Path must end with .bioimage.io.zip'
 
     tags_dim = '3d' if len(axes) == 5 else '2d'
-
+    doc = DOC_BIOIMAGE
     build_model(weight_uri=weights,
                 test_inputs=[inputs],
                 test_outputs=[outputs],

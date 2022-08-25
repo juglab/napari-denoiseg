@@ -262,6 +262,7 @@ def load_data_from_disk(source, target, axes, augmentation=False, check_exists=T
         print('Mask size after augmentation', _y.shape)
 
     # add channel dim and one-hot encoding
+    # TODO: benchmark this method, is it what's taking so long??
     Y = convert_to_oneHot(_y)
 
     return _x, Y, _y, new_axes

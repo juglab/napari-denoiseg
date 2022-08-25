@@ -494,6 +494,9 @@ class TrainWidget(QWidget):
                     axes = self.axes_widget.get_axes()
                     axes = axes.replace('S', 'b').lower()
 
+                    if 'b' not in axes:
+                        axes = 'b' + axes
+
                     if 'c' not in axes:
                         axes = axes + 'c'
 
