@@ -40,7 +40,7 @@ class TBPlotWidget(Container):
         self.plot = self.graphics_widget.addPlot()
         self.plot.setLabel("bottom", "epoch")
         self.plot.setLabel("left", "loss")
-        self.plot.addLegend()
+        self.plot.addLegend(offset=(125, -50))
 
         # tensorboard button
         tb_button = QPushButton("Open in TensorBoard")
