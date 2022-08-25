@@ -352,7 +352,6 @@ class TrainWidget(QWidget):
             self.model = None
             self.reset_model_button.setText('')
             self.reset_model_button.setEnabled(False)
-            self.save_button.setText('')
             self.save_button.setEnabled(False)
             self.train_button.setText('Train')
 
