@@ -88,12 +88,11 @@ def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
     return RawData(_gen, n_images, description)
 
 
-
-
 def load_from_disk(path, axes: str):
     """
-    Load images from disk. If the dimensions don't agree, the method returns a list of images. If the dimensions
-    agree, the images are stacked along the `S` dimension of `axes` or along a new dimension if `S` is not in `axes`.
+    Load images from disk. If the dimensions don't agree, the method returns a tuple of list ([images], [files]). If
+    the dimensions agree, the images are stacked along the `S` dimension of `axes` or along a new dimension if `S` is
+    not in `axes`.
 
     :param axes:
     :param path:
@@ -111,12 +110,14 @@ def load_from_disk(path, axes: str):
     if dims_agree:
         if 'S' in axes:
             ind_S = axes.find('S')
+            new_axes = axes
             final_images = np.concatenate(images, axis=ind_S)
         else:
+            new_axes = 'S' + axes
             final_images = np.stack(images, axis=0)
-        return final_images
+        return final_images, new_axes
 
-    return images, image_files
+    return (images, image_files), axes
 
 
 def lazy_load_generator(path):

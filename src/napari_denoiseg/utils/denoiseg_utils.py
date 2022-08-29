@@ -254,8 +254,8 @@ def reshape_data(x, y, axes: str):
         new_y_shape = (1,) + new_y_shape
 
         # need to change the array of indices
-        indices = [0] + [1+i for i in indices]
-        indices_y = [0] + [1+i for i in indices_y]
+        indices = [0] + [1 + i for i in indices]
+        indices_y = [0] + [1 + i for i in indices_y]
 
     # reshape by moving axes
     destination = [i for i in range(len(indices))]
@@ -307,7 +307,7 @@ def reshape_data_single(x, axes: str):
         new_x_shape = (1,) + new_x_shape
 
         # need to change the array of indices
-        indices = [0] + [1+i for i in indices]
+        indices = [0] + [1 + i for i in indices]
 
     # reshape by moving axes
     destination = [i for i in range(len(indices))]
@@ -329,9 +329,10 @@ def reshape_data_single(x, axes: str):
     return _x, new_axes
 
 
+# TODO rename to reshape arbitrary?
 def reshape_napari(x, axes_in: str, axes_out: str = NAPARI_AXES):
     """
-    Reshape the data according to the napari axes order (or any order if axes_out) it set.
+    Reshape the data according to the napari axes order (or any order if axes_out is set).
     """
     _x = x
     _axes = axes_in
@@ -383,3 +384,4 @@ def get_napari_shapes(shape_in, axes_in):
     shape_segmented_out, _, _ = get_shape_order(shape_segmented, segmented_axes, NAPARI_AXES)
 
     return shape_denoised_out, shape_segmented_out
+

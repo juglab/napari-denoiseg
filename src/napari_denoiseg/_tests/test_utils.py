@@ -103,12 +103,6 @@ def create_model_zoo_parameters(folder, shape):
     np.save(path_to_output, np.zeros(shape))
     assert Path(path_to_output).exists()
 
-    # documentation
-    path_to_doc = folder / 'doc.md'
-    with open(path_to_doc, 'w') as f:
-        pass
-    assert path_to_doc.exists()
-
     # tf version
     tf_version = 42
 
@@ -120,4 +114,4 @@ def create_model_zoo_parameters(folder, shape):
     else:
         axes = ''
 
-    return path_to_modelzoo, path_to_h5, path_to_input, path_to_output, tf_version, axes, path_to_doc
+    return path_to_modelzoo, path_to_h5, path_to_input, path_to_output, tf_version, axes

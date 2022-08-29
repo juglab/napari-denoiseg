@@ -9,8 +9,7 @@ from napari_denoiseg.utils import (
     State,
     reshape_data_single,
     load_model,
-    reshape_napari,
-    get_napari_shapes
+    reshape_napari
 )
 
 
@@ -40,17 +39,20 @@ def prediction_worker(widget):
         if is_lazy_loading:
             images, n_img = lazy_load_generator(widget.images_folder.get_folder())
             assert n_img > 0, 'No image returned.'
+
+            new_axes = axes
         else:
-            images = load_from_disk(widget.images_folder.get_folder(), axes)
-            assert len(images.shape) > 0
+            images, new_axes = load_from_disk(widget.images_folder.get_folder(), axes)
     else:
         images = widget.images.value.data
+        new_axes = axes
         assert len(images.shape) > 0
 
     # common parameters list
     parameters = {'widget': widget,
                   'model': model,
-                  'axes': axes,
+                  'axes': new_axes,
+                  'images': images,
                   'is_threshold': is_threshold,
                   'threshold': threshold,
                   'is_tiled': is_tiled,
@@ -59,20 +61,18 @@ def prediction_worker(widget):
     if is_from_disk and is_lazy_loading:
         # yield generator size
         yield {UpdateType.N_IMAGES: n_img}
-        yield from _run_lazy_prediction(**parameters, generator=images)
-    elif is_from_disk and type(images) == tuple:
-        yield from _run_prediction_to_disk(**parameters, images=images)
+        yield from _run_lazy_prediction(**parameters)
+    elif is_from_disk and type(images) == tuple:  # load images from disk with different sizes
+        yield from _run_prediction_to_disk(**parameters)
     else:
-        # TODO: check if is_from_disk=True and images not a tuple is possible, otherwise is_from_disk doesn't have to be
-        #  passed as parameter. Then we can simply have the same method signature for all three
-        yield from _run_prediction(**parameters, images=images, is_from_disk=is_from_disk)
+
+        yield from _run_prediction(**parameters)
 
 
 def _run_prediction(widget,
                     model,
                     axes,
                     images,
-                    is_from_disk,
                     is_threshold=False,
                     threshold=0.8,
                     is_tiled=False,
@@ -92,18 +92,12 @@ def _run_prediction(widget,
     _data, new_axes = reshape_data_single(images, axes)
     yield {UpdateType.N_IMAGES: _data.shape[0]}
 
-    # if the images were loaded from disk, the layers in napari have the wrong shape
-    if is_from_disk:
-        shape_denoised, shape_segmented = get_napari_shapes(images.shape, axes)
-        widget.denoi_prediction = np.zeros(shape_denoised, dtype=np.float32)
-        widget.seg_prediction = np.zeros(shape_segmented, dtype=widget.seg_prediction.dtype)
-
     # this is to prevent the memory from saturating on the gpu on my machine
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
-    final_image_d = np.zeros(_data.shape, dtype=np.float32).squeeze()
-    final_image_s = np.zeros((*_data.shape[:-1], 3), dtype=np.float32).squeeze()
+    shape_out = (*_data.shape[:-1], _data.shape[-1] + 3)
+    predict_all = np.zeros(shape_out, dtype=np.float32)
 
     # start predicting
     for i_slice in range(_data.shape[0]):
@@ -112,26 +106,29 @@ def _run_prediction(widget,
         # yield image number + 1
         yield {UpdateType.IMAGE: i_slice + 1}
 
-        # TODO refactor the separation between denoised and segmented into a testable function
         # predict
         if is_tiled:
-            prediction = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
+            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
         else:
-            prediction = model.predict(_x, axes=new_axes)
-
-        # split predictions and update the layers in napari
-        final_image_d[i_slice, ...] = prediction[0, ..., 0:-3].squeeze()
-        final_image_s[i_slice, ...] = prediction[0, ..., -3:].squeeze()
+            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
 
         # check if stop requested
         if widget.state != State.RUNNING:
             break
 
+    # if only one sample, then update new axes
+    if predict_all.shape[0] == 1:
+        new_axes = new_axes[1:]
+
+    # split predictions
+    final_image_d = predict_all[..., 0:-3].squeeze()
+    final_image_s = predict_all[..., -3:].squeeze()
+
     if is_threshold:
-        final_image_s_t = final_image_s >= threshold
+        final_image_s = final_image_s >= threshold
 
         # Important: viewer.add_image seems to convert images to YX dims at the end, but not viewer.add_labels
-        final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
+        final_image_s, _ = reshape_napari(final_image_s, new_axes)
 
     widget.seg_prediction = final_image_s
     widget.denoi_prediction = final_image_d
@@ -192,22 +189,29 @@ def _run_prediction_to_disk(widget,
             # yield image number
             yield {UpdateType.IMAGE: i}
 
-            # TODO refactor the separation between denoised and segmented into a testable function
-            # predict
-            if is_tiled:
-                prediction = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
-            else:
-                prediction = model.predict(_x, axes=new_axes)
+            # shape prediction
+            shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
+            prediction = np.zeros(shape_out, dtype=np.float32)
 
-            # split predictions and threshold if requested
-            final_image_d = prediction[0, ..., 0:-3].squeeze()
-            final_image_s = prediction[0, ..., -3:].squeeze()
+            for i_s in range(_x.shape[0]):
+                if is_tiled:
+                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                else:
+                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+
+            # if only one sample, then update new axes
+            if prediction.shape[0] == 1:
+                new_axes = new_axes[1:]
+
+            # split predictions
+            final_image_d = prediction[..., 0:-3].squeeze()
+            final_image_s = prediction[..., -3:].squeeze()
 
             if is_threshold:
-                final_image_s_t = final_image_s >= threshold
+                final_image_s = final_image_s >= threshold
 
-            # Save napari axes order (XY at the end) in case we want to reopen it
-            final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
+            # Save napari with axes order (XY at the end) in case we want to reopen it
+            final_image_s, _ = reshape_napari(final_image_s, new_axes)
 
             # save predictions
             new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
@@ -228,7 +232,7 @@ def _run_prediction_to_disk(widget,
 def _run_lazy_prediction(widget,
                          model,
                          axes,
-                         generator,
+                         images,
                          is_threshold=False,
                          threshold=0.8,
                          is_tiled=False,
@@ -238,13 +242,13 @@ def _run_lazy_prediction(widget,
     :param widget:
     :param model:
     :param axes:
-    :param generator:
+    :param images:
     :param is_threshold:
     :param threshold:
     :return:
     """
     while True:
-        next_tuple = next(generator, None)
+        next_tuple = next(images, None)
 
         if next_tuple is not None:
             image, file, i_im = next_tuple
@@ -258,7 +262,6 @@ def _run_lazy_prediction(widget,
             shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
             prediction = np.zeros(shape_out, dtype=np.float32)
 
-            # TODO: why can't we predict all S together? csbdeep throws error for axes and dims mismatch
             for i_s in range(_x.shape[0]):
                 if is_tiled:
                     prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
@@ -274,12 +277,10 @@ def _run_lazy_prediction(widget,
             final_image_s = prediction[..., -3:].squeeze()
 
             if is_threshold:
-                final_image_s_t = final_image_s >= threshold
-            else:
-                final_image_s_t = final_image_s
+                final_image_s = final_image_s >= threshold
 
             # Save napari with axes order (XY at the end) in case we want to reopen it
-            final_image_s, _ = reshape_napari(final_image_s_t, new_axes)
+            final_image_s, _ = reshape_napari(final_image_s, new_axes)
 
             # save predictions
             new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
