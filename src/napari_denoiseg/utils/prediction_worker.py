@@ -34,7 +34,14 @@ def prediction_worker(widget):
 
     # load model
     weight_path = widget.get_model_path()
-    model = load_model(weight_path)
+    try:
+        model = load_model(weight_path)
+    except ValueError as e:
+        ntf.show_error('Error loading model weights.')
+        print(e)
+
+        yield {UpdateType.DONE}
+        return
 
     # grab images
     if is_from_disk:
