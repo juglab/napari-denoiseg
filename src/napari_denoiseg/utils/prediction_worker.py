@@ -40,11 +40,20 @@ def prediction_worker(widget):
     if is_from_disk:
         if is_lazy_loading:
             images, n_img = lazy_load_generator(widget.images_folder.get_folder())
-            assert n_img > 0, 'No image returned.'
+
+            if n_img == 0:
+                ntf.show_error('No image found.')
+                yield {UpdateType.DONE}
+                return
 
             new_axes = axes
         else:
             images, new_axes = load_from_disk(widget.images_folder.get_folder(), axes)
+
+            if type(images) == tuple and len(images[0]) == 0:
+                ntf.show_error('No image found.')
+                yield {UpdateType.DONE}
+                return
     else:
         images = widget.images.value.data
         new_axes = axes

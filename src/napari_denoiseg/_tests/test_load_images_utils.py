@@ -14,6 +14,7 @@ from napari_denoiseg.utils import (
     lazy_load_generator
 )
 
+# TODO: test when no image is found
 
 ###################################################################
 # test load_pairs_generator
