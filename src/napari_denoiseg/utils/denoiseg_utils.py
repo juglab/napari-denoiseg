@@ -76,6 +76,11 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                 }]],
                 tensorflow_version=tf_version
                 )
+    os.remove(os.path.join(os.getcwd(), "weights_best.h5"))
+    os.remove(os.path.join(os.getcwd(), "cover.png"))
+    os.remove(os.path.join(os.getcwd(), "bioimage_doc.md"))
+    os.remove(os.path.join(os.getcwd(), 'inputs.npy'))
+    os.remove(os.path.join(os.getcwd(), 'outputs.npy'))
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):
