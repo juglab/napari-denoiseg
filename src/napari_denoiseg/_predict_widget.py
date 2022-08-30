@@ -303,12 +303,13 @@ class PredictWidget(QWidget):
         if self.state == State.IDLE:
             if self.axes_widget.is_valid():
                 if self.get_model_path().exists() and self.get_model_path().is_file():
+                    # change state to running
                     self.state = State.RUNNING
-
-                    self.predict_button.setText('Stop')
 
                     # register which data tab: layers or disk
                     self.load_from_disk = self.tabs.currentIndex() == 1
+
+                    self.predict_button.setText('Stop')
 
                     # remove seg and denoising layers if they are present
                     if SEGMENTATION in self.viewer.layers:
@@ -345,6 +346,9 @@ class PredictWidget(QWidget):
 
     def get_model_path(self):
         return self.load_model_button.Model.value
+
+    def get_data_path(self):
+        return self.images_folder.get_folder()
 
     # TODO call these methods throughout the workers
     def get_axes(self):

@@ -107,7 +107,7 @@ def load_from_disk(path, axes: str):
         images.append(imread(str(f)))
         dims_agree = dims_agree and (images[0].shape == images[-1].shape)
 
-    if dims_agree:
+    if len(images) > 0 and dims_agree:
         if 'S' in axes:
             ind_S = axes.find('S')
             new_axes = axes
