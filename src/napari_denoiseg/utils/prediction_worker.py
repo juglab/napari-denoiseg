@@ -24,7 +24,7 @@ def prediction_worker(widget):
     is_lazy_loading = widget.lazy_loading.isChecked()
 
     is_tiled = widget.tiling_cbox.isChecked()
-    n_tiles = widget.tiling_spin.value
+    n_tiles = widget.tiling_spin.value()
 
     is_threshold = widget.threshold_cbox.isChecked()
     threshold = widget.threshold_spin.Threshold.value
@@ -98,11 +98,17 @@ def _run_prediction(widget,
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
 
+    # TODO by replacing here predict_all by the widget.denoi and seg, we could show progress to users
     shape_out = (*_data.shape[:-1], _data.shape[-1] + 3)
     predict_all = np.zeros(shape_out, dtype=np.float32)
 
     # start predicting
     for i_slice in range(_data.shape[0]):
+        # check if stop requested
+        if widget.state != State.RUNNING:
+            break
+
+        # otherwise proceed
         _x = _data[np.newaxis, i_slice, ...]  # replace S dimension with singleton
 
         # yield image number + 1
@@ -114,19 +120,15 @@ def _run_prediction(widget,
         else:
             predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
 
-        # check if stop requested
-        if widget.state != State.RUNNING:
-            break
-
-    # if only one sample, then update new axes
-    if predict_all.shape[0] == 1:
-        new_axes = new_axes[1:]
-
     # split predictions
     final_image_d = predict_all[..., 0:-3].squeeze()
     final_image_s = predict_all[..., -3:].squeeze()
 
     if is_threshold:
+        # if only one sample, then update new axes
+        if predict_all.shape[0] == 1:
+            new_axes = new_axes[1:]
+
         final_image_s = final_image_s >= threshold
 
         # Important: viewer.add_image seems to convert images to YX dims at the end, but not viewer.add_labels
