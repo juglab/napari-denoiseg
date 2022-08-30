@@ -179,9 +179,9 @@ def _run_prediction_to_disk(widget,
                 ntf.show_error(f'Wrong image shapes {f.stem} {im.shape}')
 
     gen = generator(images, axes)
+
     # TODO this is a weird way to use the generator to pass its total length
-    n_img = next(gen)
-    yield {UpdateType.N_IMAGES: n_img}
+    yield {UpdateType.N_IMAGES: next(gen)}
 
     # this is to prevent the memory from saturating on the gpu on my machine
     # if tf.config.list_physical_devices('GPU'):

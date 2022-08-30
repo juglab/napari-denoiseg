@@ -1,14 +1,10 @@
+import numpy as np
 import pytest
 
 from napari_denoiseg._tests.test_utils import create_model, save_img, save_weights_h5
 from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_prediction, _run_prediction_to_disk
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk
 
-
-# TODO: test from layers
-# todo: all with thresholding.
-# TODO: from disk, same size, no S
-# TODO test tiling
 
 class MonkeyPatchWidget:
     def __init__(self, path):
@@ -22,6 +18,8 @@ class MonkeyPatchWidget:
 
 
 @pytest.mark.parametrize('n', [1, 3])
+@pytest.mark.parametrize('t', [0, 0.6])
+@pytest.mark.parametrize('n_tiles', [1, 2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',
                          [((16, 16), (1, 16, 16, 1), 'YX'),
                           ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
@@ -31,7 +29,7 @@ class MonkeyPatchWidget:
                           ((5, 16, 16, 5), (25, 16, 16, 1), 'SYXT'),
                           ((16, 32, 32, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (5, 16, 32, 32, 3), 'SZYXC')])
-def test_run_lazy_prediction_same_size(tmp_path, n, shape, shape_denoiseg, axes):
+def test_run_lazy_prediction_same_size(tmp_path, t, n, n_tiles, shape, shape_denoiseg, axes):
     # create model and save it to disk
     model = create_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
@@ -45,15 +43,23 @@ def test_run_lazy_prediction_same_size(tmp_path, n, shape, shape_denoiseg, axes)
 
     # run prediction (it is a generator)
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_lazy_prediction(mk, model, axes, gen))
+    parameters = (mk, model, axes, gen)
+    hist = list(_run_lazy_prediction(*parameters,
+                                     is_threshold=t != 0,  # threshold if t != 0
+                                     threshold=t,
+                                     is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
+                                     n_tiles=n_tiles))
     assert hist[-1] == {UpdateType.DONE}
-    assert len(hist) == n+1
+    assert len(hist) == n + 1
 
     # check that images have been saved
-    image_files = [f for f in tmp_path.glob('*.tif*')]
-    assert len(image_files) == 3 * n
+    folder = tmp_path / 'results'
+    image_files = [f for f in folder.glob('*.tif*')]
+    assert len(image_files) == 2 * n
 
 
+@pytest.mark.parametrize('t', [0, 0.6])
+@pytest.mark.parametrize('n_tiles', [1, 2])
 @pytest.mark.parametrize('shape1, shape2, shape_denoiseg, axes',
                          [((16, 16), (32, 32), (1, 16, 16, 1), 'YX'),
                           ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'SYX'),
@@ -64,7 +70,7 @@ def test_run_lazy_prediction_same_size(tmp_path, n, shape, shape_denoiseg, axes)
                           ((5, 16, 16, 5), (3, 32, 32, 5), (25, 16, 16, 1), 'SYXT'),
                           ((16, 32, 32, 3), (32, 16, 16, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
-def test_run_lazy_prediction_different_sizes(tmp_path, shape1, shape2, shape_denoiseg, axes):
+def test_run_lazy_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
     model = create_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
@@ -76,19 +82,27 @@ def test_run_lazy_prediction_different_sizes(tmp_path, shape1, shape2, shape_den
 
     # instantiate generator
     gen, m = lazy_load_generator(tmp_path)
-    assert m == 2*n
+    assert m == 2 * n
 
     # run prediction (it is a generator)
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_lazy_prediction(mk, model, axes, gen))
+    parameters = (mk, model, axes, gen)
+    hist = list(_run_lazy_prediction(*parameters,
+                                     is_threshold=t != 0,  # threshold if t != 0
+                                     threshold=t,
+                                     is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
+                                     n_tiles=n_tiles))
     assert hist[-1] == {UpdateType.DONE}
-    assert len(hist) == 2*n+1
+    assert len(hist) == 2 * n + 1
 
     # check that images have been saved
-    image_files = [f for f in tmp_path.glob('*.tif*')]
-    assert len(image_files) == 3 * 2*n
+    folder = tmp_path / 'results'
+    image_files = [f for f in folder.glob('*.tif*')]
+    assert len(image_files) == 2 * 2 * n
 
 
+@pytest.mark.parametrize('t', [0, 0.6])
+@pytest.mark.parametrize('n_tiles', [1, 2])
 @pytest.mark.parametrize('shape1, shape2, shape_denoiseg, axes',
                          [((16, 16), (32, 32), (1, 16, 16, 1), 'YX'),
                           ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'SYX'),
@@ -99,7 +113,7 @@ def test_run_lazy_prediction_different_sizes(tmp_path, shape1, shape2, shape_den
                           ((5, 16, 16, 5), (3, 32, 32, 5), (25, 16, 16, 1), 'SYXT'),
                           ((16, 32, 32, 3), (32, 16, 16, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
-def test_run_from_disk_prediction_different_sizes(tmp_path, shape1, shape2, shape_denoiseg, axes):
+def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
     model = create_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
@@ -116,16 +130,25 @@ def test_run_from_disk_prediction_different_sizes(tmp_path, shape1, shape2, shap
 
     # run prediction
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_prediction_to_disk(mk, model, new_axes, images, True))
+    parameters = (mk, model, new_axes, images)
+    hist = list(_run_prediction_to_disk(*parameters,
+                                        is_threshold=t != 0,  # threshold if t != 0
+                                        threshold=t,
+                                        is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
+                                        n_tiles=n_tiles))
+
     assert hist[-1] == {UpdateType.DONE}
-    assert len(hist) == n*2 + 2
+    assert len(hist) == n * 2 + 2
 
     # check that images have been saved
-    image_files = [f for f in tmp_path.glob('*.tif*')]
-    assert len(image_files) == 3 * 2*n
+    folder = tmp_path / 'results'
+    image_files = [f for f in folder.glob('*.tif*')]
+    assert len(image_files) == 2 * 2 * n
 
 
 @pytest.mark.parametrize('n', [1, 3])
+@pytest.mark.parametrize('t', [0, 0.6])
+@pytest.mark.parametrize('n_tiles', [1, 2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',
                          [((16, 16), (1, 16, 16, 1), 'YX'),
                           ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
@@ -135,7 +158,7 @@ def test_run_from_disk_prediction_different_sizes(tmp_path, shape1, shape2, shap
                           ((5, 16, 16, 5), (25, 16, 16, 1), 'SYXT'),
                           ((16, 32, 32, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (5, 16, 32, 32, 3), 'SZYXC')])
-def test_run_prediction_from_disk_numpy(tmp_path, n, shape, shape_denoiseg, axes):
+def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_denoiseg, axes):
     m_s, m_t = 1, 1
 
     if 'S' in axes:
@@ -156,6 +179,55 @@ def test_run_prediction_from_disk_numpy(tmp_path, n, shape, shape_denoiseg, axes
 
     # run prediction (it is a generator)
     mk = MonkeyPatchWidget(path_to_h5)
-    hist = list(_run_prediction(mk, model, new_axes, images, True))
+    parameters = (mk, model, new_axes, images)
+    hist = list(_run_prediction(*parameters,
+                                is_threshold=t != 0,  # threshold if t != 0
+                                threshold=t,
+                                is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
+                                n_tiles=n_tiles))
     assert hist[-1] == {UpdateType.DONE}
     assert len(hist) == n * m_s * m_t + 2
+
+
+@pytest.mark.parametrize('t', [0, 0.6])
+@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.parametrize('shape, shape_denoiseg, axes',
+                         [((16, 16), (1, 16, 16, 1), 'YX'),
+                          ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
+                          ((5, 16, 16), (5, 16, 16, 1), 'TYX'),
+                          ((16, 32, 32), (1, 16, 32, 32, 1), 'ZYX'),
+                          ((5, 3, 16, 16), (5, 16, 16, 3), 'SCYX'),
+                          ((5, 3, 16, 16), (15, 16, 16, 1), 'TSYX'),
+                          ((3, 16, 32, 32), (1, 16, 32, 32, 3), 'CZYX'),
+                          ((3, 5, 16, 32, 32), (5, 16, 32, 32, 3), 'CSZYX')])
+def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, shape, shape_denoiseg, axes):
+    viewer = make_napari_viewer()
+
+    # estimate number of samples
+    m_s, m_t = 1, 1
+
+    if 'S' in axes:
+        m_s = shape[axes.find('S')]
+
+    if 'T' in axes:
+        m_t = shape[axes.find('T')]
+
+    # create images
+    name = 'images'
+    img = np.zeros(shape)
+    viewer.add_image(img, name=name)
+
+    # create model and save it to disk
+    model = create_model(tmp_path, shape_denoiseg)
+    path_to_h5 = save_weights_h5(model, tmp_path)
+
+    # run prediction (it is a generator)
+    mk = MonkeyPatchWidget(path_to_h5)
+    parameters = (mk, model, axes, viewer.layers['images'].data)
+    hist = list(_run_prediction(*parameters,
+                                is_threshold=t != 0,  # threshold if t != 0
+                                threshold=t,
+                                is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
+                                n_tiles=n_tiles))
+    assert hist[-1] == {UpdateType.DONE}
+    assert len(hist) == m_s * m_t + 2
