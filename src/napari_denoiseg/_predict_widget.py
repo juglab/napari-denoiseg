@@ -334,12 +334,14 @@ class PredictWidget(QWidget):
         self.state = State.IDLE
         self.predict_button.setText('Predict again')
 
-        self.viewer.add_image(self.denoi_prediction, name='denoised')
+        if self.denoi_prediction is not None:
+            self.viewer.add_image(self.denoi_prediction, name='denoised')
 
-        if self.threshold_cbox.isChecked():
-            self.viewer.add_labels(self.seg_prediction, name='segmented', opacity=0.5)
-        else:
-            self.viewer.add_image(self.seg_prediction, name='segmented')
+        if self.seg_prediction is not None:
+            if self.threshold_cbox.isChecked():
+                self.viewer.add_labels(self.seg_prediction, name='segmented', opacity=0.5)
+            else:
+                self.viewer.add_image(self.seg_prediction, name='segmented')
 
     def get_model_path(self):
         return self.load_model_button.Model.value

@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 
 import numpy as np
 from tifffile import imwrite
 
 from napari.qt.threading import thread_worker
+from napari.utils import notifications as ntf
 from napari_denoiseg.utils import (
     UpdateType,
     State,
@@ -167,11 +169,17 @@ def _run_prediction_to_disk(widget,
         counter = 0
         for im, f in zip(*data):
             # reshape from napari to S(Z)YXC
-            _data, _axes = reshape_data_single(im, axes_order)
-            counter += counter + 1
-            yield _data, f, _axes, counter
+            try:
+                _data, _axes = reshape_data_single(im, axes_order)
+
+                counter = counter + 1
+                yield _data, f, _axes, counter
+
+            except ValueError:
+                ntf.show_error(f'Wrong image shapes {f.stem} {im.shape}')
 
     gen = generator(images, axes)
+    # TODO this is a weird way to use the generator to pass its total length
     n_img = next(gen)
     yield {UpdateType.N_IMAGES: n_img}
 
@@ -214,8 +222,12 @@ def _run_prediction_to_disk(widget,
             final_image_s, _ = reshape_napari(final_image_s, new_axes)
 
             # save predictions
-            new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
-            new_file_path_seg = Path(file.parent, file.stem + '_segmented' + file.suffix)
+            parent = Path(file.parent, 'results')
+            if not parent.exists():
+                os.mkdir(parent)
+
+            new_file_path_denoi = Path(parent, file.stem + '_denoised' + file.suffix)
+            new_file_path_seg = Path(parent, file.stem + '_segmented' + file.suffix)
             imwrite(new_file_path_denoi, final_image_d)
             imwrite(new_file_path_seg, final_image_s)
 
@@ -256,41 +268,49 @@ def _run_lazy_prediction(widget,
             yield {UpdateType.IMAGE: i_im}
 
             # reshape data
-            _x, new_axes = reshape_data_single(image, axes)
+            try:
+                _x, new_axes = reshape_data_single(image, axes)
 
-            # run prediction
-            shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
-            prediction = np.zeros(shape_out, dtype=np.float32)
+                # run prediction
+                shape_out = (*_x.shape[:-1], _x.shape[-1] + 3)
+                prediction = np.zeros(shape_out, dtype=np.float32)
 
-            for i_s in range(_x.shape[0]):
-                if is_tiled:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
-                else:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                for i_s in range(_x.shape[0]):
+                    if is_tiled:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                    else:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
 
-            # if only one sample, then update new axes
-            if prediction.shape[0] == 1:
-                new_axes = new_axes[1:]
+                # if only one sample, then update new axes
+                if prediction.shape[0] == 1:
+                    new_axes = new_axes[1:]
 
-            # split predictions
-            final_image_d = prediction[..., 0:-3].squeeze()
-            final_image_s = prediction[..., -3:].squeeze()
+                # split predictions
+                final_image_d = prediction[..., 0:-3].squeeze()
+                final_image_s = prediction[..., -3:].squeeze()
 
-            if is_threshold:
-                final_image_s = final_image_s >= threshold
+                if is_threshold:
+                    final_image_s = final_image_s >= threshold
 
-            # Save napari with axes order (XY at the end) in case we want to reopen it
-            final_image_s, _ = reshape_napari(final_image_s, new_axes)
+                # Save napari with axes order (XY at the end) in case we want to reopen it
+                final_image_s, _ = reshape_napari(final_image_s, new_axes)
 
-            # save predictions
-            new_file_path_denoi = Path(file.parent, file.stem + '_denoised' + file.suffix)
-            new_file_path_seg = Path(file.parent, file.stem + '_segmented' + file.suffix)
-            imwrite(new_file_path_denoi, final_image_d)
-            imwrite(new_file_path_seg, final_image_s)
+                # save predictions
+                parent = Path(file.parent, 'results')
+                if not parent.exists():
+                    os.mkdir(parent)
 
-            # check if stop requested
-            if widget.state != State.RUNNING:
-                break
+                new_file_path_denoi = Path(parent, file.stem + '_denoised' + file.suffix)
+                new_file_path_seg = Path(parent, file.stem + '_segmented' + file.suffix)
+                imwrite(new_file_path_denoi, final_image_d)
+                imwrite(new_file_path_seg, final_image_s)
+
+                # check if stop requested
+                if widget.state != State.RUNNING:
+                    break
+
+            except ValueError:
+                ntf.show_error(f'Wrong image shapes  {file.stem} {image.shape}')
         else:
             break
 
