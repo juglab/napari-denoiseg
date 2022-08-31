@@ -1,5 +1,7 @@
+import os
+import pathlib
 import warnings
-
+from contextlib import contextmanager
 from enum import Enum
 import numpy as np
 from itertools import permutations
@@ -51,36 +53,32 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
 
     tags_dim = '3d' if len(axes) == 5 else '2d'
     doc = DOC_BIOIMAGE
-    build_model(weight_uri=weights,
-                test_inputs=[inputs],
-                test_outputs=[outputs],
-                input_axes=[axes],
-                output_axes=[axes],
-                output_path=path,
-                name='DenoiSeg',
-                description="Super awesome DenoiSeg model. The best.",
-                authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
-                         {"name": "Alexander Krull"},
-                         {"name": "Florian Jug"}],
-                license="BSD-3-Clause",
-                documentation=os.path.abspath(doc),
-                tags=[tags_dim, "tensorflow", "unet", "denoising", "semantic-segmentation"],
-                cite=[
-                    {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
-                preprocessing=[[{
-                    "name": "zero_mean_unit_variance",
-                    "kwargs": {
-                        "axes": "yx",
-                        "mode": "per_dataset"
-                    }
-                }]],
-                tensorflow_version=tf_version
-                )
-    os.remove(os.path.join(os.getcwd(), "weights_best.h5"))
-    os.remove(os.path.join(os.getcwd(), "cover.png"))
-    os.remove(os.path.join(os.getcwd(), "bioimage_doc.md"))
-    os.remove(os.path.join(os.getcwd(), 'inputs.npy'))
-    os.remove(os.path.join(os.getcwd(), 'outputs.npy'))
+    with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
+        build_model(weight_uri=str(weights),
+                    test_inputs=[inputs],
+                    test_outputs=[outputs],
+                    input_axes=[axes],
+                    output_axes=[axes],
+                    output_path=path,
+                    name='DenoiSeg',
+                    description="Super awesome DenoiSeg model. The best.",
+                    authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                             {"name": "Alexander Krull"},
+                             {"name": "Florian Jug"}],
+                    license="BSD-3-Clause",
+                    documentation=os.path.abspath(doc),
+                    tags=[tags_dim, "tensorflow", "unet", "denoising", "semantic-segmentation"],
+                    cite=[
+                        {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                    preprocessing=[[{
+                        "name": "zero_mean_unit_variance",
+                        "kwargs": {
+                            "axes": "yx",
+                            "mode": "per_dataset"
+                        }
+                    }]],
+                    tensorflow_version=tf_version
+                    )
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):
@@ -388,3 +386,15 @@ def get_napari_shapes(shape_in, axes_in):
     shape_segmented_out, _, _ = get_shape_order(shape_segmented, segmented_axes, NAPARI_AXES)
 
     return shape_denoised_out, shape_segmented_out
+
+
+@contextmanager
+def cwd(path):
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+    oldpwd = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(oldpwd)

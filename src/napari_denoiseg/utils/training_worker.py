@@ -1,3 +1,6 @@
+import os
+import pathlib
+import time
 from pathlib import Path
 from queue import Queue
 
@@ -17,6 +20,7 @@ from napari_denoiseg.utils import (
     optimize_threshold,
     load_model
 )
+from napari_denoiseg.utils.denoiseg_utils import cwd
 
 
 class TrainingCallback(Callback):
@@ -122,11 +126,10 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     yield from get_best_threshold(widget, X_val, Y_val_onehot)
 
     # save input/output for bioimage.io
-    widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
-    widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
-    np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
-    np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
-                                                 axes=widget.new_axes))
+    with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
+        np.save('inputs.npy', X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
+        np.save('outputs.npy', widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
+                                                     axes=widget.new_axes))
 
     ntf.show_info('Done')
 
@@ -438,10 +441,11 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
     from n2v.utils.n2v_utils import pm_uniform_withCP
 
     # create model
-    today = date.today().strftime("%b-%d-%Y")
-    model_name = 'DenoiSeg_' + today
+    today = date.today().strftime("%Y-%m-%d")
+    model_name = today + '_DenoiSeg_' + str(round(time.time()))
     basedir = 'models'
-    model = DenoiSeg(conf, model_name, basedir)
+    with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
+        model = DenoiSeg(conf, model_name, basedir)
 
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
@@ -553,11 +557,11 @@ def normalize_images(model, X_train, X_val):
 
 
 def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
-    # start training
-    model.keras_model.fit(training_data, validation_data=(validation_X, validation_Y),
-                          epochs=epochs, steps_per_epoch=steps_per_epoch,
-                          callbacks=model.callbacks, verbose=1)
-
-    # save last weights
-    if model.basedir is not None:
-        model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
+    with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
+        # start training
+        model.keras_model.fit(training_data, validation_data=(validation_X, validation_Y),
+                              epochs=epochs, steps_per_epoch=steps_per_epoch,
+                              callbacks=model.callbacks, verbose=1)
+        # save last weights
+        if model.basedir is not None:
+            model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
