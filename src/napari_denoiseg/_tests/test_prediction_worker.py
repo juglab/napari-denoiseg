@@ -159,14 +159,6 @@ def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, 
                           ((16, 32, 32, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_denoiseg, axes):
-    m_s, m_t = 1, 1
-
-    if 'S' in axes:
-        m_s = shape[axes.find('S')]
-
-    if 'T' in axes:
-        m_t = shape[axes.find('T')]
-
     # create model and save it to disk
     model = create_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
@@ -186,7 +178,7 @@ def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_de
                                 is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
                                 n_tiles=n_tiles))
     assert hist[-1] == {UpdateType.DONE}
-    assert len(hist) == n * m_s * m_t + 2
+    assert len(hist) == n * shape_denoiseg[0] + 2
 
 
 @pytest.mark.parametrize('t', [0, 0.6])
@@ -202,15 +194,6 @@ def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_de
                           ((3, 5, 16, 32, 32), (5, 16, 32, 32, 3), 'CSZYX')])
 def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, shape, shape_denoiseg, axes):
     viewer = make_napari_viewer()
-
-    # estimate number of samples
-    m_s, m_t = 1, 1
-
-    if 'S' in axes:
-        m_s = shape[axes.find('S')]
-
-    if 'T' in axes:
-        m_t = shape[axes.find('T')]
 
     # create images
     name = 'images'
@@ -230,4 +213,4 @@ def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, sh
                                 is_tiled=n_tiles != 1,  # use tiles if n_tiles != 1
                                 n_tiles=n_tiles))
     assert hist[-1] == {UpdateType.DONE}
-    assert len(hist) == m_s * m_t + 2
+    assert len(hist) == shape_denoiseg[0] + 2

@@ -115,7 +115,7 @@ def load_from_disk(path, axes: str):
         else:
             new_axes = 'S' + axes
             final_images = np.stack(images, axis=0)
-        return final_images, new_axes
+        return final_images.squeeze(), new_axes
 
     return (images, image_files), axes
 
