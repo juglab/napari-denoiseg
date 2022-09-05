@@ -317,6 +317,10 @@ class PredictWidget(QWidget):
                     if DENOISING in self.viewer.layers:
                         self.viewer.layers.remove(DENOISING)
 
+                    # reset place holders
+                    self.seg_prediction = None
+                    self.denoi_prediction = None
+
                     # start the prediction worker
                     self.worker = prediction_worker(self)
                     self.worker.yielded.connect(lambda x: self._update(x))

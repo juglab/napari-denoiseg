@@ -16,6 +16,7 @@ from napari_denoiseg.utils import (
 
 # TODO: test when no image is found
 
+
 ###################################################################
 # test load_pairs_generator
 def test_load_pairs_generator_no_files(tmp_path):
