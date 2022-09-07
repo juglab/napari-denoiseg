@@ -79,6 +79,10 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                     }]],
                     tensorflow_version=tf_version
                     )
+        head, _ = os.path.split(path)
+        head = os.path.join(head, "config.json").replace("/","\\")
+        print(head)
+        os.remove(head)
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):

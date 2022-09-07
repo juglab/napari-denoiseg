@@ -127,8 +127,10 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     # save input/output for bioimage.io
     with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
-        np.save('inputs.npy', X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
-        np.save('outputs.npy', widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
+        widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
+        widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
+        np.save(widget.inputs, X_val[..., 0][np.newaxis, 0, ..., np.newaxis])
+        np.save(widget.outputs, widget.model.predict(X_val[..., 0][np.newaxis, 0, ..., np.newaxis],
                                                      axes=widget.new_axes))
 
     ntf.show_info('Done')
