@@ -401,7 +401,7 @@ class TrainWidget(QWidget):
 
         path = self.train_images_folder.get_folder()
 
-        if path is not None or path != '':
+        if path is not None and path != '':
             # load one image
             load_worker = loading_worker(path)
             load_worker.yielded.connect(lambda x: add_image(self, x))
@@ -521,7 +521,7 @@ class TrainWidget(QWidget):
 if __name__ == "__main__":
     from napari_denoiseg._sample_data import denoiseg_data_2D_n10, denoiseg_data_3D_n10
 
-    dims = '2D'  # '2D'
+    dims = '3D'  # '2D'
     if dims == '3D':
         data = denoiseg_data_3D_n10()
     else:

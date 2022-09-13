@@ -53,6 +53,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     ntf.show_info('Loading data')
 
     # get images and labels
+    # TODO we should make this list compatible, with the patch creation already
     X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
 
     # create DenoiSeg configuration
@@ -473,6 +474,7 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
 
     # Here we prepare the Noise2Void data. Our input is the noisy data X and as target we take X concatenated with
     # a masking channel. The N2V_DataWrapper will take care of the pixel masking and manipulating.
+    # Patches are created here
     training_data = DenoiSeg_DataWrapper(X=X,
                                          n2v_Y=np.concatenate((X, np.zeros(X.shape, dtype=X.dtype)),
                                                               axis=axes.index('C')),
@@ -505,14 +507,15 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
     return train_params, updater, tf.__version__
 
 
-# TODO: how do warnings show up in napari?
 def sanity_check_validation_fraction(X_train, X_val):
     import warnings
     n_train, n_val = len(X_train), len(X_val)
     frac_val = (1.0 * n_val) / (n_train + n_val)
     frac_warn = 0.05
     if frac_val < frac_warn:
-        warnings.warn("small number of validation images (only %.05f%% of all images)" % (100 * frac_val))
+        message = "small number of validation images (only %.05f%% of all images)" % (100 * frac_val)
+        warnings.warn(message)
+        ntf.show_info(message)
 
 
 def sanity_check_training_size(X_train, model, axes):
@@ -534,7 +537,7 @@ def get_validation_patch_shape(X_val, axes):
     from csbdeep.utils import axes_dict
 
     ax = axes_dict(axes)
-    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)
+    axes_relevant = ''.join(a for a in 'XYZT' if a in axes)  # TODO: why T in there? It shouldn't be in T
     val_patch_shape = ()
     for a in axes_relevant:
         val_patch_shape += tuple([X_val.shape[ax[a]]])
