@@ -54,6 +54,8 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
     tags_dim = '3d' if len(axes) == 5 else '2d'
     doc = DOC_BIOIMAGE
     with cwd(os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")):
+        head, _ = os.path.split(str(weights))
+        head = os.path.join(os.path.normcase(head), "config.json")
         build_model(weight_uri=str(weights),
                     test_inputs=[inputs],
                     test_outputs=[outputs],
@@ -77,7 +79,8 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                             "mode": "per_dataset"
                         }
                     }]],
-                    tensorflow_version=tf_version
+                    tensorflow_version=tf_version,
+                    attachments={"files": head}
                     )
         head, _ = os.path.split(path)
         head = os.path.join(os.path.normcase(head), "config.json")
