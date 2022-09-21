@@ -85,8 +85,9 @@ def test_saved_weights_h5(tmp_path, shape):
     assert path_to_weights.exists()
 
 
-# TODO: why is it saving in the current directory and not in folder?
 def create_model_zoo_parameters(folder, shape):
+    import shutil
+
     # create model and save it to disk
     model = create_model(folder, shape)
     path_to_h5 = str(save_weights_h5(model, folder).absolute())
@@ -102,6 +103,9 @@ def create_model_zoo_parameters(folder, shape):
     path_to_output = path_to_h5[:-len('.h5')] + '-output.npy'
     np.save(path_to_output, np.zeros(shape))
     assert Path(path_to_output).exists()
+
+    # copy config.json to the parent folder
+    shutil.copyfile(os.path.join(path_to_h5[:-len('.h5')], "config.json"), os.path.join(folder, "config.json"))
 
     # tf version
     tf_version = 42

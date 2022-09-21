@@ -53,38 +53,38 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
 
     tags_dim = '3d' if len(axes) == 5 else '2d'
     doc = DOC_BIOIMAGE
-    with cwd(get_default_path()):
-        head, _ = os.path.split(str(weights))
-        head = os.path.join(os.path.normcase(head), "config.json")
-        build_model(weight_uri=str(weights),
-                    test_inputs=[inputs],
-                    test_outputs=[outputs],
-                    input_axes=[axes],
-                    output_axes=[axes],
-                    output_path=path,
-                    name='DenoiSeg',
-                    description="Super awesome DenoiSeg model. The best.",
-                    authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
-                             {"name": "Alexander Krull"},
-                             {"name": "Florian Jug"}],
-                    license="BSD-3-Clause",
-                    documentation=os.path.abspath(doc),
-                    tags=[tags_dim, "tensorflow", "unet", "denoising", "semantic-segmentation"],
-                    cite=[
-                        {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
-                    preprocessing=[[{
-                        "name": "zero_mean_unit_variance",
-                        "kwargs": {
-                            "axes": "yx",
-                            "mode": "per_dataset"
-                        }
-                    }]],
-                    tensorflow_version=tf_version,
-                    attachments={"files": head}
-                    )
-        head, _ = os.path.split(path)
-        head = os.path.join(os.path.normcase(head), "config.json")
-        os.remove(os.path.abspath(head))
+
+    head, _ = os.path.split(str(weights))
+    head = os.path.join(os.path.normcase(head), "config.json")
+    build_model(weight_uri=str(weights),
+                test_inputs=[inputs],
+                test_outputs=[outputs],
+                input_axes=[axes],
+                output_axes=[axes],
+                output_path=path,
+                name='DenoiSeg',
+                description="Super awesome DenoiSeg model. The best.",
+                authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                         {"name": "Alexander Krull"},
+                         {"name": "Florian Jug"}],
+                license="BSD-3-Clause",
+                documentation=os.path.abspath(doc),
+                tags=[tags_dim, "tensorflow", "unet", "denoising", "semantic-segmentation"],
+                cite=[
+                    {"text": "DenoiSeg: Joint Denoising and Segmentation", "doi": "10.48550/arXiv.2005.02987"}],
+                preprocessing=[[{
+                    "name": "zero_mean_unit_variance",
+                    "kwargs": {
+                        "axes": "yx",
+                        "mode": "per_dataset"
+                    }
+                }]],
+                tensorflow_version=tf_version,
+                attachments={"files": head}
+                )
+    head, _ = os.path.split(path)
+    head = os.path.join(os.path.normcase(head), "config.json")
+    os.remove(os.path.abspath(head))
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):

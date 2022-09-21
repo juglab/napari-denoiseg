@@ -97,7 +97,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
             pretrained_model = load_model(expert_settings.get_model_path())
 
     # prepare training
-    args = (denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
+    args = (widget, denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
     train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
 
     # start training
@@ -434,8 +434,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     return X, Y, X_val, Y_val, y_val_no_hot, new_axes
 
 
-def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
-    from datetime import date
+def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
     import tensorflow as tf
     from denoiseg.models import DenoiSeg
     from csbdeep.utils import axes_check_and_normalize
@@ -444,11 +443,12 @@ def prepare_training(conf, X_train, Y_train, X_val, Y_val, pretrained_model=None
     from n2v.utils.n2v_utils import pm_uniform_withCP
 
     # create model
-    today = date.today().strftime("%Y-%m-%d")
-    #model_name = today + '_DenoiSeg_' + str(round(time.time()))
-    basedir = 'models'
+    # model_name = today + '_DenoiSeg_' + str(round(time.time()))
     with cwd(get_default_path()):
-        model = DenoiSeg(conf, model_name, basedir)
+        model_name = 'DenoiSeg_3D' if widget.is_3D else 'DenoiSeg_2D'
+        base_dir = Path('models')
+
+        model = DenoiSeg(conf, model_name, base_dir)
 
     # if tf.config.list_physical_devices('GPU'):
     #    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
