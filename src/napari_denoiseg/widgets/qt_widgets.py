@@ -20,8 +20,10 @@ def create_double_spinbox(min_value: float = 0,
                           value: float = 0.5,
                           step: float = 0.1,
                           visible: bool = True,
-                          tooltip: str = None) -> DoubleSpinBox:
+                          tooltip: str = None,
+                          n_decimal: int = 1) -> DoubleSpinBox:
     spin_box = DoubleSpinBox()
+    spin_box.setDecimals(n_decimal)
     spin_box.setMinimum(min_value)
     spin_box.setMaximum(max_value)
     spin_box.setSingleStep(step)
@@ -31,6 +33,7 @@ def create_double_spinbox(min_value: float = 0,
     spin_box.setMinimumHeight(50)
     spin_box.setContentsMargins(0, 3, 0, 3)
     return spin_box
+
 
 
 def create_int_spinbox(min_value: int = 1,

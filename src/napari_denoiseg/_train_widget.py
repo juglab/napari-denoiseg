@@ -42,7 +42,7 @@ from napari_denoiseg.widgets import (
 )
 from napari_denoiseg.resources import ICON_GEAR, ICON_JUGLAB
 
-SAMPLE = 'Sample data'
+SAMPLE = 'Example data'
 
 
 class TrainingWidgetWrapper(ScrollWidgetWrapper):
