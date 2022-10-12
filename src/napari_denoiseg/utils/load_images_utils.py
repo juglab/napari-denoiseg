@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Union
+
 import numpy as np
 
 from tifffile import imread
@@ -6,7 +8,55 @@ from tifffile import imread
 from csbdeep.data import RawData
 from csbdeep.utils import consume
 
-from .denoiseg_utils import remove_C_dim
+
+def load_pairs_from_disk(source_path: Union[str, Path], target_path: Union[str, Path], axes: str, check_exists=True):
+    """
+    Load pairs of source and target images from the disk. This method returns arrays if all source images have the
+    same shape or lists of images if they do not.
+
+    `check_exists` = `False` allows inserting empty images when the corresponding target is not found.
+
+    :param axes: Name of the expected axes of the images
+    :param source_path: Path to the source images
+    :param target_path: Path to the targer images
+    :param check_exists: Replace missing targets by empty images if `False`, ignore source images without targets
+    otherwise.
+    :return:
+    """
+    # create RawData generator
+    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
+    n = pairs.size
+
+    # load data
+    _source = []
+    _target = []
+    dims_agree = True
+    for s, t in pairs.generator():
+        _source.append(s)
+        _target.append(t)
+
+        # TODO here we take the first one as reference, is there any better way?
+        dims_agree = dims_agree and (_source[0].shape == _source[-1].shape)
+
+    # if all source images have the same shape
+    if len(_source) > 0 and dims_agree:
+        _s = np.array(_source)
+        _t = np.array(_target, dtype=np.int)
+
+        # add S axes if more than one image
+        if 'S' not in axes and n > 1:
+            _axes = 'S' + axes
+        else:
+            _axes = axes
+
+        # source and target should have the same shape
+        if _s.shape != _t.shape:
+            raise ValueError('Shape of source and target images are incompatible.')
+
+        return _s, _t, n
+
+    return _source, _target, n
+
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
@@ -64,23 +114,13 @@ def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
                                                                                       o=t.name, a=axes,
                                                                                       pt=pattern)
 
-    # keep C index in memory
-    c_in_axes = 'C' in axes
-    index_c = axes.find('C')
-
     def _gen():
         for fx, fy in pairs:
             if fy:  # read images
                 x, y = imread(str(fx)), imread(str(fy))
             else:  # if the target is None, replace by an empty image
                 x = imread(str(fx))
-
-                if c_in_axes:
-                    new_shape = list(x.shape)
-                    new_shape.pop(index_c)
-                    y = np.zeros(new_shape)
-                else:
-                    y = np.zeros(x.shape)
+                y = np.zeros(x.shape)
 
             len(axes) >= x.ndim or _raise(ValueError())
             yield x, y
@@ -136,42 +176,3 @@ def lazy_load_generator(path):
             yield imread(str(f)), f, counter
 
     return generator(image_files), len(image_files)
-
-
-def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
-    """
-
-    :param axes:
-    :param source_path:
-    :param target_path:
-    :param check_exists:
-    :return:
-    """
-    # create RawData generator
-    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
-    n = pairs.size
-
-    # load data
-    _source = []
-    _target = []
-    for s, t in pairs.generator():
-        _source.append(s)
-        _target.append(t)
-
-    _s = np.array(_source)
-    _t = np.array(_target, dtype=np.int)
-
-    if 'S' not in axes and n > 1:
-        _axes = 'S' + axes
-    else:
-        _axes = axes
-
-    if 'C' in axes:
-        if remove_C_dim(_s.shape, _axes) != _t.shape:
-            raise ValueError
-    else:
-        if _s.shape != _t.shape:
-            raise ValueError
-
-    return _s, _t, n
-

@@ -21,6 +21,7 @@ def optimizer_worker(widget):
         images, labels, _ = load_pairs_from_disk(widget.images_folder.get_folder(),
                                                  widget.labels_folder.get_folder(),
                                                  axes)
+        # TODO should return with message to the user here if this method returns a list of images
     else:
         images, labels = widget.images.value.data, widget.labels.value.data
 

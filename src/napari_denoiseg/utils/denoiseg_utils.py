@@ -210,7 +210,6 @@ def reshape_data(x, y, axes: str):
 
     Differences between x and y:
     - y can have a different S and T dimension size
-    - y doesn't have C dimension
 
     :param x: Raw data.
     :param y: Ground-truth data.
@@ -221,38 +220,18 @@ def reshape_data(x, y, axes: str):
     _y = y
     _axes = axes
 
-    # sanity checks TODO: raise error rather than assert?
+    # sanity checks
     if 'X' not in axes or 'Y' not in axes:
         raise ValueError('X or Y dimension missing in axes.')
 
-    if 'C' in _axes:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape) + 1):
-            raise ValueError('Incompatible data and axes.')
-    else:
-        if not (len(_axes) == len(_x.shape) == len(_y.shape)):
-            raise ValueError('Incompatible data and axes.')
+    if not (len(_axes) == len(_x.shape) == len(_y.shape)):
+        raise ValueError('Incompatible data and axes.')
 
     assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
 
-    # get new x shape
+    # get new x and y shape
     new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, REF_AXES)
-
-    if 'C' in _axes:  # Y does not have a C dimension
-        index_c = indices[-1]
-        indices_y = indices[:-1]  # remove position of C
-
-        # correct the axes that were places after C
-        for i, ind in enumerate(indices_y):
-            if ind > index_c:
-                indices_y[i] = ind - 1
-
-        axes_y = _axes.replace('C', '')
-        ref_axes_y = REF_AXES.replace('C', '')
-        new_y_shape, _, _ = get_shape_order(_y.shape, axes_y, ref_axes_y)
-
-    else:
-        new_y_shape = tuple([_y.shape[ind] for ind in indices])
-        indices_y = indices
+    new_y_shape = tuple([_y.shape[ind] for ind in indices])
 
     # if S is not in the list of axes, then add a singleton S
     if 'S' not in new_axes:
@@ -264,27 +243,25 @@ def reshape_data(x, y, axes: str):
 
         # need to change the array of indices
         indices = [0] + [1 + i for i in indices]
-        indices_y = [0] + [1 + i for i in indices_y]
 
     # reshape by moving axes
     destination = [i for i in range(len(indices))]
-    destination_y = [i for i in range(len(indices_y))]
     _x = np.moveaxis(_x, indices, destination)
-    _y = np.moveaxis(_y, indices_y, destination_y)
+    _y = np.moveaxis(_y, indices, destination)
 
     # remove T if necessary
     if 'T' in new_axes:
         new_x_shape = (-1,) + new_x_shape[2:]  # remove T and S
-        new_y_shape = (-1,) + new_y_shape[2:]
         new_axes = new_axes.replace('T', '')
 
         # reshape arrays
         _x = _x.reshape(new_x_shape)
-        _y = _y.reshape(new_y_shape)
+        _y = _y.reshape(new_x_shape)
 
     # add channel
     if 'C' not in new_axes:
         _x = _x[..., np.newaxis]
+        _y = _y[..., np.newaxis]
         new_axes = new_axes + 'C'
 
     return _x, _y, new_axes

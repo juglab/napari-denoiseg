@@ -24,6 +24,8 @@ from napari_denoiseg._tests.test_utils import (
 )
 
 
+# TODO: there are unfinished tests
+
 @pytest.mark.parametrize('fraction', [0.05, 0.1, 0.5, 1])
 def test_sanity_check_high_validation_fraction(fraction):
     n = 5
@@ -195,7 +197,11 @@ def test_augment_data(shape, axes):
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
                          [((16, 16), 'XY', (16, 16, 1), 'YXC'),
                           ((16, 16, 8), 'XYZ', (8, 16, 16, 1), 'ZYXC'),
-                          ((8, 16, 8), 'XZY', (16, 8, 8, 1), 'ZYXC')])
+                          ((8, 16, 8), 'XZY', (16, 8, 8, 1), 'ZYXC'),
+                          ((3, 16, 16), 'XYC', (16, 16, 3), 'YXC'),
+                          ((16, 16, 8, 3), 'XYZC', (8, 16, 16, 3), 'ZYXC'),
+                          ((8, 3, 16, 8), 'XCZY', (16, 8, 8, 3), 'ZYXC')
+                          ])
 def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final_axes):
     folders = ['train_x', 'train_y']
     sizes = [20, 5]
@@ -215,6 +221,21 @@ def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final
     assert X.shape == (sizes[0] * 8,) + final_shape
     assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
     assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
+
+
+@pytest.mark.parametrize('shape', [(1, 16, 16, 1),
+                                   (5, 16, 16, 1),
+                                   (5, 16, 16, 3),
+                                   (5, 16, 16, 16, 1),
+                                   (5, 16, 16, 16, 3)])
+def test_convert_to_onehot(shape):
+    from denoiseg.utils.seg_utils import convert_to_oneHot
+
+    x = np.ones(shape)
+    y = convert_to_oneHot(x)
+
+    assert y.shape[:-1] == x.shape[:-1]
+    assert y.shape[-1] == x.shape[-1] * 3
 
 
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
@@ -242,29 +263,35 @@ def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_a
     assert Y.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:-1]
 
 
-@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
-                         [((16, 16, 6), 'XYC', (16, 16, 6), 'YXC'),
-                          ((16, 12, 16, 8), 'XCYZ', (8, 16, 16, 12), 'ZYXC'),
-                          ((5, 8, 16, 8), 'CXZY', (16, 8, 8, 5), 'ZYXC')])
-def test_load_data_from_disk_train_C(tmp_path, shape, axes, final_shape, final_axes):
+@pytest.mark.parametrize('shape1, shape2, axes',
+                         [((16, 16), (32, 32), 'XY'),
+                          ((8, 16, 16), (16, 32, 32), 'ZXY'),
+                          ((16, 16, 3), (32, 32, 3), 'XYC'),
+                          ((8, 16, 16, 3), (16, 32, 32, 3), 'ZXYC')])
+def test_load_data_from_disk_different_sizes(tmp_path, shape1, shape2, axes):
+    """
+    Load pairs with different size from the disk.
+    """
     folders = ['train_x', 'train_y']
-    sizes = [20, 5]
-    shapes = [shape, remove_C_dim(shape, axes)]
+    sizes = [5, 2]
 
     # create data
-    create_data(tmp_path, folders, sizes, shapes)
+    create_data(tmp_path, folders, sizes, [shape1, shape1], prefix='1_')
+    create_data(tmp_path, folders, sizes, [shape2, shape2], prefix='2_')
 
     # load data
+    patch_shape = (4, 4, 4) if 'Z' in axes else (4, 4)
     X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
                                                    tmp_path / folders[1],
                                                    axes,
                                                    augmentation=True,
-                                                   check_exists=False)
+                                                   check_exists=False,
+                                                   patch_shape=patch_shape)
 
-    assert new_axes == 'S' + final_axes
-    assert X.shape == (sizes[0] * 8,) + final_shape
-    assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
-    assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
+    assert new_axes == 'S' + axes
+    assert X.shape[0] == (2 * sizes[0] * 8,)
+    assert Y_onehot.shape[0] == (sizes[0] * 8,)
+    assert Y.shape[0] == (sizes[0] * 8,)
 
 
 @pytest.mark.parametrize('shape, axes', [((16, 8), 'YX'),
@@ -305,7 +332,7 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape, axes):
     """
     folders = ['train_x', 'train_y', 'val_x', 'val_y']
     sizes = [20, 5, 10, 8]
-    shapes = [shape, remove_C_dim(shape, axes), shape, remove_C_dim(shape, axes)]
+    shapes = [shape for _ in range(len(sizes))]
 
     # create data
     create_data(tmp_path, folders, sizes, shapes)
@@ -438,7 +465,7 @@ def test_create_val_set(shape):
                                          ((16, 16), 'YX'),  # No 3rd dim
                                          ((20, 16, 16), 'SZYX'),  # axes and data not matching
                                          ((20, 16, 18), 'SZYX'),  # YX not square
-                                         ((20, 3, 16, 16), 'SCYX')])  # Labels with C dim
+                                         ])  # Labels with C dim
 def test_check_napari_data_errors(shape, axes):
     x = np.random.random(shape)
     y = np.random.random(shape)
@@ -461,35 +488,6 @@ def test_check_napari_data_different_xy():
 
     with pytest.raises(ValueError):
         check_napari_data(x, y, 'SYX')
-
-
-@pytest.mark.parametrize('shape1, shape2, axes',
-                         [((5, 3, 16, 16), (5, 2, 16, 16), 'SCYX'),
-                          ((5, 3, 16, 16), (5, 4, 16, 16), 'SCYX'),
-                          ((5, 3, 16, 16), (5, 3, 16, 16), 'SCYX'),
-                          ((3, 5, 16, 16), (2, 5, 16, 16), 'CSYX'),
-                          ((3, 5, 16, 16), (4, 5, 16, 16), 'CSYX'),
-                          ((5, 20, 3, 16, 16), (5, 20, 2, 16, 16), 'TSCYX')])
-def test_check_napari_data_C_error(shape1, shape2, axes):
-    x = np.random.random(shape1)
-    y = np.random.random(shape2)
-
-    with pytest.raises(ValueError):
-        check_napari_data(x, y, axes)
-
-
-@pytest.mark.parametrize('shape1, shape2, axes',
-                         [((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
-                          ((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
-                          ((5, 3, 16, 16), (5, 16, 16), 'SCYX'),
-                          ((3, 5, 16, 16), (5, 16, 16), 'CSYX'),
-                          ((3, 5, 16, 16), (5, 16, 16), 'CSYX'),
-                          ((5, 20, 3, 16, 16), (5, 20, 16, 16), 'TSCYX')])
-def test_check_napari_data_C(shape1, shape2, axes):
-    x = np.random.random(shape1)
-    y = np.random.random(shape2)
-
-    check_napari_data(x, y, axes)
 
 
 def test_prepare_data_layers_no_labels(make_napari_viewer):
@@ -704,7 +702,6 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
     # Y can have smaller S size
     shape_y = list(shape)
     shape_y[ind_S] = shape_y[ind_S] - 2
-    shape_y = remove_C_dim(shape_y, axes)
 
     if ind_S > ind_C != -1:
         ind_S_y = ind_S - 1
@@ -754,7 +751,7 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
                          [((10, 16, 16), (10, 16, 16), 'SYX'),
                           ((10, 5, 16, 16), (10, 5, 16, 16), 'STYX'),
                           ((10, 16, 16, 16), (10, 16, 16, 16), 'SZYX'),
-                          ((10, 3, 16, 16), (10, 16, 16), 'SCYX'),
+                          ((10, 3, 16, 16), (10, 3, 16, 16), 'SCYX'),
                           ((16, 2, 8, 16, 16), (16, 2, 8, 16, 16), 'ZTSYX')])
 def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes):
 

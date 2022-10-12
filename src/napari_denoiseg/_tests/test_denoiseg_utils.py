@@ -213,12 +213,11 @@ def test_get_shape_order_NAPARI(shape_in, axes_in, final_shape, final_axes):
 def test_reshape_data_no_CT(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
     y = np.zeros(shape)
-    final_shape_y = final_shape[:-1]
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
     assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
+    assert _y.shape == final_shape
     assert new_axes == final_axes
 
 
@@ -230,15 +229,15 @@ def test_reshape_data_no_CT(shape, axes, final_shape, final_axes):
 def test_reshape_data_T_no_C(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
     y = np.zeros(shape)
-    final_shape_y = final_shape[:-1]
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
     assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
+    assert _y.shape == final_shape
     assert new_axes == final_axes
 
 
+# TODO refactor with the other tests...
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
                          [((5, 3, 5), 'XCY', (1, 5, 5, 3), 'SYXC'),
                           ((16, 3, 12, 8), 'XCYS', (8, 12, 16, 3), 'SYXC'),
@@ -249,20 +248,12 @@ def test_reshape_data_T_no_C(shape, axes, final_shape, final_axes):
                           ((16, 3, 21, 8, 12), 'SZYCX', (16, 3, 21, 12, 8), 'SZYXC')])
 def test_reshape_data_C_no_T(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
-
-    # Y does not have C dimension
-    ind_c = axes.find('C')
-    shape_y = list(shape)
-    shape_y[ind_c] = 1
-    y = np.zeros(shape_y).squeeze()  # Remove C dimension
-    final_shape_y = final_shape[:-1]
-
-    assert len(x.shape) == len(y.shape) + 1
+    y = np.zeros(shape)
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
     assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
+    assert _y.shape == final_shape
     assert new_axes == final_axes
 
 
@@ -272,20 +263,12 @@ def test_reshape_data_C_no_T(shape, axes, final_shape, final_axes):
                           ((16, 10, 5, 6, 12, 8), 'ZSXCYT', (10 * 8, 16, 12, 5, 6), 'SZYXC')])
 def test_reshape_data_CT(shape, axes, final_shape, final_axes):
     x = np.zeros(shape)
-
-    # Y does not have C dimension
-    ind_c = axes.find('C')
-    shape_y = list(shape)
-    shape_y[ind_c] = 1
-    y = np.zeros(shape_y).squeeze()  # Remove C dimension
-    final_shape_y = final_shape[:-1]
-
-    assert len(x.shape) == len(y.shape) + 1
+    y = np.zeros(shape)
 
     _x, _y, new_axes = reshape_data(x, y, axes)
 
     assert _x.shape == final_shape
-    assert _y.shape == final_shape_y
+    assert _y.shape == final_shape
     assert new_axes == final_axes
 
 
@@ -297,12 +280,10 @@ def test_reshape_data_values_XY():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
-    _y = _y.squeeze()
 
     for i in range(shape[1]):
-        assert (_x[i, :] == x[:, i]).all()
-        assert (_y[i, :] == y[:, i]).all()
+        assert (_x[0, i, :, 0] == x[:, i]).all()
+        assert (_y[0, i, :, 0] == y[:, i]).all()
 
 
 def test_reshape_data_values_CXY():
@@ -310,16 +291,14 @@ def test_reshape_data_values_CXY():
     axes = 'CXY'
     shape = (3, 16, 8)
     x = np.random.randint(0, 255, shape)
-    y = np.random.randint(0, 255, shape[1:])
+    y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
-    _y = _y.squeeze()
 
     for i in range(shape[2]):
         for c in range(shape[0]):
-            assert (_x[i, :, c] == x[c, :, i]).all()
-        assert (_y[i, :] == y[:, i]).all()
+            assert (_x[0, i, :, c] == x[c, :, i]).all()
+            assert (_y[0, i, :, c] == y[c, :, i]).all()
 
 
 def test_reshape_data_values_XZY():
@@ -329,13 +308,11 @@ def test_reshape_data_values_XZY():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
-    _y = _y.squeeze()
 
     for z in range(shape[1]):
         for i in range(shape[2]):
-            assert (_x[z, i, :] == x[:, z, i]).all()
-            assert (_y[z, i, :] == y[:, z, i]).all()
+            assert (_x[0, z, i, :, 0] == x[:, z, i]).all()
+            assert (_y[0, z, i, :, 0] == y[:, z, i]).all()
 
 
 def test_reshape_data_values_XZTY():
@@ -345,14 +322,12 @@ def test_reshape_data_values_XZTY():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
-    _y = _y.squeeze()
 
     for t in range(shape[2]):
         for z in range(shape[1]):
             for i in range(shape[3]):
-                assert (_x[t, z, i, :] == x[:, z, t, i]).all()
-                assert (_y[t, z, i, :] == y[:, z, t, i]).all()
+                assert (_x[t, z, i, :, 0] == x[:, z, t, i]).all()
+                assert (_y[t, z, i, :, 0] == y[:, z, t, i]).all()
 
 
 def test_reshape_data_values_STYX():
@@ -362,14 +337,13 @@ def test_reshape_data_values_STYX():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
 
     for s in range(shape[0]):
         for t in range(shape[1]):
             for i in range(shape[2]):
                 # here reshaping happens because S and T dims are pulled together
-                assert (_x[t * shape[0] + s, i, :] == x[s, t, i, :]).all()
-                assert (_y[t * shape[0] + s, i, :] == y[s, t, i, :]).all()
+                assert (_x[t * shape[0] + s, i, :, 0] == x[s, t, i, :]).all()
+                assert (_y[t * shape[0] + s, i, :, 0] == y[s, t, i, :]).all()
 
 
 def test_reshape_data_values_TSYX():
@@ -379,14 +353,13 @@ def test_reshape_data_values_TSYX():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
 
     for s in range(shape[1]):
         for t in range(shape[0]):
             for i in range(shape[2]):
                 # here reshaping happens because S and T dims are pulled together
-                assert (_x[t * shape[1] + s, i, :] == x[t, s, i, :]).all()
-                assert (_y[t * shape[1] + s, i, :] == y[t, s, i, :]).all()
+                assert (_x[t * shape[1] + s, i, :, 0] == x[t, s, i, :]).all()
+                assert (_y[t * shape[1] + s, i, :, 0] == y[t, s, i, :]).all()
 
 
 def test_reshape_data_values_SZYTX():
@@ -396,15 +369,14 @@ def test_reshape_data_values_SZYTX():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
 
     for s in range(shape[1]):
         for t in range(shape[3]):
             for z in range(shape[0]):
                 for i in range(shape[2]):
                     # here reshaping happens because S and T dims are pulled together
-                    assert (_x[t * shape[1] + s, z, i, :] == x[z, s, i, t, :]).all()
-                    assert (_y[t * shape[1] + s, z, i, :] == y[z, s, i, t, :]).all()
+                    assert (_x[t * shape[1] + s, z, i, :, 0] == x[z, s, i, t, :]).all()
+                    assert (_y[t * shape[1] + s, z, i, :, 0] == y[z, s, i, t, :]).all()
 
 
 def test_reshape_data_values_ZTYSX():
@@ -414,22 +386,21 @@ def test_reshape_data_values_ZTYSX():
     y = np.random.randint(0, 255, shape)
 
     _x, _y, _ = reshape_data(x, y, axes)
-    _x = _x.squeeze()
 
     for s in range(shape[3]):
         for t in range(shape[1]):
             for z in range(shape[0]):
                 for i in range(shape[2]):
                     # here reshaping happens because S and T dims are pulled together
-                    assert (_x[t * shape[3] + s, z, i, :] == x[z, t, i, s, :]).all()
-                    assert (_y[t * shape[3] + s, z, i, :] == y[z, t, i, s, :]).all()
+                    assert (_x[t * shape[3] + s, z, i, :, 0] == x[z, t, i, s, :]).all()
+                    assert (_y[t * shape[3] + s, z, i, :, 0] == y[z, t, i, s, :]).all()
 
 
 def test_reshape_data_values_ZTCYSX():
     axes = 'ZTCYSX'
     shape = (15, 10, 3, 16, 5, 8)
     x = np.random.randint(0, 255, shape)
-    y = np.random.randint(0, 255, (*shape[:2], *shape[3:]))  # no C dimension
+    y = np.random.randint(0, 255, shape)  # no C dimension
 
     _x, _y, _ = reshape_data(x, y, axes)
 
@@ -440,8 +411,7 @@ def test_reshape_data_values_ZTCYSX():
                     for c in range(shape[2]):
                         # here reshaping happens because S and T dims are pulled together
                         assert (_x[t * shape[4] + s, z, i, :, c] == x[z, t, c, i, s, :]).all()
-
-                    assert (_y[t * shape[4] + s, z, i, :] == y[z, t, i, s, :]).all()
+                        assert (_y[t * shape[4] + s, z, i, :, c] == y[z, t, c, i, s, :]).all()
 
 
 ##########################################
