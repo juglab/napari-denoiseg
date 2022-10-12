@@ -18,7 +18,8 @@ from napari_denoiseg.utils import (
     reshape_napari,
     get_shape_order,
     REF_AXES,
-    NAPARI_AXES
+    NAPARI_AXES,
+    cwd
 )
 
 
@@ -33,25 +34,12 @@ from napari_denoiseg.utils import (
 def test_build_modelzoo_allowed_shapes(tmp_path, shape):
     # create model and save it to disk
     parameters = create_model_zoo_parameters(tmp_path, shape)
-    build_modelzoo(*parameters)
+
+    with cwd(tmp_path):
+        build_modelzoo(*parameters)
 
     # check if modelzoo exists
     assert Path(parameters[0]).exists()
-
-
-@pytest.mark.parametrize('shape', [(8,), (8, 16), (1, 16, 16), (32, 16, 8, 16, 32, 3)])
-def test_build_modelzoo_disallowed_shapes(tmp_path, shape):
-    """
-    Test ModelZoo creation based on disallowed shapes.
-
-    :param tmp_path:
-    :param shape:
-    :return:
-    """
-    # create model and save it to disk
-    with pytest.raises(AssertionError):
-        parameters = create_model_zoo_parameters(tmp_path, shape)
-        build_modelzoo(*parameters)
 
 
 @pytest.mark.parametrize('shape', [(8, 16, 16, 3),
@@ -64,10 +52,12 @@ def test_build_modelzoo_disallowed_batch(tmp_path, shape):
     :param shape:
     :return:
     """
+    parameters = create_model_zoo_parameters(tmp_path, shape)
+
     # create model and save it to disk
     with pytest.raises(ValidationError):
-        parameters = create_model_zoo_parameters(tmp_path, shape)
-        build_modelzoo(*parameters)
+        with cwd(tmp_path):
+            build_modelzoo(*parameters)
 
 
 @pytest.mark.parametrize('shape, axes, final_shape',

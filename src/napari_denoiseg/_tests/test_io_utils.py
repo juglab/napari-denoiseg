@@ -14,6 +14,7 @@ from napari_denoiseg.utils import (
     load_configuration,
     save_configuration,
     load_weights,
+    cwd
 )
 
 
@@ -136,7 +137,9 @@ def test_load_weights_h5_incompatible_shapes(tmp_path, shape1, shape2):
 def test_load_weights_modelzoo(tmp_path, shape):
     # save model_zoo
     parameters = create_model_zoo_parameters(tmp_path, shape)
-    build_modelzoo(*parameters)
+
+    with cwd(tmp_path):
+        build_modelzoo(*parameters)
 
     # create a new model and load from previous weights
     model = create_model(tmp_path, shape)
@@ -147,7 +150,9 @@ def test_load_weights_modelzoo(tmp_path, shape):
 def test_load_weights_modelzoo(tmp_path, shape):
     # save model_zoo
     parameters = create_model_zoo_parameters(tmp_path, shape)
-    build_modelzoo(*parameters)
+
+    with cwd(tmp_path):
+        build_modelzoo(*parameters)
 
     # create a new model and load from previous weights
     model = create_model(tmp_path, shape)
@@ -158,7 +163,9 @@ def test_load_weights_modelzoo(tmp_path, shape):
                                             ((1, 8, 16, 16, 1), (1, 16, 16, 1))])
 def test_load_weights_h5_incompatible_shapes(tmp_path, shape1, shape2):
     parameters = create_model_zoo_parameters(tmp_path, shape1)
-    build_modelzoo(*parameters)
+
+    with cwd(tmp_path):
+        build_modelzoo(*parameters)
 
     # create a new model and load from previous weights
     model = create_model(tmp_path, shape2)
