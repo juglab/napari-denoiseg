@@ -14,11 +14,8 @@ from napari_denoiseg.utils import (
     lazy_load_generator
 )
 
-
 # TODO: test when no image is found
-# todo test when there is only a single image on the disk
-# TODO write goal of each test
-# TODO Make sure they are compatible with Y with C channel
+
 
 ###################################################################
 # test load_pairs_generator
@@ -167,7 +164,11 @@ def test_load_pairs_from_disk_same_shape(tmp_path, shape, axes):
         os.mkdir(tmp_path / f)
 
     save_img(tmp_path / folders[0], n, shape)
-    save_img(tmp_path / folders[1], n, shape)
+
+    if 'C' in axes:
+        save_img(tmp_path / folders[1], n, shape[:-1])
+    else:
+        save_img(tmp_path / folders[1], n, shape)
 
     # load images
     load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
@@ -184,7 +185,11 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
         os.mkdir(tmp_path / f)
 
     save_img(tmp_path / folders[0], n[0], shape)
-    save_img(tmp_path / folders[1], n[1], shape)
+
+    if 'C' in axes:
+        save_img(tmp_path / folders[1], n[1], shape[:-1])
+    else:
+        save_img(tmp_path / folders[1], n[1], shape)
 
     # load images, replacing n[1]-n[0] last images with blank frames
     X, Y, n_loaded = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
@@ -196,38 +201,8 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
         load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=True)
 
 
-@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8), (16, 16), 'YX'),
-                                                  ((4, 8, 8), (8, 16, 16), 'ZYX'),
-                                                  ((16, 8, 32, 3), (12, 16, 32, 3), 'ZYXC'),
-                                                  ((16, 8, 16, 32, 3), (10, 16, 32, 32, 3), 'TZYXC')])
-def test_load_pairs_from_disk_different_shapes(tmp_path, shape1, shape2, axes):
-    n = [5, 2]
-    folders = ['X', 'Y']
-    for f in folders:
-        os.mkdir(tmp_path / f)
-
-    save_img(tmp_path / folders[0], n[0], shape1, prefix='1_')
-    save_img(tmp_path / folders[0], n[0], shape2, prefix='2_')
-
-    if 'C' in axes:
-        save_img(tmp_path / folders[1], n[1], shape1[:-1])
-        save_img(tmp_path / folders[1], n[1], shape1[:-1])
-    else:
-        save_img(tmp_path / folders[1], n[1], shape1, prefix='1_')
-        save_img(tmp_path / folders[1], n[1], shape2, prefix='2_')
-
-    # load images
-    X, Y, n_loaded = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
-    assert type(X) == list and type(Y) == list
-    assert len(X) == len(Y) == 2 * n[0]
-
-    # load images with the check_exists flag triggers error
-    with pytest.raises(FileNotFoundError):
-        load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=True)
-
-
 @pytest.mark.parametrize('shape1, shape2', [((8, 8), (4, 8, 8)), ((4, 8, 8), (8, 8)), ((8, 8), (8, 9))])
-def test_load_pairs_from_disk_different_shape_sizes(tmp_path, shape1, shape2):
+def test_load_pairs_from_disk_different_shapes(tmp_path, shape1, shape2):
     n = 10
     folders = ['X', 'Y']
     for f in folders:
@@ -239,6 +214,22 @@ def test_load_pairs_from_disk_different_shape_sizes(tmp_path, shape1, shape2):
     # load images
     with pytest.raises(ValueError):
         load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], 'YX')
+
+
+@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8, 3), (8, 8), 'YXC'),
+                                                  ((4, 8, 8), (8, 8), 'CYX'),
+                                                  ((8, 6, 8), (8, 8), 'YCX')])
+def test_load_pairs_from_disk_different_shapes_C(tmp_path, shape1, shape2, axes):
+    n = 10
+    folders = ['X', 'Y']
+    for f in folders:
+        os.mkdir(tmp_path / f)
+
+    save_img(tmp_path / folders[0], n, shape1)
+    save_img(tmp_path / folders[1], n, shape2)
+
+    # load images
+    load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
 
 
 def test_lazy_generator(tmp_path):

@@ -1,6 +1,5 @@
 from pathlib import Path
 from queue import Queue
-from typing import Union
 
 import numpy as np
 
@@ -10,7 +9,6 @@ from napari.qt.threading import thread_worker
 import napari.utils.notifications as ntf
 
 from denoiseg.utils.seg_utils import convert_to_oneHot
-from denoiseg.utils.denoiseg_data_preprocessing import generate_patches_from_list
 from napari_denoiseg.utils import (
     State,
     UpdateType,
@@ -56,6 +54,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     ntf.show_info('Loading data')
 
     # get images and labels
+    # TODO we should make this list compatible, with the patch creation already
     X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
 
     # create DenoiSeg configuration
@@ -220,14 +219,9 @@ def augment_data(array, axes: str):
     return np.concatenate([X_rot, X_flip], axis=0)
 
 
-def load_data_from_disk(source: Union[str, Path],
-                        target: Union[str, Path],
-                        axes: str,
-                        augmentation=False,
-                        check_exists=True,
-                        patch_shape=(256, 256)):
+def load_data_from_disk(source, target, axes, augmentation=False, check_exists=True):
     """
-    Load pairs of source and target images (*.tif) from the disk.
+    Load pairs of raw and label images (*.tif) from the disk.
 
     Accepted dimensions are 'SZYXC'. Different time points will be considered independent and added to the S dimension.
 
@@ -237,19 +231,16 @@ def load_data_from_disk(source: Union[str, Path],
 
     This method returns a tuple (X, Y, X_val, Y_val, x_val, y_val, new_axes), where:
     X: raw images with dimension SYXC or SZYXC, with S(ample) and C(channel) (channel can be singleton dimension)
-    Y: label images with dimension SYXC or SZYXC, with dimension C of length size(C)*3 (one-hot encoding)
+    Y: label images with dimension SYXC or SZYXC, with dimension C of length 3 (one-hot encoding)
     x: raw images without singleton C(hannel) dimension (if applicable)
     y: labels without one-hot encoding
     new_axes: new axes order
 
-    If source and target images have different shapes, then patches are directly extracted from the images.
-
     :param source: Path to the folder containing the training images.
-    :param target: Path to the folder containing the label images.
+    :param target: Path to the folder containing the training labels.
     :param axes: Axes order
     :param augmentation: Augment data 8-fold if True
     :param check_exists: Check if source images have a target if True. Else it will load an empty image instead.
-    :param patch_shape: Patch shape.
     :return:
     """
     from denoiseg.utils.seg_utils import convert_to_oneHot
@@ -258,40 +249,26 @@ def load_data_from_disk(source: Union[str, Path],
     # load train data
     _x, _y, n = load_pairs_from_disk(source, target, axes, check_exists=check_exists)
 
-    # if lists, then generate patches already
-    if type(_x) == list:
-
-        # first we need to reshape each array
-        reshaped_x, reshaped_y = [], []
-        for im_x, im_y in zip(_x, _y):
-            x_r, y_r, new_axes = reshape_data(im_x, im_y, axes)
-            reshaped_x.append(x_r)
-            reshaped_y.append(y_r)
-
-        x_np, y_np = generate_patches_from_list(reshaped_x, reshaped_y, shape=patch_shape)
-
-        # one-hot encoding
-        Y = convert_to_oneHot(y_np)
+    # reshape data
+    if n > 1:  # if multiple sample
+        _axes = 'S' + axes
     else:
-        # reshape data
-        if n > 1 and 'S' not in axes:  # if multiple sample
-            _axes = 'S' + axes
-        else:
-            _axes = axes
+        _axes = axes
 
-        x_np, y_np, new_axes = reshape_data(_x, _y, _axes)
+    _x, _y, new_axes = reshape_data(_x, _y, _axes)
 
-        # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
-        if augmentation:
-            x_np = augment_data(x_np, new_axes)
-            y_np = augment_data(y_np, new_axes)
-            print('Raw image size after augmentation', x_np.shape)
-            print('Mask size after augmentation', y_np.shape)
+    # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
+    if augmentation:
+        _x = augment_data(_x, new_axes)
+        _y = augment_data(_y, new_axes)
+        print('Raw image size after augmentation', _x.shape)
+        print('Mask size after augmentation', _y.shape)
 
-        # one-hot encoding
-        Y = convert_to_oneHot(y_np)
+    # add channel dim and one-hot encoding
+    # TODO: benchmark this method, is it what's taking so long??
+    Y = convert_to_oneHot(_y)
 
-    return x_np, Y, y_np, new_axes
+    return _x, Y, _y, new_axes
 
 
 def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes):
@@ -333,7 +310,9 @@ def create_train_set(x, y, ind_exclude, axes):
     # Different between x and y shapes:
     # if there are channels in x, there should be none in y
     # along the S dimension, x can be larger than y
-    masks = np.zeros(x.shape)
+
+    # Y does not have channels dim before one hot encoding
+    masks = np.zeros(x.shape[:-1])
 
     # missing frames are replaced by empty ones
     masks[:y.shape[0], ...] = y
@@ -373,11 +352,18 @@ def check_napari_data(x, y, axes: str):
     if len(axes) != len(x.shape):
         raise ValueError('Raw images dimensions and axes are incompatible.')
 
-    if len(axes) != len(y.shape):
-        raise ValueError('Label images dimensions and axes are incompatible.')
+    if 'C' in axes:
+        if len(axes) != len(y.shape) + 1:
+            raise ValueError('Label images dimensions and axes are incompatible.')
 
-    if len(x.shape) != len(y.shape):
-        raise ValueError('Raw and label images dimensions are incompatible.')
+        if len(x.shape) != len(y.shape) + 1:
+            raise ValueError('Raw and label images dimensions are incompatible.')
+    else:
+        if len(axes) != len(y.shape):
+            raise ValueError('Label images dimensions and axes are incompatible.')
+
+        if len(x.shape) != len(y.shape):
+            raise ValueError('Raw and label images dimensions are incompatible.')
 
     # X and Y dims are fixed in napari, check that they are equal for the augmentation
     if x.shape[-1] != x.shape[-2]:
