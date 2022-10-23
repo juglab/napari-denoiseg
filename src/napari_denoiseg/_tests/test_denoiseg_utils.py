@@ -25,6 +25,7 @@ from napari_denoiseg.utils import (
 
 ###################################################################
 # test build_modelzoo
+@pytest.mark.bioimage_io
 @pytest.mark.parametrize('shape', [(1, 16, 16, 1),
                                    (1, 16, 8, 1),
                                    (1, 16, 8, 3),
@@ -42,6 +43,7 @@ def test_build_modelzoo_allowed_shapes(tmp_path, shape):
     assert Path(parameters[0]).exists()
 
 
+@pytest.mark.bioimage_io
 @pytest.mark.parametrize('shape', [(8, 16, 16, 3),
                                    (8, 16, 16, 8, 3)])
 def test_build_modelzoo_disallowed_batch(tmp_path, shape):

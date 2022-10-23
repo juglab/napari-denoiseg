@@ -9,7 +9,6 @@ from napari_denoiseg.utils.training_worker import (
     sanity_check_training_size,
     get_validation_patch_shape,
     normalize_images,
-    augment_data,
     prepare_data_disk,
     load_data_from_disk,
     detect_non_zero_frames,
@@ -138,67 +137,16 @@ def test_get_shape_order(shape, axes, final_shape, final_axes):
     assert new_axes == final_axes
 
 
-def test_augment_data_simple():
-    axes = 'SYX'
-    r = np.array([
-        [[1, 2], [3, 4]],
-        [[5, 6], [7, 8]],
-    ])
-    r1 = np.array([
-        [[2, 4], [1, 3]],
-        [[6, 8], [5, 7]],
-    ])
-    r2 = np.array([
-        [[4, 3], [2, 1]],
-        [[8, 7], [6, 5]],
-    ])
-    r3 = np.array([
-        [[3, 1], [4, 2]],
-        [[7, 5], [8, 6]],
-    ])
-    f0 = np.array([
-        [[3, 4], [1, 2]],
-        [[7, 8], [5, 6]],
-    ])
-    f1 = np.array([
-        [[1, 3], [2, 4]],
-        [[5, 7], [6, 8]],
-    ])
-    f2 = np.array([
-        [[2, 1], [4, 3]],
-        [[6, 5], [8, 7]],
-    ])
-    f3 = np.array([
-        [[4, 2], [3, 1]],
-        [[8, 6], [7, 5]],
-    ])
-    x_final = np.concatenate([r, r1, r2, r3, f0, f1, f2, f3], axis=0)
-
-    x_aug = augment_data(r, axes)
-    assert x_aug.shape == x_final.shape
-    assert (x_aug == x_final).all()
-
-
-@pytest.mark.parametrize('shape, axes', [((1, 16, 16), 'SYX'),
-                                         ((8, 16, 16), 'SYX'),
-                                         ((1, 10, 16, 16), 'SZYX'),
-                                         ((32, 10, 16, 16), 'SZYX'),
-                                         ((1, 10, 16, 16, 3), 'SZYXC'),
-                                         ((32, 10, 16, 16, 3), 'SZYXC')])
-def test_augment_data(shape, axes):
-    x = np.random.randint(0, 65535, shape, dtype=np.uint16)
-    x_aug = augment_data(x, axes)
-
-    assert x_aug.shape == (x.shape[0] * 8,) + x.shape[1:]
-
-
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
                          [((16, 16), 'XY', (16, 16, 1), 'YXC'),
                           ((16, 16, 8), 'XYZ', (8, 16, 16, 1), 'ZYXC'),
                           ((8, 16, 8), 'XZY', (16, 8, 8, 1), 'ZYXC')])
 def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final_axes):
+    """
+    Load an array of axes XYZ from disk with more training images than labels.
+    """
     folders = ['train_x', 'train_y']
-    sizes = [20, 5]
+    sizes = [3, 2]
     shapes = [shape for _ in sizes]
 
     # create data
@@ -221,9 +169,12 @@ def test_load_data_from_disk_train_XYZ(tmp_path, shape, axes, final_shape, final
                          [((16, 16, 8), 'XYT', (8, 16, 16, 1), 'SYXC'),
                           ((16, 16, 12, 8), 'XYTZ', (12, 8, 16, 16, 1), 'SZYXC'),
                           ((8, 12, 16, 8), 'XTZY', (12, 16, 8, 8, 1), 'SZYXC')])
-def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_axes):
+def test_load_data_from_disk_train_T(tmp_path, shape, axes, final_shape, final_axes):
+    """
+    Load an array with T axis from disk with more training images than labels.
+    """
     folders = ['train_x', 'train_y']
-    sizes = [20, 5]
+    sizes = [3, 2]
     shapes = [shape for _ in sizes]
 
     # create data
@@ -247,9 +198,12 @@ def test_load_data_from_disk_train_t(tmp_path, shape, axes, final_shape, final_a
                           ((16, 12, 16, 8), 'XCYZ', (8, 16, 16, 12), 'ZYXC'),
                           ((5, 8, 16, 8), 'CXZY', (16, 8, 8, 5), 'ZYXC')])
 def test_load_data_from_disk_train_C(tmp_path, shape, axes, final_shape, final_axes):
+    """
+    Load an array with C axis from disk with more training images than labels.
+    """
     folders = ['train_x', 'train_y']
-    sizes = [20, 5]
-    shapes = [shape, remove_C_dim(shape, axes)]
+    sizes = [3, 2]
+    shapes = [shape, remove_C_dim(shape, axes)]  # remove C from y
 
     # create data
     create_data(tmp_path, folders, sizes, shapes)
@@ -265,6 +219,94 @@ def test_load_data_from_disk_train_C(tmp_path, shape, axes, final_shape, final_a
     assert X.shape == (sizes[0] * 8,) + final_shape
     assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
     assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 16), 'XY', (16, 16, 1), 'YXC'),
+                          ((16, 16, 8), 'XYZ', (8, 16, 16, 1), 'ZYXC'),
+                          ((8, 16, 8), 'XZY', (16, 8, 8, 1), 'ZYXC')])
+def test_load_data_from_list_XYZ(tmp_path, shape, axes, final_shape, final_axes):
+    """
+    Load an array of axes XYZ as a list with more training images than labels.
+    """
+    folders = ['train_x', 'train_y']
+    sizes = [2, 1]
+    shapes = [shape for _ in sizes]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shapes)
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False)
+
+    assert new_axes == 'S' + final_axes
+    assert X.shape == (sizes[0] * 8,) + final_shape
+    assert Y_onehot.shape == (sizes[0] * 8,) + final_shape[:-1] + (3,)
+    assert Y.shape == (sizes[0] * 8,) + final_shape[:-1]
+
+
+@pytest.mark.parametrize('shape, axes, final_shape, final_axes',
+                         [((16, 16, 8), 'XYT', (8, 16, 16, 1), 'SYXC'),
+                          ((16, 16, 12, 8), 'XYTZ', (12, 8, 16, 16, 1), 'SZYXC'),
+                          ((8, 12, 16, 8), 'XTZY', (12, 16, 8, 8, 1), 'SZYXC')])
+def test_load_data_from_list_T(tmp_path, shape, axes, final_shape, final_axes):
+    """
+    Load an array with T axis as a list with more training images than labels.
+    """
+    folders = ['train_x', 'train_y']
+    sizes = [2, 1]
+    shapes = [shape for _ in sizes]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shapes)
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False)
+
+    assert new_axes == final_axes
+    assert X.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:]
+    assert Y_onehot.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:-1] + (3,)
+    assert Y.shape == (sizes[0] * 8 * final_shape[0],) + final_shape[1:-1]
+
+
+@pytest.mark.parametrize('shape1, shape2, axes, final_axes',
+                         [((16, 16, 3), (8, 8, 3), 'XYC', 'YXC'),
+                          ((16, 3, 16, 8), (8, 3, 8, 16), 'XCYZ', 'ZYXC'),
+                          ((3, 8, 16, 8), (3, 16, 8, 16), 'CXZY', 'ZYXC')])
+def test_load_data_from_list_C(tmp_path, shape1, shape2, axes, final_axes):
+    """
+    Load an array with C axis as a list with more training images than labels.
+    """
+    folders = ['train_x', 'train_y']
+    sizes = [2, 1]
+    shapes1 = [shape1, remove_C_dim(shape1, axes)]  # remove C from y
+    shapes2 = [shape2, remove_C_dim(shape2, axes)]  # remove C from y
+
+    # create data
+    create_data(tmp_path, folders, sizes, shapes1)
+    create_data(tmp_path, folders, sizes, shapes2, prefix='2_')
+
+    if 'Z' in axes:
+        patch = (4, 4, 4)
+    else:
+        patch = (4, 4)
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False,
+                                                   patch_shape=patch)
+    # TODO continue
 
 
 @pytest.mark.parametrize('shape, axes', [((16, 8), 'YX'),
@@ -312,30 +354,6 @@ def test_prepare_data_disk_unpaired_val(tmp_path, shape, axes):
 
     # load data
     with pytest.raises(FileNotFoundError):
-        prepare_data_disk(tmp_path / folders[0],
-                          tmp_path / folders[1],
-                          tmp_path / folders[2],
-                          tmp_path / folders[3],
-                          axes)
-
-
-@pytest.mark.parametrize('shape, axes', [((8,), 'X'), ((8, 8, 16, 16, 32), 'SZYXC')])
-def test_prepare_data_disk_wrong_dims(tmp_path, shape, axes):
-    """
-    Test that
-    :param tmp_path:
-    :param shape:
-    :return:
-    """
-    folders = ['train_x', 'train_y', 'val_x', 'val_y']
-    sizes = [20, 5, 8, 8]
-    shapes = [shape, remove_C_dim(shape, axes), shape, remove_C_dim(shape, axes)]
-
-    # create data
-    create_data(tmp_path, folders, sizes, shapes)
-
-    # load data
-    with pytest.raises(ValueError):
         prepare_data_disk(tmp_path / folders[0],
                           tmp_path / folders[1],
                           tmp_path / folders[2],
@@ -749,13 +767,14 @@ def test_prepare_data_layers_CT(make_napari_viewer, shape, axes, final_axes):
     assert new_axes == final_axes
 
 
+@pytest.mark.qt
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize('shape1, shape2, axes',
                          [((10, 16, 16), (10, 16, 16), 'SYX'),
-                          ((10, 5, 16, 16), (10, 5, 16, 16), 'STYX'),
+                          ((2, 5, 16, 16), (2, 5, 16, 16), 'STYX'),
                           ((10, 16, 16, 16), (10, 16, 16, 16), 'SZYX'),
                           ((10, 3, 16, 16), (10, 16, 16), 'SCYX'),
-                          ((16, 2, 8, 16, 16), (16, 2, 8, 16, 16), 'ZTSYX')])
+                          ((16, 2, 5, 16, 16), (16, 2, 5, 16, 16), 'ZTSYX')])
 def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes):
 
     class Value:
@@ -777,8 +796,8 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
             self.labels = Value(napari_viewer.layers['Y'])
             self.perc_train_slider = Slider(lambda: 80)
             self.axes = axes
-            self.n_epochs = 2
-            self.n_steps = 2
+            self.n_epochs = 1
+            self.n_steps = 1
             self.batch_size_spin = Value(lambda: 2)
             self.patch_size_XY = Value(lambda: 16)
             self.patch_size_Z = Value(lambda: 16)
@@ -786,7 +805,7 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
             self.tf_version = ''
             self.state = State.RUNNING
             self.model = None
-            self.threshold = -1
+            self.threshold = 0.1
             self.inputs = None
             self.outputs = None
             self.new_axes = None
@@ -798,8 +817,8 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
     viewer = make_napari_viewer()
 
     # create data
-    x = np.random.random(shape1)
-    y = np.random.randint(0, 255, shape2, dtype=np.uint16)
+    x = np.ones(shape1)
+    y = np.ones(shape2, dtype=np.uint16)
 
     # add layers
     viewer.add_image(x, name='X')
@@ -809,7 +828,7 @@ def test_train_napari(qtbot, make_napari_viewer, tmp_path, shape1, shape2, axes)
     widget = MonkeyPatchWidget(viewer)
     t = training_worker(widget)
 
-    with qtbot.waitSignal(t.finished, timeout=100_000):
+    with qtbot.waitSignal(t.finished, timeout=50_000):
         t.start()
 
     assert isinstance(widget.model, DenoiSeg)

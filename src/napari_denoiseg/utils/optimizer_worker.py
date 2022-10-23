@@ -17,6 +17,7 @@ def optimizer_worker(widget):
     axes = widget.axes_widget.get_axes()
 
     # grab images
+    # TODO here can be list of files
     if is_from_disk:
         images, labels, _ = load_pairs_from_disk(widget.images_folder.get_folder(),
                                                  widget.labels_folder.get_folder(),

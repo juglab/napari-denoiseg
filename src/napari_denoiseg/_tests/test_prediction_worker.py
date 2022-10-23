@@ -181,6 +181,7 @@ def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_de
     assert len(hist) == n * shape_denoiseg[0] + 2
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('t', [0, 0.6])
 @pytest.mark.parametrize('n_tiles', [1, 2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',

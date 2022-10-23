@@ -1,5 +1,6 @@
 from pathlib import Path
 from queue import Queue
+from typing import Union
 
 import numpy as np
 
@@ -9,6 +10,7 @@ from napari.qt.threading import thread_worker
 import napari.utils.notifications as ntf
 
 from denoiseg.utils.seg_utils import convert_to_oneHot
+from denoiseg.utils.denoiseg_data_preprocessing import augment_patches
 from napari_denoiseg.utils import (
     State,
     UpdateType,
@@ -53,15 +55,6 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     ntf.show_info('Loading data')
 
-    # get images and labels
-    # TODO we should make this list compatible, with the patch creation already
-    X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget)
-
-    # create DenoiSeg configuration
-    n_epochs = widget.n_epochs
-    n_steps = widget.n_steps
-    batch_size = widget.batch_size_spin.value()
-
     # patch shape
     patch_shape_XY = widget.patch_size_XY.value()
     patch_shape_Z = widget.patch_size_Z.value()
@@ -70,8 +63,17 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     else:
         patch_shape = (patch_shape_XY, patch_shape_XY)
 
-    ntf.show_info('Creating configuration')
+    ntf.show_info('Creating patches')
+    # get images and labels
+    # TODO we should make this list compatible, with the patch creation already
+    X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget, patch_shape)
 
+    # create DenoiSeg configuration
+    n_epochs = widget.n_epochs
+    n_steps = widget.n_steps
+    batch_size = widget.batch_size_spin.value()
+
+    ntf.show_info('Creating configuration')
     # create configuration
     if expert_settings is None:
         denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
@@ -155,10 +157,11 @@ def get_best_threshold(widget, X_val, Y_val):
     yield {UpdateType.BEST_THRESHOLD: (best_threshold, best_score)}
 
 
-def load_images(widget):
+def load_images(widget, patch_shape=(256, 256)):
     """
-
+    Load images from the disk or from napari layers.
     :param widget:
+    :param patch_shape:
     :return:
     """
     # TODO make clearer what objects are returned
@@ -185,7 +188,7 @@ def load_images(widget):
         if not Path(path_val_Y).exists():
             ntf.show_error('Y val folder doesn\'t exist')
 
-        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes)
+        return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes, patch_shape)
 
     else:  # from layers
         image_data = widget.images.value.data
@@ -197,29 +200,12 @@ def load_images(widget):
         return prepare_data_layers(image_data, label_data, perc_labels, axes)
 
 
-# TODO: use denoiseg method
-def augment_data(array, axes: str):
-    """
-    Augments the data 8-fold by 90 degree rotations and flipping.
-
-    Takes a dimension S.
-    """
-    # Adapted from DenoiSeg, in order to work with the following order `SZYXC`
-    ind_x = axes.find('X')
-    ind_y = axes.find('Y')
-
-    # rotations
-    _x = array.copy()
-    X_rot = [np.rot90(_x, i, (ind_y, ind_x)) for i in range(4)]
-    X_rot = np.concatenate(X_rot, axis=0)
-
-    # flip
-    X_flip = np.flip(X_rot, axis=ind_y)
-
-    return np.concatenate([X_rot, X_flip], axis=0)
-
-
-def load_data_from_disk(source, target, axes, augmentation=False, check_exists=True):
+def load_data_from_disk(source: Union[str, Path],
+                        target: Union[str, Path],
+                        axes: str,
+                        augmentation=False,
+                        check_exists=True,
+                        patch_shape=(256, 256)):
     """
     Load pairs of raw and label images (*.tif) from the disk.
 
@@ -237,42 +223,60 @@ def load_data_from_disk(source, target, axes, augmentation=False, check_exists=T
     new_axes: new axes order
 
     :param source: Path to the folder containing the training images.
-    :param target: Path to the folder containing the training labels.
+    :param target: Path to the folder containing the label images.
     :param axes: Axes order
     :param augmentation: Augment data 8-fold if True
     :param check_exists: Check if source images have a target if True. Else it will load an empty image instead.
+    :param patch_shape: Patch shape used if we are creating patches directly from data from the disk.
     :return:
     """
     from denoiseg.utils.seg_utils import convert_to_oneHot
+    from denoiseg.utils.denoiseg_data_preprocessing import generate_patches_from_list
     from napari_denoiseg.utils import load_pairs_from_disk
 
     # load train data
-    _x, _y, n = load_pairs_from_disk(source, target, axes, check_exists=check_exists)
+    _x, _y, _axes = load_pairs_from_disk(source, target, axes, check_exists=check_exists)
 
-    # reshape data
-    if n > 1:  # if multiple sample
-        _axes = 'S' + axes
+    # if lists, then generate patches already
+    if type(_x) == list:
+        new_axes = _axes
+
+        # first we need to reshape each array
+        reshaped_x, reshaped_y = [], []
+        for im_x, im_y in zip(_x, _y):
+            x_r, y_r, new_axes = reshape_data(im_x, im_y, _axes)
+            reshaped_x.append(x_r)
+            reshaped_y.append(y_r)
+
+        x_np, y_np = generate_patches_from_list(reshaped_x, reshaped_y, axes=new_axes, shape=patch_shape)
+
+        # one-hot encoding
+        Y = convert_to_oneHot(y_np)
     else:
-        _axes = axes
+        # reshape data
+        x_np, y_np, new_axes = reshape_data(_x, _y, _axes)
 
-    _x, _y, new_axes = reshape_data(_x, _y, _axes)
+        # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
+        if augmentation:
+            x_np = augment_patches(x_np, new_axes)
+            y_np = augment_patches(y_np, new_axes)
+            print('Raw image size after augmentation', x_np.shape)
+            print('Mask size after augmentation', y_np.shape)
 
-    # apply augmentation, XY dimensions must be equal (dim(X) == dim(Y))
-    if augmentation:
-        _x = augment_data(_x, new_axes)
-        _y = augment_data(_y, new_axes)
-        print('Raw image size after augmentation', _x.shape)
-        print('Mask size after augmentation', _y.shape)
+        # add channel dim and one-hot encoding
+        Y = convert_to_oneHot(y_np)
 
-    # add channel dim and one-hot encoding
-    # TODO: benchmark this method, is it what's taking so long??
-    Y = convert_to_oneHot(_y)
-
-    return _x, Y, _y, new_axes
+    return x_np, Y, y_np, new_axes
 
 
-def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes):
-    (X, Y, _, new_axes) = load_data_from_disk(path_train_X, path_train_Y, axes, True, False)
+def prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes, patch_shape=(256, 256)):
+    #
+    (X, Y, _, new_axes) = load_data_from_disk(path_train_X,
+                                              path_train_Y,
+                                              axes,
+                                              augmentation=True,
+                                              check_exists=False,
+                                              patch_shape=patch_shape)
     (X_val, Y_val, y_val, _) = load_data_from_disk(path_val_X, path_val_Y, axes)
 
     return X, Y, X_val, Y_val, y_val, new_axes
@@ -317,8 +321,8 @@ def create_train_set(x, y, ind_exclude, axes):
     # missing frames are replaced by empty ones
     masks[:y.shape[0], ...] = y
 
-    x_aug = augment_data(np.delete(x, ind_exclude, axis=0), axes)
-    y_aug = augment_data(np.delete(masks, ind_exclude, axis=0), axes)
+    x_aug = augment_patches(np.delete(x, ind_exclude, axis=0), axes)
+    y_aug = augment_patches(np.delete(masks, ind_exclude, axis=0), axes)
 
     return x_aug, y_aug
 
