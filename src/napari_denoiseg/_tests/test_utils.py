@@ -32,6 +32,7 @@ def create_data(main_dir, folders, sizes, shapes, prefix=''):
         save_img(source, n, sh, prefix=prefix)
 
 
+@pytest.mark.skip('Skip test for functions only used in testing.')
 @pytest.mark.parametrize('shape', [(16, 16), (8, 16, 16)])
 def test_create_data(tmp_path, shape):
     folders = ['train_X', 'train_Y', 'val_X', 'val_Y']
@@ -57,6 +58,7 @@ def create_model(basedir, shape):
     return DenoiSeg(config, name, basedir)
 
 
+@pytest.mark.skip('Skip test for functions only used in testing.')
 @pytest.mark.parametrize('shape', [(1, 8, 8, 1),
                                    (20, 8, 16, 3),
                                    (1, 8, 16, 16, 1),
@@ -75,6 +77,7 @@ def save_weights_h5(model, basedir):
     return path_to_weights
 
 
+@pytest.mark.skip('Skip test for functions only used in testing.')
 @pytest.mark.timeout(2)
 @pytest.mark.parametrize('shape', [(1, 8, 8, 1),
                                    (1, 8, 16, 1),
