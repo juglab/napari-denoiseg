@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/juglab/napari-denoiseg/branch/main/graph/badge.svg)](https://codecov.io/gh/juglab/napari-denoiseg)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-denoiseg)](https://napari-hub.org/plugins/napari-denoiseg)
 
-A napari plugin performing joint denoising and segmentation of microscopy images using DenoiSeg.
+A napari plugin performing joint denoising and segmentation of microscopy images using [DenoiSeg](https://github.com/juglab/DenoiSeg).
 
 <img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/?????????.png" width="800" />
 ----------------------------------
@@ -48,7 +48,6 @@ through the [image.sc](https://forum.image.sc/) forum (tag @jdeschamps).
 
 ## Cite us
 
-### DenoiSeg
 
 Tim-Oliver Buchholz, Mangal Prakash, Alexander Krull and Florian Jug, "[DenoiSeg: Joint Denoising and Segmentation](https://arxiv.org/abs/2005.02987)" _arxiv_ (2020)
 
