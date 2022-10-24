@@ -1,0 +1,4 @@
+ignore:
+  - "src/widgets/*"
+  - "*_widget.py"
+  - "*_data.py"
