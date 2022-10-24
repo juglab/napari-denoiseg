@@ -447,7 +447,7 @@ def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_mo
     # model_name = today + '_DenoiSeg_' + str(round(time.time()))
     with cwd(get_default_path()):
         model_name = 'DenoiSeg_3D' if widget.is_3D else 'DenoiSeg_2D'
-        base_dir = Path('models')
+        base_dir = Path('models').absolute()
 
         model = DenoiSeg(conf, model_name, base_dir)
 
