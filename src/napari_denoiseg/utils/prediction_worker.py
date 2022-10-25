@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 
 import numpy as np
+from napari_time_slicer import time_slicer
+from napari_tools_menu import register_function
 from tifffile import imwrite
 
 from napari.qt.threading import thread_worker
@@ -13,6 +15,38 @@ from napari_denoiseg.utils import (
     load_model,
     reshape_napari
 )
+
+
+# TODO: setup.cfg does not define an entry point currently
+@register_function(menu="Filtering / noise removal > Apply N2V denoiser")
+@time_slicer
+def apply_n2v(image: "napari.types.ImageData",
+              model_filename: os.PathLike = "my_n2v_model",
+              number_of_tiles: int = 4,
+              ) -> ("napari.types.ImageData", "napari.types.ImageData"):
+    """
+    """
+    model_path = Path(model_filename)
+    if not model_path.exists():
+        raise Exception('Model not found')
+
+    # load the model
+    model = load_model(model_path)
+
+    # check image shape
+    if len(image.shape) == 2:
+        axes = "YXC"
+        tiles = (number_of_tiles, number_of_tiles, 1)
+    elif len(image.shape) == 3:
+        axes = "ZYXC"
+        tiles = (number_of_tiles, number_of_tiles, number_of_tiles, 1)
+    else:
+        raise ValueError("Only 2D and 3D data supported.")
+
+    # run prediction
+    predicted_image = model.predict(image[..., np.newaxis], axes=axes, n_tiles=tiles)
+
+    return predicted_image[..., :-3], predicted_image[..., -3:]
 
 
 @thread_worker(start_thread=False)
