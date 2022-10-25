@@ -20,7 +20,7 @@ def generate_config(X,
     # assert len(X.shape)-2 == len(patch_shape)
     # TODO: what if generator or list
     conf = DenoiSegConfig(X,
-                          n_channel_out=X.shape[-1]+3,
+                          n_channel_out=X.shape[-1]+3,  # DenoiSeg outputs has c denoised channels and 3 seg classes
                           n_channel_in=X.shape[-1],
                           train_steps_per_epoch=n_steps,
                           train_epochs=n_epochs,
