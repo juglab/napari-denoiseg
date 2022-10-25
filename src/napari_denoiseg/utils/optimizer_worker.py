@@ -1,4 +1,5 @@
 from napari.qt.threading import thread_worker
+from napari.utils import notifications as ntf
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from napari_denoiseg.utils import (
     load_pairs_from_disk,
@@ -35,7 +36,15 @@ def optimizer_worker(widget):
 
     # load model
     weight_path = widget.get_model_path()
-    model = load_model(weight_path)
+
+    try:
+        model = load_model(weight_path)
+    except ValueError as e:
+        # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+        # ntf.show_error('Error loading model weights.')
+        ntf.show_info('Error loading model weights.')
+        print(e)
+        return
 
     # threshold data to estimate the best threshold
     yield from optimize_threshold(model, _x, _y_onehot, new_axes, widget=widget)

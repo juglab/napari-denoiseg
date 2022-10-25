@@ -1,9 +1,11 @@
 import os
+import warnings
 from pathlib import Path
 
 import numpy as np
 from napari_time_slicer import time_slicer
 from napari_tools_menu import register_function
+from tensorflow.python.framework.errors_impl import UnknownError
 from tifffile import imwrite
 
 from napari.qt.threading import thread_worker
@@ -17,13 +19,14 @@ from napari_denoiseg.utils import (
 )
 
 
+# todo: check the current menu items
 # TODO: setup.cfg does not define an entry point currently
-@register_function(menu="Filtering / noise removal > Apply N2V denoiser")
+@register_function(menu="Segmentation / noise removal > Apply DenoiSeg")
 @time_slicer
-def apply_n2v(image: "napari.types.ImageData",
-              model_filename: os.PathLike = "my_n2v_model",
-              number_of_tiles: int = 4,
-              ) -> ("napari.types.ImageData", "napari.types.ImageData"):
+def apply_denoiseg(image: "napari.types.ImageData",
+                   model_filename: os.PathLike = "my_denoiseg_model",
+                   number_of_tiles: int = 4,
+                   ) -> ("napari.types.ImageData", "napari.types.ImageData"):
     """
     """
     model_path = Path(model_filename)
@@ -117,7 +120,6 @@ def prediction_worker(widget):
     elif is_from_disk and type(images) == tuple:  # load images from disk with different sizes
         yield from _run_prediction_to_disk(**parameters)
     else:
-
         yield from _run_prediction(**parameters)
 
 
@@ -165,10 +167,19 @@ def _run_prediction(widget,
         yield {UpdateType.IMAGE: i_slice + 1}
 
         # predict
-        if is_tiled:
-            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
-        else:
-            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
+        try:
+            if is_tiled:
+                predict_all[i_slice, ...] = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
+            else:
+                predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
+        except UnknownError as e:
+            msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+            # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+            # ntf.show_error(msg)
+            ntf.show_info(msg)
+            warnings.warn(msg)
+            print(e.message)
+            break
 
     # split predictions
     final_image_d = predict_all[..., 0:-3].squeeze()
@@ -254,10 +265,19 @@ def _run_prediction_to_disk(widget,
             prediction = np.zeros(shape_out, dtype=np.float32)
 
             for i_s in range(_x.shape[0]):
-                if is_tiled:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
-                else:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                try:
+                    if is_tiled:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                    else:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                except UnknownError as e:
+                    msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+                    # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+                    # ntf.show_error(msg)
+                    ntf.show_info(msg)
+                    warnings.warn(msg)
+                    print(e.message)
+                    break
 
             # if only one sample, then update new axes
             if prediction.shape[0] == 1:
@@ -328,10 +348,19 @@ def _run_lazy_prediction(widget,
                 prediction = np.zeros(shape_out, dtype=np.float32)
 
                 for i_s in range(_x.shape[0]):
-                    if is_tiled:
-                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
-                    else:
-                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                    try:
+                        if is_tiled:
+                            prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                        else:
+                            prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                    except UnknownError as e:
+                        msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+                        # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+                        # ntf.show_error(msg)
+                        ntf.show_info(msg)
+                        warnings.warn(msg)
+                        print(e.message)
+                        break
 
                 # if only one sample, then update new axes
                 if prediction.shape[0] == 1:

@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from queue import Queue
 from typing import Union
@@ -11,6 +12,8 @@ import napari.utils.notifications as ntf
 
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from denoiseg.utils.denoiseg_data_preprocessing import augment_patches
+from tensorflow.python.framework.errors_impl import ResourceExhaustedError, UnknownError, NotFoundError
+
 from napari_denoiseg.utils import (
     State,
     UpdateType,
@@ -42,6 +45,9 @@ class TrainingCallback(Callback):
 
     def on_train_end(self, logs=None):
         self.queue.put(UpdateType.DONE)
+
+    def on_train_crashed(self):
+        self.queue.put(UpdateType.CRASHED)
 
     def stop_training(self):
         self.model.stop_training = True
@@ -97,7 +103,8 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     # prepare training
     args = (widget, denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
-    train_args, denoiseg_updater, widget.tf_version = prepare_training(*args)
+    train_args, widget.tf_version = prepare_training(*args)
+    denoiseg_updater = train_args[-1]
 
     # start training
     ntf.show_info('Training')
@@ -108,7 +115,7 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     while True:
         update = denoiseg_updater.queue.get(True)
 
-        if UpdateType.DONE == update:
+        if update == UpdateType.DONE or update == UpdateType.CRASHED:
             break
         elif widget.state != State.RUNNING:
             denoiseg_updater.stop_training()
@@ -514,9 +521,9 @@ def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_mo
     # training parameters
     epochs = model.config.train_epochs
     steps_per_epoch = model.config.train_steps_per_epoch
-    train_params = (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch)
+    train_params = (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch, updater)
 
-    return train_params, updater, tf.__version__
+    return train_params, tf.__version__
 
 
 def sanity_check_validation_fraction(X_train, X_val):
@@ -567,12 +574,36 @@ def normalize_images(model, X_train, X_val):
     return X, validation_X
 
 
-def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch):
+def train_error(updater, args, msg: str):
+    # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+    # ntf.show_error(msg)
+    ntf.show_info(msg)
+    warnings.warn(msg)
+    print(args)
+    updater.on_train_crashed()
+
+
+def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch, updater):
     with cwd(get_default_path()):
-        # start training
-        model.keras_model.fit(training_data, validation_data=(validation_X, validation_Y),
-                              epochs=epochs, steps_per_epoch=steps_per_epoch,
-                              callbacks=model.callbacks, verbose=1)
-        # save last weights
-        if model.basedir is not None:
-            model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
+        try:
+            # start training
+            model.keras_model.fit(training_data,
+                                  validation_data=(validation_X, validation_Y),
+                                  epochs=epochs,
+                                  steps_per_epoch=steps_per_epoch,
+                                  callbacks=model.callbacks,
+                                  verbose=1)
+            # save last weights
+            if model.basedir is not None:
+                model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
+
+        except MemoryError as e:
+            msg = 'MemoryError can be an OOM error on the GPU (reduce batch and/or patch size, close other processes).'
+            train_error(updater, str(e), msg)
+        except ResourceExhaustedError as e:
+            msg = 'ResourceExhaustedError can be an OOM error on the GPU (reduce batch and/or patch size)'
+            train_error(updater, e.message, msg)
+        except (NotFoundError, UnknownError) as e:
+            msg = 'NotFoundError or UnknownError can be caused by an improper loading of cudnn, try restarting.'
+            train_error(updater, e.message, msg)
+

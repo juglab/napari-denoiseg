@@ -44,6 +44,7 @@ class UpdateType(Enum):
     N_IMAGES = 'number of images'
     IMAGE = 'image'
     TRAINING_DONE = 'training done'
+    CRASHED = 'crashed'
     DONE = 'done'
 
 
