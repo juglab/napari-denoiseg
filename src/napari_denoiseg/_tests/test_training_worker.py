@@ -18,7 +18,7 @@ from napari_denoiseg.utils.training_worker import (
     prepare_data_layers
 )
 from napari_denoiseg._tests.test_utils import (
-    create_model,
+    create_simple_model,
     create_data
 )
 
@@ -60,7 +60,7 @@ def test_sanity_check_training_size(tmp_path, shape, axes):
     :param axes:
     :return:
     """
-    model = create_model(tmp_path, shape)
+    model = create_simple_model(tmp_path, shape)
 
     # run sanity check on training size
     sanity_check_training_size(np.zeros(shape), model, axes)
@@ -79,7 +79,7 @@ def test_sanity_check_training_size_error(tmp_path, shape, axes):
     :param axes:
     :return:
     """
-    model = create_model(tmp_path, shape)
+    model = create_simple_model(tmp_path, shape)
 
     # run sanity check on training size
     with pytest.raises(ValueError):

@@ -380,7 +380,7 @@ def check_napari_data(x, y, axes: str):
         raise ValueError('Raw and labels have different X and Y dimensions.')
 
 
-def prepare_data_layers(raw, gt, perc_labels, axes):
+def prepare_data_layers(raw, gt, perc_labels, axes, previous_label_indices=None):
     """
 
     perc_labels: ]0-100[
@@ -389,6 +389,7 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     :param gt:
     :param perc_labels:
     :param axes
+    :param previous_label_indices:
     :return:
     """
 
@@ -402,6 +403,8 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
     label_indices = detect_non_zero_frames(_y)
 
     # get number of requested training labels
+    # TODO fix the problems in case of continue training
+    # check length of given indices vs perc result. If different then ignore perc
     dec_perc_labels = 0.01 * perc_labels
     n_labels = len(label_indices)
     n_train_labels = int(0.5 + dec_perc_labels * n_labels)
@@ -420,6 +423,8 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
         raise ValueError(err)
 
     # split labeled frames between train and val sets
+    # we do not split randomly in case we continue training
+    # TODO fix the problems in case of continue training
     ind_train = np.random.choice(label_indices, size=n_train_labels, replace=False).tolist()
     ind_val = list_diff(label_indices, ind_train)
     assert len(ind_train) + len(ind_val) == len(label_indices)

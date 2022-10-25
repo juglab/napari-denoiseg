@@ -1,8 +1,10 @@
 import os
-import pathlib
+from pathlib import Path
 import warnings
 from contextlib import contextmanager
 from enum import Enum
+from typing import Union
+
 import numpy as np
 from itertools import permutations
 
@@ -45,7 +47,7 @@ class UpdateType(Enum):
     DONE = 'done'
 
 
-def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
+def build_modelzoo(path: Union[str, Path], weights: str, inputs, outputs, tf_version: str, axes='byxc'):
     import os
     from bioimageio.core.build_spec import build_model
 
@@ -64,7 +66,8 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                 output_path=path,
                 name='DenoiSeg',
                 description="Super awesome DenoiSeg model. The best.",
-                authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                authors=[{"name": "Tim-Oliver Buchholz"},
+                         {"name": "Mangal Prakash"},
                          {"name": "Alexander Krull"},
                          {"name": "Florian Jug"}],
                 license="BSD-3-Clause",
@@ -82,9 +85,6 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                 tensorflow_version=tf_version,
                 attachments={"files": head}
                 )
-    head, _ = os.path.split(path)
-    head = os.path.join(os.path.normcase(head), "config.json")
-    os.remove(os.path.abspath(head))
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):
@@ -396,7 +396,7 @@ def get_napari_shapes(shape_in, axes_in):
 
 
 def get_default_path():
-    return os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")
+    return os.path.join(Path.home(), ".napari", "DenoiSeg")
 
 
 @contextmanager

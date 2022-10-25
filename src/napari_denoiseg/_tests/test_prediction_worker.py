@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from napari_denoiseg._tests.test_utils import create_model, save_img, save_weights_h5
+from napari_denoiseg._tests.test_utils import create_simple_model, save_img, save_weights_h5
 from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_prediction, _run_prediction_to_disk
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk
 
@@ -29,7 +29,7 @@ class MonkeyPatchWidget:
                           ((2, 16, 16, 16, 3), (2, 16, 16, 16, 3), 'SZYXC')])
 def test_run_lazy_prediction_same_size(tmp_path, t, n, n_tiles, shape, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -67,7 +67,7 @@ def test_run_lazy_prediction_same_size(tmp_path, t, n, n_tiles, shape, shape_den
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_lazy_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -107,7 +107,7 @@ def test_run_lazy_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -150,7 +150,7 @@ def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, 
                           ((2, 16, 16, 16, 3), (2, 16, 16, 16, 3), 'SZYXC')])
 def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -190,7 +190,7 @@ def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, sh
     viewer.add_image(img, name=name)
 
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # run prediction (it is a generator)

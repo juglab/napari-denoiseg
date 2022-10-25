@@ -24,7 +24,7 @@ from napari_denoiseg.utils import (
     ModelSaveMode,
     training_worker,
     loading_worker,
-    save_configuration
+    save_model
 )
 from napari_denoiseg.widgets import (
     TBPlotWidget,
@@ -482,35 +482,21 @@ class TrainWidget(QWidget):
         Export the model.
         :return:
         """
-        # TODO: refactor somewhere else
         if self.state == State.IDLE:
             if self.model:
-                where = QFileDialog.getSaveFileName(caption='Save model')[0]
-
+                where = Path(QFileDialog.getSaveFileName(caption='Save model')[0])
                 export_type = self.save_choice.currentText()
-                if ModelSaveMode.MODELZOO.value == export_type:
-                    from napari_denoiseg.utils import build_modelzoo
 
-                    axes = self.axes_widget.get_axes()
-                    axes = axes.replace('S', 'b').lower()
-
-                    if 'b' not in axes:
-                        axes = 'b' + axes
-
-                    if 'c' not in axes:
-                        axes = axes + 'c'
-
-                    build_modelzoo(where + '.bioimage.io.zip',
-                                   self.model.logdir / "weights_best.h5",
-                                   self.inputs,
-                                   self.outputs,
-                                   self.tf_version,
-                                   axes)
-                else:
-                    self.model.keras_model.save_weights(where + '.h5')
-
-                # save configuration as well
-                save_configuration(self.model.config, Path(where).parent)
+                # save
+                parameters = {
+                    'export_type': export_type,
+                    'model': self.model,
+                    'axes': self.new_axes,
+                    'input_path': self.inputs,
+                    'output_path': self.outputs,
+                    'tf_version': self.tf_version
+                }
+                save_model(where, **parameters)
 
     def _training_expert_setter(self):
         if self.expert_settings is None:

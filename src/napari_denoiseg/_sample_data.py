@@ -1,6 +1,5 @@
 """
 """
-import os
 from pathlib import Path
 import urllib
 import zipfile
@@ -29,9 +28,9 @@ def _download_data_2D(noise_level):
             link = 'https://zenodo.org/record/5156983/files/DSB2018_n20.zip?download=1'
 
         # check if data has been downloaded already
-        zip_name = "DSB2018_{}.zip".format(noise_level)
+        zip_name = 'DSB2018_{}.zip'.format(noise_level)
         zip_path = Path(data_path, zip_name)
-        if not os.path.exists(zip_path):
+        if not zip_path.exists():
             # download and unzip data
             urllib.request.urlretrieve(link, zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -51,6 +50,12 @@ def _load_data_2D(path: Union[str, Path]):
             (Y_train, {'name': 'Train labels'})]
 
 
+def _denoiseg_data_2D(noise_level):
+    path = _download_data_2D(noise_level)
+
+    return _load_data_2D(path)
+
+
 def _download_data_3D(noise_level):
     assert noise_level in ['n10', 'n20']
 
@@ -67,21 +72,18 @@ def _download_data_3D(noise_level):
         # check if data has been downloaded already
         zip_name = 'Mouse-Organoid-Cells-CBG-128_{}.zip'.format(noise_level)
         zip_path = Path(data_path, zip_name)
-        if not os.path.exists(zip_path):
+        if not zip_path.exists():
+            # download and unzip data
             urllib.request.urlretrieve(link, zip_path)
-
-        # unzip the files
-        data = Path(data_path, zip_path.name[:-len('.zip')])
-        if not data.exists():
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(data_path)
 
-        return data
+        return Path(data_path, 'Mouse-Organoid-Cells-CBG-128')
 
 
 def _load_data_3D(path: Union[str, Path], noise_level):
     name = 'train_data_{}.npz'.format(noise_level)
-    data_path = Path(path, 'Mouse-Organoid-Cells-CBG-128', name)
+    data_path = Path(path, name)
 
     train_data = np.load(
         data_path,
@@ -92,12 +94,6 @@ def _load_data_3D(path: Union[str, Path], noise_level):
 
     return [(X_train, {'name': 'Train data'}),
             (Y_train, {'name': 'Train labels'})]
-
-
-def _denoiseg_data_2D(noise_level):
-    path = _download_data_2D(noise_level)
-
-    return _load_data_2D(path)
 
 
 def _denoiseg_data_3D(noise_level):

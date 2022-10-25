@@ -4,7 +4,7 @@ import pytest
 
 from marshmallow import ValidationError
 from napari_denoiseg._tests.test_utils import (
-    create_model,
+    create_simple_model,
     create_model_zoo_parameters
 )
 from napari_denoiseg.utils import (
@@ -127,7 +127,7 @@ def test_optimize_threshold(tmp_path, shape, axes):
     from denoiseg.utils.seg_utils import convert_to_oneHot
 
     # create model and data
-    model = create_model(tmp_path, shape)
+    model = create_simple_model(tmp_path, shape)
     X_val = np.random.random(shape)
 
     if 'C' in axes:
