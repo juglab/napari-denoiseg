@@ -19,7 +19,6 @@ from napari_denoiseg.utils import (
     UpdateType,
     list_diff,
     reshape_data,
-    optimize_threshold,
     load_model
 )
 from napari_denoiseg.utils import cwd, get_default_path
@@ -128,10 +127,6 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
     # training done, keep model in memory
     widget.model = train_args[0]
 
-    # threshold validation data to estimate the best threshold
-    ntf.show_info('Optimizing threshold')
-    yield from get_best_threshold(widget, X_val, Y_val_onehot)
-
     # save input/output for bioimage.io
     with cwd(get_default_path()):
         widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
@@ -141,27 +136,6 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
                                                      axes=widget.new_axes))
 
     ntf.show_info('Done')
-
-
-def get_best_threshold(widget, X_val, Y_val):
-    gen = optimize_threshold(widget.model, X_val, Y_val, widget.new_axes, widget=widget)
-    best_threshold = -1
-    best_score = -1
-    while True:
-        t = next(gen, None)
-
-        if t:
-            i_t, temp_threshold, temp_score = t
-
-            if temp_score > best_score:
-                best_score = temp_score
-                best_threshold = temp_threshold
-
-            yield {UpdateType.THRESHOLD: (i_t, temp_threshold)}
-        else:
-            break
-
-    yield {UpdateType.BEST_THRESHOLD: (best_threshold, best_score)}
 
 
 def load_images(widget, patch_shape=(256, 256)):

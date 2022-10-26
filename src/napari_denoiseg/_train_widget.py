@@ -82,7 +82,7 @@ class TrainWidget(QWidget):
         # place-holder for models and parameters (e.g. bioimage.io)
         self.is_3D = False
         self.worker = None
-        self.model, self.threshold = None, None
+        self.model = None
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
@@ -141,13 +141,8 @@ class TrainWidget(QWidget):
         self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
 
-        self.pb_threshold = create_progressbar(max_value=19,
-                                               text_format=f'Threshold optimization: ?')
-        self.pb_threshold.setToolTip('Show the progress of the threshold optimization procedure')
-
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
-        self.progress_group.layout().addWidget(self.pb_threshold)
 
         # plot widget
         self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
@@ -305,8 +300,6 @@ class TrainWidget(QWidget):
 
                 # modify UI
                 self.plot.clear_plot()
-                self.pb_threshold.setFormat('Threshold optimization: ?')
-                self.pb_threshold.setValue(0)
                 self.train_button.setText('Stop')
                 self.reset_model_button.setText('')
                 self.reset_model_button.setEnabled(False)
@@ -322,14 +315,7 @@ class TrainWidget(QWidget):
             else:
                 ntf.show_error('Invalid axes')
         else:
-            if self.training_done:
-                # interrupts threshold
-                self.state = State.IDLE
-                self.pb_threshold.setFormat('Interrupted')
-            else:
-                # stops the training but continue with optimization
-                self.state = State.INTERRUPTED
-                self.train_button.setText('Stop all')
+            self.state = State.IDLE
 
     def _done(self):
         """
@@ -461,21 +447,6 @@ class TrainWidget(QWidget):
 
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
-
-        if self.state == State.RUNNING or self.state == State.INTERRUPTED:
-            if UpdateType.TRAINING_DONE in updates:
-                # this is used to discriminate between training and optimization interruptions
-                self.training_done = True
-
-            if UpdateType.THRESHOLD in updates:
-                val = updates[UpdateType.THRESHOLD]
-                self.pb_threshold.setValue(val[0]+1)
-                self.pb_threshold.setFormat('Threshold optimization: {:.2f}'.format(val[1]))
-
-            if UpdateType.BEST_THRESHOLD in updates:
-                val = updates[UpdateType.BEST_THRESHOLD]
-                self.pb_threshold.setFormat('Best threshold: {:.2f} (m={:.2f})'.format(*val))
-                self.threshold = val
 
     def _save_model(self):
         """
