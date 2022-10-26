@@ -13,7 +13,7 @@ import pyqtgraph as pg
 import webbrowser
 
 from napari_denoiseg.resources import ICON_TF
-from utils import get_default_path
+from napari_denoiseg.utils import get_default_path
 
 
 class TBPlotWidget(Container):
