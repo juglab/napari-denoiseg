@@ -137,6 +137,32 @@ def test_get_shape_order(shape, axes, final_shape, final_axes):
     assert new_axes == final_axes
 
 
+@pytest.mark.parametrize('shape, axes',
+                         [((32, 16), 'XY')])
+def test_load_data_from_disk_different_XY(tmp_path, shape, axes):
+    """
+    Load images with different X and Y as numpy array and check that patches are created before augmentation
+    (otherwise an error is raised).
+    """
+    folders = ['train_x', 'train_y']
+    sizes = [3, 2]
+    shapes = [shape for _ in sizes]
+
+    # create data
+    create_data(tmp_path, folders, sizes, shapes)
+
+    # load data
+    X, Y_onehot, Y, new_axes = load_data_from_disk(tmp_path / folders[0],
+                                                   tmp_path / folders[1],
+                                                   axes,
+                                                   augmentation=True,
+                                                   check_exists=False,
+                                                   patch_shape=(4, 4))
+
+    assert X.shape[0] > sizes[0]
+
+
+
 @pytest.mark.parametrize('shape, axes, final_shape, final_axes',
                          [((16, 16), 'XY', (16, 16, 1), 'YXC'),
                           ((16, 16, 8), 'XYZ', (8, 16, 16, 1), 'ZYXC'),

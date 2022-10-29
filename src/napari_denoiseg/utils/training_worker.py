@@ -218,6 +218,11 @@ def load_data_from_disk(source: Union[str, Path],
     # load train data
     _x, _y, _axes = load_pairs_from_disk(source, target, axes, check_exists=check_exists)
 
+    # if images are not symmetrical in X and Y, create a list so that symmetrical patches can be created
+    if type(_x) != list and _x.shape[_axes.find('X')] != _x.shape[_axes.find('Y')]:
+        _x = [_x]
+        _y = [_y]
+
     # if lists, then generate patches already
     if type(_x) == list:
         new_axes = _axes
