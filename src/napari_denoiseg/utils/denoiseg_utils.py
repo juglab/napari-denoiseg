@@ -44,6 +44,7 @@ class UpdateType(Enum):
     TRAINING_DONE = 'training done'
     CRASHED = 'crashed'
     DONE = 'done'
+    RETRAIN = 'retrain'
 
 
 def build_modelzoo(path: Union[str, Path], weights: str, inputs, outputs, tf_version: str, axes='byxc'):

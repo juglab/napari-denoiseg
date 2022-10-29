@@ -25,6 +25,10 @@ from napari_denoiseg.utils import cwd, get_default_path
 
 
 class TrainingCallback(Callback):
+    """
+    Keep track of the epochs and batch steps.
+    """
+
     def __init__(self):
         self.queue = Queue(10)
         self.epoch = 0
@@ -51,59 +55,95 @@ class TrainingCallback(Callback):
     def stop_training(self):
         self.model.stop_training = True
 
+    def flush_queue(self):
+        self.queue.empty()
+
 
 @thread_worker(start_thread=False)
 def training_worker(widget, pretrained_model=None, expert_settings=None):
+    # TODO: this method has become completely messy and needs a more logical
+    #  rewrite, especially in regards to the retraining mechanism
+
     import os
     import threading
     from napari_denoiseg.utils import UpdateType, generate_config
 
     ntf.show_info('Loading data')
 
-    # patch shape
-    patch_shape_XY = widget.patch_size_XY.value()
-    patch_shape_Z = widget.patch_size_Z.value()
-    if widget.is_3D:
-        patch_shape = (patch_shape_Z, patch_shape_XY, patch_shape_XY)
-    else:
-        patch_shape = (patch_shape_XY, patch_shape_XY)
+    # if not continue training
+    if pretrained_model is None:
+        # patch shape
+        patch_shape_XY = widget.patch_size_XY.value()
+        patch_shape_Z = widget.patch_size_Z.value()
+        if widget.is_3D:
+            patch_shape = (patch_shape_Z, patch_shape_XY, patch_shape_XY)
+        else:
+            patch_shape = (patch_shape_XY, patch_shape_XY)
 
-    ntf.show_info('Creating patches')
-    # get images and labels
-    # TODO we should make this list compatible, with the patch creation already
-    X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget, patch_shape)
+        ntf.show_info('Creating patches')
+        # get images and labels
+        X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget, patch_shape)
 
-    # create DenoiSeg configuration
-    n_epochs = widget.n_epochs
-    n_steps = widget.n_steps
-    batch_size = widget.batch_size_spin.value()
+        # create DenoiSeg configuration
+        new_epochs = widget.n_epochs
+        n_steps = widget.n_steps
+        batch_size = widget.batch_size_spin.value()
 
-    ntf.show_info('Creating configuration')
-    # create configuration
-    if expert_settings is None:
-        denoiseg_conf = generate_config(X_train, patch_shape, n_epochs, n_steps, batch_size)
-    else:
-        denoiseg_conf = generate_config(X_train,
-                                        patch_shape,
-                                        n_epochs,
-                                        n_steps,
-                                        batch_size,
-                                        **expert_settings.get_settings())
+        ntf.show_info('Creating configuration')
+        # create configuration
+        if expert_settings is None:
+            denoiseg_conf = generate_config(X_train, patch_shape, new_epochs, n_steps, batch_size)
+        else:
+            denoiseg_conf = generate_config(X_train,
+                                            patch_shape,
+                                            new_epochs,
+                                            n_steps,
+                                            batch_size,
+                                            **expert_settings.get_settings())
 
-    ntf.show_info('Preparing training')
+        ntf.show_info('Preparing training')
 
-    # load model if requested
-    if expert_settings is not None:
-        # priority is given to pretrained model, even if the expert settings point to one (must be a file)
-        # i.e. priority to the most recently trained
-        if expert_settings.has_model() and pretrained_model is None:
+        # load model if requested
+        if expert_settings is not None and expert_settings.has_model():
+            # priority is given to pretrained model, even if the expert settings point to one (must be a file)
+            # i.e. priority to the most recently trained
             # TODO check if models are compatible
             pretrained_model = load_model(expert_settings.get_model_path())
 
-    # prepare training
-    args = (widget, denoiseg_conf, X_train, Y_train, X_val, Y_val_onehot, pretrained_model)
-    train_args, widget.tf_version = prepare_training(*args)
-    denoiseg_updater = train_args[-1]
+        # prepare training
+        model, denoiseg_updater, widget.tf_version = prepare_model(widget, denoiseg_conf, pretrained_model)
+        args = (model, X_train, Y_train, X_val, Y_val_onehot)
+        train_args = prepare_training(*args)
+
+        # add updater and initial epochs
+        train_args = (*train_args,) + (denoiseg_updater,) + (0,)
+
+        # remember arguments
+        widget.train_arguments = train_args
+        widget.X_val = X_val
+    else:
+        # retrain using previous data
+        # TODO this is all very hacky and should be better thought through
+        old_model, training_data, validation_X, validation_Y, \
+        _, steps_per_epoch, old_updater, _ = widget.train_arguments
+
+        new_max_epoch = widget.get_n_epochs() + old_updater.epoch + 1
+        initial_epoch = old_updater.epoch + 1
+
+        # create new model
+        new_model, denoiseg_updater, new_training_data = copy_model(old_model, training_data)
+        new_model.config.train_epochs = new_max_epoch
+
+        # train arguments
+        train_args = (new_model, new_training_data, validation_X, validation_Y,
+                      new_max_epoch, steps_per_epoch, denoiseg_updater, initial_epoch)
+        widget.train_arguments = train_args
+
+        # update epochs in the UI
+        yield {UpdateType.RETRAIN: new_max_epoch}
+
+        # val for modelzoo
+        X_val = widget.X_val
 
     # start training
     ntf.show_info('Training')
@@ -124,10 +164,11 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
 
     yield {UpdateType.TRAINING_DONE: ''}
 
-    # training done, keep model in memory
+    # training done
     widget.model = train_args[0]
 
     # save input/output for bioimage.io
+    # TODO this makes no sense here, it should be done only when export to bioimage
     with cwd(get_default_path()):
         widget.inputs = os.path.join(widget.model.basedir, 'inputs.npy')
         widget.outputs = os.path.join(widget.model.basedir, 'outputs.npy')
@@ -366,7 +407,7 @@ def check_napari_data(x, y, axes: str):
         raise ValueError('Raw and labels have different X and Y dimensions.')
 
 
-def prepare_data_layers(raw, gt, perc_labels, axes, previous_label_indices=None):
+def prepare_data_layers(raw, gt, perc_labels, axes):
     """
 
     perc_labels: ]0-100[
@@ -375,7 +416,6 @@ def prepare_data_layers(raw, gt, perc_labels, axes, previous_label_indices=None)
     :param gt:
     :param perc_labels:
     :param axes
-    :param previous_label_indices:
     :return:
     """
 
@@ -426,14 +466,39 @@ def prepare_data_layers(raw, gt, perc_labels, axes, previous_label_indices=None)
     return X, Y, X_val, Y_val, y_val_no_hot, new_axes
 
 
-def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_model=None):
+def copy_model(model, data_wrapper):
+    from denoiseg.models import DenoiSeg
+    from denoiseg.internals.DenoiSeg_DataWrapper import DenoiSeg_DataWrapper
+
+    # create new model
+    new_model = DenoiSeg(model.config, model.name, model.basedir)
+
+    # set weights
+    new_model.keras_model.set_weights(model.keras_model.get_weights())
+
+    # prepare model for training
+    new_model.prepare_for_training()
+
+    # add callbacks
+    updater = TrainingCallback()
+    new_model.callbacks.append(updater)
+
+    # recreate DataWrapper
+    # todo does this make sense?
+    new_dw = DenoiSeg_DataWrapper(X=data_wrapper.X,
+                                  n2v_Y=data_wrapper.n2v_Y,
+                                  seg_Y=data_wrapper.seg_Y,
+                                  batch_size=new_model.config.train_batch_size,
+                                  perc_pix=new_model.config.n2v_perc_pix,
+                                  shape=new_model.config.n2v_patch_shape,
+                                  value_manipulation=data_wrapper.value_manipulation)
+
+    return new_model, updater, new_dw
+
+
+def prepare_model(widget, conf, pretrained_model=None):
     import tensorflow as tf
     from denoiseg.models import DenoiSeg
-    from csbdeep.utils import axes_check_and_normalize
-    from denoiseg.internals.DenoiSeg_DataWrapper import DenoiSeg_DataWrapper
-    from n2v.utils import n2v_utils
-    from n2v.utils.n2v_utils import pm_uniform_withCP
-
     # create model
     # model_name = today + '_DenoiSeg_' + str(round(time.time()))
     with cwd(get_default_path()):
@@ -451,6 +516,22 @@ def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_mo
         # TODO use the configurations to check whether the networks are compatible
         model.keras_model.set_weights(pretrained_model.keras_model.get_weights())
 
+    # prepare model for training
+    model.prepare_for_training()
+
+    # add callbacks
+    updater = TrainingCallback()
+    model.callbacks.append(updater)
+
+    return model, updater, tf.__version__
+
+
+def prepare_training(model, X_train, Y_train, X_val, Y_val):
+    from csbdeep.utils import axes_check_and_normalize
+    from denoiseg.internals.DenoiSeg_DataWrapper import DenoiSeg_DataWrapper
+    from n2v.utils import n2v_utils
+    from n2v.utils.n2v_utils import pm_uniform_withCP
+
     # normalize axes
     axes = axes_check_and_normalize('S' + model.config.axes, X_train.ndim)
 
@@ -460,9 +541,6 @@ def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_mo
 
     # compute validation patch shape
     val_patch_shape = get_validation_patch_shape(X_val, axes)
-
-    # prepare model for training
-    model.prepare_for_training()
 
     manipulator = eval(
         'pm_{0}({1})'.format(model.config.n2v_manipulator, str(model.config.n2v_neighborhood_radius)))
@@ -493,16 +571,12 @@ def prepare_training(widget, conf, X_train, Y_train, X_val, Y_val, pretrained_mo
                                   value_manipulation=manipulator)
     validation_Y = np.concatenate((validation_Y, Y_val), axis=-1)
 
-    # add callbacks
-    updater = TrainingCallback()
-    model.callbacks.append(updater)
-
     # training parameters
     epochs = model.config.train_epochs
     steps_per_epoch = model.config.train_steps_per_epoch
-    train_params = (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch, updater)
+    train_params = (model, training_data, validation_X, validation_Y, epochs, steps_per_epoch)
 
-    return train_params, tf.__version__
+    return train_params
 
 
 def sanity_check_validation_fraction(X_train, X_val):
@@ -562,7 +636,7 @@ def train_error(updater, args, msg: str):
     updater.on_train_crashed()
 
 
-def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch, updater):
+def train(model, training_data, validation_X, validation_Y, epochs, steps_per_epoch, updater, initial_epoch=0):
     with cwd(get_default_path()):
         try:
             # start training
@@ -571,7 +645,8 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
                                   epochs=epochs,
                                   steps_per_epoch=steps_per_epoch,
                                   callbacks=model.callbacks,
-                                  verbose=1)
+                                  verbose=1,
+                                  initial_epoch=initial_epoch)
             # save last weights
             if model.basedir is not None:
                 model.keras_model.save_weights(str(model.logdir / 'weights_last.h5'))
@@ -585,4 +660,3 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
         except (NotFoundError, UnknownError) as e:
             msg = 'NotFoundError or UnknownError can be caused by an improper loading of cudnn, try restarting.'
             train_error(updater, e.message, msg)
-

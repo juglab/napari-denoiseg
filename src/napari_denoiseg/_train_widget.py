@@ -63,8 +63,8 @@ class TrainWidget(QWidget):
                                              ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
-                                             'https://github.com/juglab/napari_denoiseg',
-                                             'https://github.com/juglab/napari_denoiseg'))
+                                             'https://juglab.github.io/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg/issues'))
 
         # add GPU button
         gpu_button = create_gpu_label()
@@ -87,6 +87,9 @@ class TrainWidget(QWidget):
         self.tf_version = None
         self.load_from_disk = False
         self.training_done = False
+        self.training_arguments = None
+        self.X_val = None
+        self.reset = True
 
         # actions
         self._set_actions()
@@ -135,8 +138,8 @@ class TrainWidget(QWidget):
         self.progress_group.setLayout(QVBoxLayout())
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
 
-        self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
-                                            text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
+        self.pb_epochs = create_progressbar(max_value=self.get_n_epochs(),
+                                            text_format=f'Epoch ?/{self.get_n_epochs()}')
 
         self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
@@ -219,7 +222,7 @@ class TrainWidget(QWidget):
 
         # others
         self.n_epochs_spin = create_int_spinbox(1, 1000, 2, tooltip='Number of epochs')
-        self.n_epochs = self.n_epochs_spin.value()
+        self.n_epochs = self.get_n_epochs()
 
         self.n_steps_spin = create_int_spinbox(1, 1000, 10, tooltip='Number of steps per epochs')
         self.n_steps = self.n_steps_spin.value()
@@ -283,13 +286,7 @@ class TrainWidget(QWidget):
         :return:
         """
         if self.state == State.IDLE:
-            # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
-
             if self.axes_widget.is_valid():
-
-                # first update the number of steps and epochs
-                self._update_steps()
-                self._update_epochs()
 
                 # set the state to running
                 self.state = State.RUNNING
@@ -299,7 +296,15 @@ class TrainWidget(QWidget):
                 self.load_from_disk = self.tabs.currentIndex() == 1
 
                 # modify UI
-                self.plot.clear_plot()
+                if self.reset:
+                    # start from scratch
+                    self.plot.clear_plot()
+
+                    # reset epochs and steps
+                    self._update_steps(self.n_steps_spin.value())
+                    self._update_epochs(self.get_n_epochs())
+
+                self.reset = False
                 self.train_button.setText('Stop')
                 self.reset_model_button.setText('')
                 self.reset_model_button.setEnabled(False)
@@ -324,6 +329,7 @@ class TrainWidget(QWidget):
         :return:
         """
         self.state = State.IDLE
+        self.reset = False
         self.train_button.setText('Continue training')
         self.reset_model_button.setText('Reset model')
         self.reset_model_button.setEnabled(True)
@@ -335,6 +341,7 @@ class TrainWidget(QWidget):
         :return:
         """
         if self.state == State.IDLE:
+            self.reset = True
             self.model = None
             self.reset_model_button.setText('')
             self.reset_model_button.setEnabled(False)
@@ -406,18 +413,28 @@ class TrainWidget(QWidget):
         else:
             self._update_layer_axes()
 
-    def _update_epochs(self):
+    def _update_epochs(self, value=None):
         """
         Update the epoch progress bar following a change of total number of epochs.
         :return:
         """
         if self.state == State.IDLE:
-            self.n_epochs = self.n_epochs_spin.value()
+            self.n_epochs = self.get_n_epochs()
             self.pb_epochs.setValue(0)
-            self.pb_epochs.setMaximum(self.n_epochs_spin.value())
-            self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
+            self.pb_epochs.setMaximum(self.get_n_epochs())
+            self.pb_epochs.setFormat(f'Epoch ?/{self.get_n_epochs()}')
+        elif value is not None:
+            # TODO not clean and hacky...
+            # should only happen when retraining
+            self.n_epochs = value
+            self.pb_epochs.setValue(0)
+            self.pb_epochs.setMaximum(value)
+            self.pb_epochs.setFormat(f'Epoch ?/{value}')
 
-    def _update_steps(self):
+    def get_n_epochs(self):
+        return self.n_epochs_spin.value()
+
+    def _update_steps(self, value=None):
         """
         Update the step progress bar following a change of total number of steps.
         :return:
@@ -427,6 +444,11 @@ class TrainWidget(QWidget):
             self.pb_steps.setValue(0)
             self.pb_steps.setMaximum(self.n_steps_spin.value())
             self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
+        elif value is not None:
+            self.n_steps = value
+            self.pb_steps.setValue(0)
+            self.pb_steps.setMaximum(value)
+            self.pb_steps.setFormat(f'Step ?/{value}')
 
     def _update_all(self, updates):
         """
@@ -447,6 +469,9 @@ class TrainWidget(QWidget):
 
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
+
+            if UpdateType.RETRAIN in updates:
+                self._update_epochs(value=updates[UpdateType.RETRAIN])
 
     def _save_model(self):
         """
@@ -478,7 +503,7 @@ class TrainWidget(QWidget):
 if __name__ == "__main__":
     from napari_denoiseg._sample_data import denoiseg_data_2D_n10, denoiseg_data_3D_n10
 
-    dims = '3D'  # '2D'
+    dims = '2D'  # '3D'
     if dims == '3D':
         data = denoiseg_data_3D_n10()
     else:
