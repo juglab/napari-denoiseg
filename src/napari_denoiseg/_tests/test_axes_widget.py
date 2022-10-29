@@ -2,10 +2,19 @@ import pytest
 
 from napari_denoiseg.widgets import AxesWidget
 
+"""
+The axes widget limits the type of axes and the length based on the image shape.
+
+Allowed axes are (STZ)YX(C), with Z mandatory if 3D is checked.
+"""
+
 
 @pytest.mark.qt
 @pytest.mark.parametrize('shape_length', [i for i in range(2, 6)])
 def test_axes_widget_no_Z_defaults(qtbot, shape_length):
+    """
+    Test that the axes widget is valid without Z for axes length 2, 3, 4 and 5.
+    """
     widget = AxesWidget(shape_length, False)
 
     assert widget.is_valid()
@@ -14,6 +23,10 @@ def test_axes_widget_no_Z_defaults(qtbot, shape_length):
 @pytest.mark.qt
 @pytest.mark.parametrize('shape_length', [i for i in range(3, 7)])
 def test_axes_widget_Z_defaults(qtbot, shape_length):
+    """
+    Test that the axes widget is valid with Z for axes length 3, 4, 5 and 6.
+    """
+
     widget = AxesWidget(shape_length, True)
 
     assert widget.is_valid()

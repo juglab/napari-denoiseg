@@ -106,7 +106,12 @@ def test_filter_dimensions_error(shape, is_3D):
 
 
 @pytest.mark.parametrize('axes, valid', [('XSYCZ', True),
+                                         ('STZYXC', True),
+                                         ('XSTYCZ', True),
                                          ('YZX', True),
+                                         ('YZX', True),
+                                         ('ZYX', True),
+                                         ('YXC', True),
                                          ('TCS', True),
                                          ('xsYcZ', True),
                                          ('YzX', True),
