@@ -102,6 +102,27 @@ def _denoiseg_data_3D(noise_level):
     return _load_data_3D(path, noise_level)
 
 
+def demo_files():
+    with cwd(get_default_path()):
+        # load sem validation
+        img = _denoiseg_data_2D('n10')[1][0]
+
+        # create models folder if it doesn't already exist
+        model_path = Path('models', 'trained_BSD68_n10').absolute()
+        if not model_path.exists():
+            model_path.mkdir(parents=True)
+
+        # download sem model
+        model_zip_path = Path(model_path, 'trained_BSD68_n10.zip')
+        if not model_zip_path.exists():
+            # download and unzip data
+            urllib.request.urlretrieve('https://download.fht.org/jug/napari/trained_BSD68_n10.zip', model_zip_path)
+            with zipfile.ZipFile(model_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(model_path)
+
+        return img, Path(model_path, 'BSD68_n10.h5')
+
+
 def denoiseg_data_2D_n0() -> LayerDataTuple:
     return _denoiseg_data_2D('n0')
 

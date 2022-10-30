@@ -1,6 +1,7 @@
 """
 
 """
+from pathlib import Path
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
@@ -357,6 +358,34 @@ class PredictWidget(QWidget):
     # TODO call these methods throughout the workers
     def get_axes(self):
         return self.axes_widget.get_axes()
+
+    def set_model_path(self, path: Path):
+        self.load_model_button.Model.value = path
+
+    def set_layer(self, layer):
+        self.images.choices = [x for x in self.viewer.layers if type(x) is napari.layers.Image]
+        if layer in self.images.choices:
+            self.images.native.value = layer
+
+
+class DemoPrediction(PredictWidgetWrapper):
+    def __init__(self, napari_viewer):
+        super().__init__(napari_viewer)
+
+        # dowload demo files
+        from napari_denoiseg._sample_data import demo_files
+        ntf.show_info('Downloading data can take a few minutes.')
+
+        # get files
+        X, model = demo_files()
+
+        # add image to viewer
+        name = 'Demo images'
+        napari_viewer.add_image(X, name=name)
+
+        # modify path
+        self.widget.set_model_path(model)
+        self.widget.set_layer(name)
 
 
 if __name__ == "__main__":
