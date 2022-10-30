@@ -8,18 +8,21 @@ DenoiSeg is an offshoot of [Noise2Void](https://github.com/juglab/n2v).
 
 `napari-denoiseg` contains three different napari plugins: `DenoiSeg train`, `DenoiSeg optimize` and `DenoiSeg predict`. 
 
+1. [DenoiSeg train](#denoiseg-train)
+2. [DenoiSeg optimize](#denoiseg-optimize)
+3. [DenoiSeg predict](#denoiseg-predict)
+
 ## DenoiSeg train
 
 ### Anatomy
 
-1. [GPU availability](1---gpu-availability)
+1. [GPU availability](#1---gpu-availability)
 2. [Data loading](#2---data-loading)
 3. [Training parameters](#3---training-parameters)
 4. [Expert training parameters](#4---expert-training-parameters)
 5. [Training](#5---training)
 6. [Training progress](#6----training-progress)
-7. [Prediction](#7---prediction)
-8. [Model saving](#8---model-saving)
+7. [Model saving](#7---model-saving)
 
 ### 1 - GPU availability
 
@@ -84,9 +87,6 @@ The expert training parameters can be set by clicking on the gear button, modify
 - `Model`:
 Select a `.h5` or `.biomage.io.zip` file to retrain a model. 
 The models should be compatible. The plugin will automatically search for a `config.json` file in the same folder and throw an error if not found.
-- `N validation`:
-Number of patches extracted from the training set to use as validation. This setting is
-only used when the training and validation layers or folders are the same.
 - `U-Net depth`:
 Depth of the underlying U-Net architecture. Larger architectures are capable of generalizing better but are more complex to train.
 - `U-Net kernel size`:
@@ -96,17 +96,15 @@ Number of filters in the first convolutional layers. This value is doubled after
 - `U-Net residuals`:
 Predict deep residuals internally.
 - `Learning rate`:
-The learning rate influences the speed of convergence.
-- `Train loss`:
-Loss used during training: mean average error (mae) or mean squared error (mse).
-- `DenoiSeg pixel %`:
+The starting learning rate influences the speed of convergence.
+- `N2V pixel %`:
 Percentage of patch pixels to be masked.
-- `DenoiSeg manipulator`:
-Masking methods.
-- `DenoiSeg radius`:
-Parameter of the `DenoiSeg manipulator`.
-- `Split channels`:
-Train a single network per channel when checked.
+- `N2V radius`:
+Neighborhood radius of the n2v manipulator.
+- `Denoiseg α`:
+Weight of the denoising in the loss.
+- `Relative weights`:
+Relative weights of the three segmentation classes (background, foreground, border).
 
 ### 5 - Training
 
@@ -117,12 +115,13 @@ Depending on the stage of the training, the `Training` panel has different butto
 - `Train`:
 Start training a network on the data given the current parameters.
 - `Stop`:
-Stop the training. This enables predicting on the training and validation images (see Precition), as well as saving the trained model (see Model saving).
+Stop the training. The model can be directly saved afterwards.
 - `Reset model`:
 Reset the model, the next training session will be from scratch. After resetting the model, information on the previously trained network is lost and prediction or saving the model is no longer possible.
 - `Continue training`:
 Continue training using the current parameters but the trained network weights.
-**Note that the training and validation patches will change if `Train` and `Val` are the same**.
+> Note that the continuing training will train with the same parameters as before, to the exception of the number of epochs, 
+which can be updated.
 
 During training, the log and the weights are saved to a hidden folder in your `/home/`, under `.napari/DenoiSeg/models`. 
 
@@ -134,33 +133,10 @@ The training progress panel shows the following:
 
 - Progress in terms of epochs
 - Progress in terms of steps for the current epoch
-- Training and validation loss throughout the epochs. You can use the mouse wheel to zoom in or out of the graph, and you can click on the **INSERT_IMG** button to resize automatically the graph.
+- Training and validation loss throughout the epochs. You can use the mouse wheel to zoom in or out of the graph, and you can click on the `A` button to resize automatically the graph.
 - `Open in TensorBoard` opens TensorBoard in a new tab in your browser.
 
-### 7 - Prediction
-
-![prediction.png](images/prediction.png)
-
-Prediction is available after training. If you wish to predict on a different set of images or with a model saved to the disk, use the `DenoiSeg - predict` plugin.
-
-The prediction is ran on the `Train` and `Val` data that were saved in memory before training. If the images where loaded directly from the disk and they have different dimensions (X, Y, Z), then the results are saved to the disk in a `/result/` folder. Otherwise, the predicted images are added to napari.
-
-After training, the panel contains the following elements:
-
-- `Tile prediction`:
-Use tiling to predict the images. Tiling allows breaking large images in smaller chunks in order to fit in the GPU memory.
-- `Number of tiles`:
-Number of tiles to user per image.
-- A progress bar showing the progress in terms of predicted images (`Train` + `Val`).
-- `Predict`:
-Start the prediction.
-- `Stop`:
-Stop the prediction.
-
-**Note**: Prediction can take a while to start so be patient and check console outputs to make sure it is running correctly.
-
-
-### 8 - Model saving
+### 7 - Model saving
 
 ![save.png](images/save.png)
 
@@ -171,7 +147,18 @@ The [Bioimage.io](https://bioimage.io/#/?partner=deepimagej&type=all) format.
 - `TensorFow`:
 The model is saved as a `.h5` file.
 
-## DenoiSeg - predict
+## DenoiSeg optimize
+
+The optimize threshold helps you determine the best threshold for prediction based on images with ground-truth (e.g. validation set).
+
+> **Important**: it is better to use the validation set or new data to run the optimize threshold, rather than the training data. Indeed the model has been trained to perform specifically well on the training set, and the best threshold obtained with training data might not generalize well to data unseen during training.
+
+The plugin works loads images and labels from the `napari` or from the disk. It then predicts results for all images using a trained model, thresholds the resulting foreground image and measure a metrics (accuracy, similar to Jaccard).
+
+Use the threshold with the best accuracy in the prediction.
+
+
+## DenoiSeg predict
 
 ### Anatomy
 
@@ -180,7 +167,8 @@ Multiple aspects of the `DenoiSeg - predict` plugin are similar to the `DenoiSeg
 1. [Data loading](#1---data-loading)
 2. [Parameters](#2---parameters)
 3. [Tiling](#3---tiling)
-4. [Prediction](#4---predict)
+4. [Threshold](#4---threshold)
+5. [Prediction](#5---predict)
 
 ### 1 - Data loading
 
@@ -201,13 +189,19 @@ The parameters `Axes` and `Enable 3D` are similar to the corresponding ones in `
 
 ### 3 - Tiling
 
-Refer to the description of tiling in `DenoiSeg - Train`.
+- `Tile prediction`:
+Use tiling to predict the images. Tiling allows breaking large images in smaller chunks in order to fit in the GPU memory.
+- `Number of tiles`:
+Number of tiles to user per image.
 
-### 4 - Predict
+### 4 - Threshold
+
+Select `Apply threshold` to automatically threshold the probability maps (background, foreground and border) using the `Threshold`.
+
+> Note: you can determine an appropriate threshold using ground-truth data and the optimize plugin.
+
+
+### 5 - Predict
 
 Apply the model to the images. See the previous sections for details about the prediction modalities.
 
-
-## DenoiSeg - optimize
-
-### Anatomy
