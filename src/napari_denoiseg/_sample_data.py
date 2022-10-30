@@ -105,7 +105,7 @@ def _denoiseg_data_3D(noise_level):
 def demo_files():
     with cwd(get_default_path()):
         # load sem validation
-        img = _denoiseg_data_2D('n10')[1][0]
+        img = _denoiseg_data_2D('n10')[1][0][:50]
 
         # create models folder if it doesn't already exist
         model_path = Path('models', 'trained_BSD68_n10').absolute()
