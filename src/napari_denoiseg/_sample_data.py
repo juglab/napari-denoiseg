@@ -47,7 +47,7 @@ def _load_data_2D(path: Union[str, Path]):
     Y_train = train_data['Y_train'].astype(np.int32)
 
     return [(X_train, {'name': 'Train data'}),
-            (Y_train, {'name': 'Train labels'})]
+            (Y_train[:50], {'name': 'Train labels'})]
 
 
 def _denoiseg_data_2D(noise_level):
