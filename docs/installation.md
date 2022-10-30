@@ -1,59 +1,41 @@
 
 # Installation
 
-## Create a conda environment
+## Windows/Linux
 
 If you do not have conda, we recommend installing [miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/).
 
-Then, in your command line tool:
-
-1. Create a conda environment
-    
-    ```bash
-    conda create -n 'napari-denoiseg' python=3.9
-    conda activate napari-denoiseg
-    ```
-    
+1. Then, in your command line tool create a conda environment 
+   ```bash
+       conda create -n napari-denoiseg python=3.9
+       conda activate napari-denoiseg
+   ```
 2. Follow the [TensorFlow installation step-by-step](https://www.tensorflow.org/install/pip#linux_1) for your 
 operating system.
 3. Install `napari`:
-    ```bash
-    pip install "napari[all]==0.4.15"
-    ```
+   ```bash
+      pip install "napari[all]==0.4.15"
+   ```
+4. Install `napari-denoiseg`:
+   ```bash
+      pip install napari-denoiseg
+   ```
+   
+## macOS
 
+> Note: These instructions are for GPU support. Apple's tensorflow-metal is only officially supported for macOS 12 and 
+> higher. For CPU, you can try the Follow the [TensorFlow instructions](https://www.tensorflow.org/install/pip#macos_1) 
 
-## Install napari-denoiseg
+1. Set up env with napari and pyqt5
+   ```bash
+      conda create -n napari-denoiseg -c conda-forge python=3.9 napari pyqt5 imagecodecs
+   ```
+2. Install tensorflow following [Apple's instructions](https://developer.apple.com/metal/tensorflow-plugin/)
+3. Install napari-denoiseg
+   ```bash
+      pip install napari-denoiseg
+   ```
 
-### Install napari-denoiseg through the napari-hub
-
-Check-out the instructions on [installing plugins via the napari hub](https://napari.org/stable/plugins/find_and_install_plugin.html). 
-This step is performed after [starting napari](#start-napari-denoiseg).
-
-### Install napari-denoiseg via pip
-
-Within the previously installed conda environment, type:
-
-```bash
-pip install mapari-denoiseg
-```
-
-### Install napari-denoiseg from source
-
-Clone the repository:
-```bash
-git clone https://github.com/juglab/napari-denoiseg.git
-```
-
-Navigate to the newly created folder:
-```bash
-cd napari-denoiseg
-```
-
-Within the previously installed conda environment, type:
-
-```bash
-pip install -e .
-```
 
 # Start napari-denoiseg
 
