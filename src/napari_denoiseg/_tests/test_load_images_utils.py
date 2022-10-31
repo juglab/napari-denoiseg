@@ -232,7 +232,10 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
 
     # load images, replacing n[1]-n[0] last images with blank frames
     X, Y, _axes = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
-    assert Y[n[1]:, ...].min() == Y[n[1]:, ...].max() == 0
+    for i in range(n[1], Y.shape[0]):
+        frame = Y[i]
+        assert frame.min() == frame.max() == 0
+
     assert X.shape[0] == Y.shape[0] == n[0]
 
     # load images with the check_exists flag triggers error
