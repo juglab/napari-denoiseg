@@ -232,9 +232,11 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
 
     # load images, replacing n[1]-n[0] last images with blank frames
     X, Y, _axes = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
-    for i in range(n[1], Y.shape[0]):
-        frame = Y[i]
-        assert frame.min() == frame.max() == 0
+    m = 0
+    for i in range(Y.shape[0]):
+        if Y[i].min() == Y[i].max() == 0:
+            m += 1
+    assert m == n[0]-n[1]
 
     assert X.shape[0] == Y.shape[0] == n[0]
 
