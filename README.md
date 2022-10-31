@@ -9,7 +9,7 @@
 
 A napari plugin performing joint denoising and segmentation of microscopy images using [DenoiSeg](https://github.com/juglab/DenoiSeg).
 
-<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/?????????.png" width="800" />
+<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/example.png" width="800" />
 ----------------------------------
 
 ## Installation
