@@ -1,7 +1,11 @@
 import os
+import warnings
 from pathlib import Path
 
 import numpy as np
+from napari_time_slicer import time_slicer
+from napari_tools_menu import register_function
+from tensorflow.python.framework.errors_impl import UnknownError
 from tifffile import imwrite
 
 from napari.qt.threading import thread_worker
@@ -13,6 +17,39 @@ from napari_denoiseg.utils import (
     load_model,
     reshape_napari
 )
+
+
+# todo: check the current menu items
+# TODO: setup.cfg does not define an entry point currently
+@register_function(menu="Segmentation / noise removal > Apply DenoiSeg")
+@time_slicer
+def apply_denoiseg(image: "napari.types.ImageData",
+                   model_filename: os.PathLike = "my_denoiseg_model",
+                   number_of_tiles: int = 4,
+                   ) -> ("napari.types.ImageData", "napari.types.ImageData"):
+    """
+    """
+    model_path = Path(model_filename)
+    if not model_path.exists():
+        raise Exception('Model not found')
+
+    # load the model
+    model = load_model(model_path)
+
+    # check image shape
+    if len(image.shape) == 2:
+        axes = "YXC"
+        tiles = (number_of_tiles, number_of_tiles, 1)
+    elif len(image.shape) == 3:
+        axes = "ZYXC"
+        tiles = (number_of_tiles, number_of_tiles, number_of_tiles, 1)
+    else:
+        raise ValueError("Only 2D and 3D data supported.")
+
+    # run prediction
+    predicted_image = model.predict(image[..., np.newaxis], axes=axes, n_tiles=tiles)
+
+    return predicted_image[..., :-3], predicted_image[..., -3:]
 
 
 @thread_worker(start_thread=False)
@@ -37,7 +74,8 @@ def prediction_worker(widget):
     try:
         model = load_model(weight_path)
     except ValueError as e:
-        ntf.show_error('Error loading model weights.')
+        # ntf.show_error('Error loading model weights.')
+        ntf.show_info('Error loading model weights.')
         print(e)
 
         yield {UpdateType.DONE}
@@ -49,7 +87,8 @@ def prediction_worker(widget):
             images, n_img = lazy_load_generator(widget.images_folder.get_folder())
 
             if n_img == 0:
-                ntf.show_error('No image found.')
+                # ntf.show_error('No image found.')
+                ntf.show_info('No image found.')
                 yield {UpdateType.DONE}
                 return
 
@@ -58,7 +97,8 @@ def prediction_worker(widget):
             images, new_axes = load_from_disk(widget.images_folder.get_folder(), axes)
 
             if type(images) == tuple and len(images[0]) == 0:
-                ntf.show_error('No image found.')
+                # ntf.show_error('No image found.')
+                ntf.show_info('No image found.')
                 yield {UpdateType.DONE}
                 return
     else:
@@ -83,7 +123,6 @@ def prediction_worker(widget):
     elif is_from_disk and type(images) == tuple:  # load images from disk with different sizes
         yield from _run_prediction_to_disk(**parameters)
     else:
-
         yield from _run_prediction(**parameters)
 
 
@@ -96,6 +135,7 @@ def _run_prediction(widget,
                     is_tiled=False,
                     n_tiles=4):
     """
+    Run prediction and show the result in napari.
 
     :param widget:
     :param model:
@@ -107,7 +147,15 @@ def _run_prediction(widget,
     """
 
     # reshape data
-    _data, new_axes = reshape_data_single(images, axes)
+    try:
+        _data, new_axes = reshape_data_single(images, axes)
+    except ValueError as e:
+        msg = 'Data and axes are incompatible.'
+        ntf.show_info(msg)
+        warnings.warn(msg)
+        print(e)
+        return
+
     yield {UpdateType.N_IMAGES: _data.shape[0]}
 
     # this is to prevent the memory from saturating on the gpu on my machine
@@ -131,10 +179,19 @@ def _run_prediction(widget,
         yield {UpdateType.IMAGE: i_slice + 1}
 
         # predict
-        if is_tiled:
-            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
-        else:
-            predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
+        try:
+            if is_tiled:
+                predict_all[i_slice, ...] = model.predict(_x, axes=new_axes, n_tiles=n_tiles)
+            else:
+                predict_all[i_slice, ...] = model.predict(_x, axes=new_axes)
+        except UnknownError as e:
+            msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+            # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+            # ntf.show_error(msg)
+            ntf.show_info(msg)
+            warnings.warn(msg)
+            print(e.message)
+            break
 
     # split predictions
     final_image_d = predict_all[..., 0:-3].squeeze()
@@ -166,6 +223,7 @@ def _run_prediction_to_disk(widget,
                             is_tiled=False,
                             n_tiles=4):
     """
+    Load all data in memory and run prediction, saving the result to the disk.
 
     :param widget:
     :param model:
@@ -194,7 +252,8 @@ def _run_prediction_to_disk(widget,
                 yield _data, f, _axes, counter
 
             except ValueError:
-                ntf.show_error(f'Wrong image shapes {f.stem} {im.shape}')
+                # ntf.show_error(f'Wrong image shapes {f.stem} {im.shape}')
+                ntf.show_info(f'Wrong image shapes {f.stem} {im.shape}')
 
     gen = generator(images, axes)
 
@@ -220,10 +279,19 @@ def _run_prediction_to_disk(widget,
             prediction = np.zeros(shape_out, dtype=np.float32)
 
             for i_s in range(_x.shape[0]):
-                if is_tiled:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
-                else:
-                    prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                try:
+                    if is_tiled:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                    else:
+                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                except UnknownError as e:
+                    msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+                    # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+                    # ntf.show_error(msg)
+                    ntf.show_info(msg)
+                    warnings.warn(msg)
+                    print(e.message)
+                    break
 
             # if only one sample, then update new axes
             if prediction.shape[0] == 1:
@@ -294,10 +362,19 @@ def _run_lazy_prediction(widget,
                 prediction = np.zeros(shape_out, dtype=np.float32)
 
                 for i_s in range(_x.shape[0]):
-                    if is_tiled:
-                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
-                    else:
-                        prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                    try:
+                        if is_tiled:
+                            prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:], n_tiles=n_tiles)
+                        else:
+                            prediction[i_s, ...] = model.predict(_x[i_s, ...], axes=new_axes[1:])
+                    except UnknownError as e:
+                        msg = 'UnknownError can be a failure to load cudnn, try restarting the computer.'
+                        # TODO: napari 0.4.16 has ntf.show_error, but napari workflows requires 0.4.15 that doesn't
+                        # ntf.show_error(msg)
+                        ntf.show_info(msg)
+                        warnings.warn(msg)
+                        print(e.message)
+                        break
 
                 # if only one sample, then update new axes
                 if prediction.shape[0] == 1:
@@ -328,7 +405,8 @@ def _run_lazy_prediction(widget,
                     break
 
             except ValueError:
-                ntf.show_error(f'Wrong image shapes  {file.stem} {image.shape}')
+                ntf.show_info(f'Wrong image shapes  {file.stem} {image.shape}')
+                # ntf.show_error(f'Wrong image shapes  {file.stem} {image.shape}')
         else:
             break
 

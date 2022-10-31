@@ -1,12 +1,71 @@
 from pathlib import Path
+from typing import Union
+
 import numpy as np
 
 from tifffile import imread
+
+from napari.utils import notifications as ntf
 
 from csbdeep.data import RawData
 from csbdeep.utils import consume
 
 from .denoiseg_utils import remove_C_dim
+
+
+def load_pairs_from_disk(source_path: Union[str, Path], target_path: Union[str, Path], axes: str, check_exists=True):
+    """
+    Load pairs of source and target images from the disk. This method returns arrays if all source images have the
+    same shape or lists of images if they do not.
+    `check_exists` = `False` allows inserting empty images when the corresponding target is not found.
+    :param axes: Name of the expected axes of the images
+    :param source_path: Path to the source images
+    :param target_path: Path to the target images
+    :param check_exists: Replace missing targets by empty images if `False`, ignore source images without targets
+    otherwise.
+    :return:
+    """
+    # create RawData generator
+    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
+
+    # load data
+    _source = []
+    _target = []
+    dims_agree = True
+    for s, t in pairs.generator():
+        _source.append(s)
+        _target.append(t)
+
+        # check if the dimension agrees with the first image in the array
+        dims_agree = dims_agree and (_source[0].shape == _source[-1].shape)
+
+    # if all source images have the same shape
+    if len(_source) > 0 and dims_agree:
+        # concatenate in a single array
+        if 'S' in axes:
+            ind_S = axes.find('S')
+            _s = np.concatenate(_source, axis=ind_S)
+            _t = np.concatenate(_target, axis=ind_S)
+            _axes = axes
+        else:
+            _axes = 'S' + axes
+            _s = np.stack(_source, axis=0)
+            _t = np.stack(_target, axis=0)
+
+        # source and target should have the same shape
+        if 'C' in _axes:
+            # y doesn't have C channel
+            if remove_C_dim(_s.shape, _axes) != _t.shape:
+                raise ValueError('Shape of source and target images are incompatible.')
+        else:
+            # exact same shape
+            if _s.shape != _t.shape:
+                raise ValueError('Shape of source and target images are incompatible.')
+
+        return _s, _t, _axes
+
+    return _source, _target, axes
+
 
 # Adapted from:
 # https://csbdeep.bioimagecomputing.com/doc/_modules/csbdeep/data/rawdata.html#RawData.from_folder
@@ -52,7 +111,9 @@ def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
 
     # check if the corresponding target exists
     if check_exists:
-        consume(t.exists() or _raise(FileNotFoundError(t)) for s, t in pairs)
+        for _, t in pairs:
+            if not t.exists():
+                raise FileNotFoundError(f'Could not find {t.absolute()}')
     else:
         # alternatively, replace non-existing files with None
         consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))
@@ -136,42 +197,3 @@ def lazy_load_generator(path):
             yield imread(str(f)), f, counter
 
     return generator(image_files), len(image_files)
-
-
-def load_pairs_from_disk(source_path, target_path, axes, check_exists=True):
-    """
-
-    :param axes:
-    :param source_path:
-    :param target_path:
-    :param check_exists:
-    :return:
-    """
-    # create RawData generator
-    pairs = load_pairs_generator(source_path, target_path, axes, check_exists)
-    n = pairs.size
-
-    # load data
-    _source = []
-    _target = []
-    for s, t in pairs.generator():
-        _source.append(s)
-        _target.append(t)
-
-    _s = np.array(_source)
-    _t = np.array(_target, dtype=np.int)
-
-    if 'S' not in axes and n > 1:
-        _axes = 'S' + axes
-    else:
-        _axes = axes
-
-    if 'C' in axes:
-        if remove_C_dim(_s.shape, _axes) != _t.shape:
-            raise ValueError
-    else:
-        if _s.shape != _t.shape:
-            raise ValueError
-
-    return _s, _t, n
-

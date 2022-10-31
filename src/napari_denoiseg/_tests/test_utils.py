@@ -22,13 +22,17 @@ def save_img(folder_path, n, shape, prefix='', axes=None):
             imwrite(os.path.join(folder_path, prefix + str(i) + '.tif'), im, metadata={'axes': axes})
 
 
-def create_data(main_dir, folders, sizes, shapes):
+def create_data(main_dir, folders, sizes, shapes, prefix=''):
     for n, f, sh in zip(sizes, folders, shapes):
         source = main_dir / f
-        os.mkdir(source)
-        save_img(source, n, sh)
+
+        if not os.path.exists(source):
+            os.mkdir(source)
+
+        save_img(source, n, sh, prefix=prefix)
 
 
+@pytest.mark.skip('Skip test for functions used only in testing.')
 @pytest.mark.parametrize('shape', [(16, 16), (8, 16, 16)])
 def test_create_data(tmp_path, shape):
     folders = ['train_X', 'train_Y', 'val_X', 'val_Y']
@@ -43,7 +47,7 @@ def test_create_data(tmp_path, shape):
 
 
 # convenience functions: create and save models
-def create_model(basedir, shape):
+def create_simple_model(basedir, shape):
     # create model
     X = np.zeros(shape)
     name = 'myModel'
@@ -54,12 +58,13 @@ def create_model(basedir, shape):
     return DenoiSeg(config, name, basedir)
 
 
+@pytest.mark.skip('Skip test for functions used only in testing.')
 @pytest.mark.parametrize('shape', [(1, 8, 8, 1),
                                    (20, 8, 16, 3),
                                    (1, 8, 16, 16, 1),
                                    (42, 8, 16, 32, 3)])
 def test_create_model(tmp_path, shape):
-    create_model(tmp_path, shape)
+    create_simple_model(tmp_path, shape)
 
 
 def save_weights_h5(model, basedir):
@@ -72,13 +77,14 @@ def save_weights_h5(model, basedir):
     return path_to_weights
 
 
+@pytest.mark.skip('Skip test for functions used only in testing.')
 @pytest.mark.timeout(2)
 @pytest.mark.parametrize('shape', [(1, 8, 8, 1),
                                    (1, 8, 16, 1),
                                    (1, 8, 16, 16, 1),
                                    (1, 8, 16, 32, 1)])
 def test_saved_weights_h5(tmp_path, shape):
-    model = create_model(tmp_path, shape)
+    model = create_simple_model(tmp_path, shape)
     path_to_weights = save_weights_h5(model, tmp_path)
 
     assert path_to_weights.name.endswith('.h5')
@@ -89,7 +95,7 @@ def create_model_zoo_parameters(folder, shape):
     import shutil
 
     # create model and save it to disk
-    model = create_model(folder, shape)
+    model = create_simple_model(folder, shape)
     path_to_h5 = str(save_weights_h5(model, folder).absolute())
 
     # path to modelzoo

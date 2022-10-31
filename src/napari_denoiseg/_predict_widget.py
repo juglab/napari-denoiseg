@@ -1,6 +1,7 @@
 """
 
 """
+from pathlib import Path
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
@@ -42,7 +43,9 @@ SAMPLE = 'Sample data'
 
 class PredictWidgetWrapper(ScrollWidgetWrapper):
     def __init__(self, napari_viewer):
-        super().__init__(PredictWidget(napari_viewer))
+        self.widget = PredictWidget(napari_viewer)
+
+        super().__init__(self.widget)
 
 
 class PredictWidget(QWidget):
@@ -59,8 +62,8 @@ class PredictWidget(QWidget):
                                              ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
-                                             'https://github.com/juglab/napari_denoiseg',
-                                             'https://github.com/juglab/napari_denoiseg'))
+                                             'https://juglab.github.io/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg/issues'))
 
         # add GPU button
         gpu_button = create_gpu_label()
@@ -170,7 +173,7 @@ class PredictWidget(QWidget):
 
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
-        self.threshold_spin.native.setToolTip('Threshold to use on all the segmentation channels')
+        self.threshold_spin.native.setToolTip('Threshold to use on all segmentation channels')
         self.threshold_group.layout().addWidget(self.threshold_spin.native)
 
         self.layout().addWidget(self.threshold_group)
@@ -327,9 +330,11 @@ class PredictWidget(QWidget):
                     self.worker.returned.connect(self._done)
                     self.worker.start()
                 else:
-                    ntf.show_error('Select a model')
+                    # ntf.show_error('Select a model')
+                    ntf.show_info('Select a model')
             else:
-                ntf.show_error('Invalid axes')
+                # ntf.show_error('Invalid axes')
+                ntf.show_info('Invalid axes')
 
         elif self.state == State.RUNNING:
             # stop requested
@@ -357,6 +362,34 @@ class PredictWidget(QWidget):
     # TODO call these methods throughout the workers
     def get_axes(self):
         return self.axes_widget.get_axes()
+
+    def set_model_path(self, path: Path):
+        self.load_model_button.Model.value = path
+
+    def set_layer(self, layer):
+        self.images.choices = [x for x in self.viewer.layers if type(x) is napari.layers.Image]
+        if layer in self.images.choices:
+            self.images.native.value = layer
+
+
+class DemoPrediction(PredictWidgetWrapper):
+    def __init__(self, napari_viewer):
+        super().__init__(napari_viewer)
+
+        # dowload demo files
+        from napari_denoiseg._sample_data import demo_files
+        ntf.show_info('Downloading data can take a few minutes.')
+
+        # get files
+        X, model = demo_files()
+
+        # add image to viewer
+        name = 'Demo images'
+        napari_viewer.add_image(X, name=name)
+
+        # modify path
+        self.widget.set_model_path(model)
+        self.widget.set_layer(name)
 
 
 if __name__ == "__main__":

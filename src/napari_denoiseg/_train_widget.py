@@ -24,7 +24,7 @@ from napari_denoiseg.utils import (
     ModelSaveMode,
     training_worker,
     loading_worker,
-    save_configuration
+    save_model
 )
 from napari_denoiseg.widgets import (
     TBPlotWidget,
@@ -63,8 +63,8 @@ class TrainWidget(QWidget):
                                              ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
-                                             'https://github.com/juglab/napari_denoiseg',
-                                             'https://github.com/juglab/napari_denoiseg'))
+                                             'https://juglab.github.io/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg/issues'))
 
         # add GPU button
         gpu_button = create_gpu_label()
@@ -82,11 +82,14 @@ class TrainWidget(QWidget):
         # place-holder for models and parameters (e.g. bioimage.io)
         self.is_3D = False
         self.worker = None
-        self.model, self.threshold = None, None
+        self.model = None
         self.inputs, self.outputs = [], []
         self.tf_version = None
         self.load_from_disk = False
         self.training_done = False
+        self.training_arguments = None
+        self.X_val = None
+        self.reset = True
 
         # actions
         self._set_actions()
@@ -135,19 +138,14 @@ class TrainWidget(QWidget):
         self.progress_group.setLayout(QVBoxLayout())
         self.progress_group.layout().setContentsMargins(20, 20, 20, 0)
 
-        self.pb_epochs = create_progressbar(max_value=self.n_epochs_spin.value(),
-                                            text_format=f'Epoch ?/{self.n_epochs_spin.value()}')
+        self.pb_epochs = create_progressbar(max_value=self.get_n_epochs(),
+                                            text_format=f'Epoch ?/{self.get_n_epochs()}')
 
         self.pb_steps = create_progressbar(max_value=self.n_steps_spin.value(),
                                            text_format=f'Step ?/{self.n_steps_spin.value()}')
 
-        self.pb_threshold = create_progressbar(max_value=19,
-                                               text_format=f'Threshold optimization: ?')
-        self.pb_threshold.setToolTip('Show the progress of the threshold optimization procedure')
-
         self.progress_group.layout().addWidget(self.pb_epochs)
         self.progress_group.layout().addWidget(self.pb_steps)
-        self.progress_group.layout().addWidget(self.pb_threshold)
 
         # plot widget
         self.plot = TBPlotWidget(max_width=300, max_height=300, min_height=250)
@@ -223,23 +221,23 @@ class TrainWidget(QWidget):
         self.axes_widget = AxesWidget()
 
         # others
-        self.n_epochs_spin = create_int_spinbox(1, 1000, 2, tooltip='Number of epochs')
-        self.n_epochs = self.n_epochs_spin.value()
+        self.n_epochs_spin = create_int_spinbox(1, 1000, 30, tooltip='Number of epochs')
+        self.n_epochs = self.get_n_epochs()
 
-        self.n_steps_spin = create_int_spinbox(1, 1000, 10, tooltip='Number of steps per epochs')
+        self.n_steps_spin = create_int_spinbox(1, 1000, 200, tooltip='Number of steps per epochs')
         self.n_steps = self.n_steps_spin.value()
 
         # batch size
-        self.batch_size_spin = create_int_spinbox(1, 512, 16, 1)
-        self.batch_size_spin.setToolTip('Number of patches per batch (decrease if GPU memory is insufficient)')
+        self.batch_size_spin = create_int_spinbox(1, 512, 16, 1, tooltip='Number of patches per batch (decrease if '
+                                                                         'GPU memory is insufficient)')
 
         # patch size
-        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8, tooltip='Dimension of the patches in XY')
+        self.patch_size_XY = create_int_spinbox(16, 512, 64, 8, tooltip='Dimension of the patches in XY')
 
         # 3D checkbox
         self.enable_3d = enable_3d()
         self.enable_3d.native.setToolTip('Use a 3D network')
-        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False, tooltip='Dimension of the patches in Z')
+        self.patch_size_Z = create_int_spinbox(16, 512, 32, 8, False, tooltip='Dimension of the patches in Z')
 
         formLayout = QFormLayout()
         formLayout.addRow(self.axes_widget.label.text(), self.axes_widget.text_field)
@@ -288,13 +286,7 @@ class TrainWidget(QWidget):
         :return:
         """
         if self.state == State.IDLE:
-            # TODO check that all in order before predicting (data loaded, axes valid ...etc...)
-
             if self.axes_widget.is_valid():
-
-                # first update the number of steps and epochs
-                self._update_steps()
-                self._update_epochs()
 
                 # set the state to running
                 self.state = State.RUNNING
@@ -304,9 +296,15 @@ class TrainWidget(QWidget):
                 self.load_from_disk = self.tabs.currentIndex() == 1
 
                 # modify UI
-                self.plot.clear_plot()
-                self.pb_threshold.setFormat('Threshold optimization: ?')
-                self.pb_threshold.setValue(0)
+                if self.reset:
+                    # start from scratch
+                    self.plot.clear_plot()
+
+                    # reset epochs and steps
+                    self._update_steps(self.n_steps_spin.value())
+                    self._update_epochs(self.get_n_epochs())
+
+                self.reset = False
                 self.train_button.setText('Stop')
                 self.reset_model_button.setText('')
                 self.reset_model_button.setEnabled(False)
@@ -320,16 +318,10 @@ class TrainWidget(QWidget):
                 self.worker.returned.connect(self._done)
                 self.worker.start()
             else:
-                ntf.show_error('Invalid axes')
+                # ntf.show_error('Invalid axes')
+                ntf.show_info('Invalid axes')
         else:
-            if self.training_done:
-                # interrupts threshold
-                self.state = State.IDLE
-                self.pb_threshold.setFormat('Interrupted')
-            else:
-                # stops the training but continue with optimization
-                self.state = State.INTERRUPTED
-                self.train_button.setText('Stop all')
+            self.state = State.IDLE
 
     def _done(self):
         """
@@ -338,6 +330,7 @@ class TrainWidget(QWidget):
         :return:
         """
         self.state = State.IDLE
+        self.reset = False
         self.train_button.setText('Continue training')
         self.reset_model_button.setText('Reset model')
         self.reset_model_button.setEnabled(True)
@@ -349,6 +342,7 @@ class TrainWidget(QWidget):
         :return:
         """
         if self.state == State.IDLE:
+            self.reset = True
             self.model = None
             self.reset_model_button.setText('')
             self.reset_model_button.setEnabled(False)
@@ -420,18 +414,28 @@ class TrainWidget(QWidget):
         else:
             self._update_layer_axes()
 
-    def _update_epochs(self):
+    def _update_epochs(self, value=None):
         """
         Update the epoch progress bar following a change of total number of epochs.
         :return:
         """
         if self.state == State.IDLE:
-            self.n_epochs = self.n_epochs_spin.value()
+            self.n_epochs = self.get_n_epochs()
             self.pb_epochs.setValue(0)
-            self.pb_epochs.setMaximum(self.n_epochs_spin.value())
-            self.pb_epochs.setFormat(f'Epoch ?/{self.n_epochs_spin.value()}')
+            self.pb_epochs.setMaximum(self.get_n_epochs())
+            self.pb_epochs.setFormat(f'Epoch ?/{self.get_n_epochs()}')
+        elif value is not None:
+            # TODO not clean and hacky...
+            # should only happen when retraining
+            self.n_epochs = value
+            self.pb_epochs.setValue(0)
+            self.pb_epochs.setMaximum(value)
+            self.pb_epochs.setFormat(f'Epoch ?/{value}')
 
-    def _update_steps(self):
+    def get_n_epochs(self):
+        return self.n_epochs_spin.value()
+
+    def _update_steps(self, value=None):
         """
         Update the step progress bar following a change of total number of steps.
         :return:
@@ -441,6 +445,11 @@ class TrainWidget(QWidget):
             self.pb_steps.setValue(0)
             self.pb_steps.setMaximum(self.n_steps_spin.value())
             self.pb_steps.setFormat(f'Step ?/{self.n_steps_spin.value()}')
+        elif value is not None:
+            self.n_steps = value
+            self.pb_steps.setValue(0)
+            self.pb_steps.setMaximum(value)
+            self.pb_steps.setFormat(f'Step ?/{value}')
 
     def _update_all(self, updates):
         """
@@ -462,55 +471,29 @@ class TrainWidget(QWidget):
             if UpdateType.LOSS in updates:
                 self.plot.update_plot(*updates[UpdateType.LOSS])
 
-        if self.state == State.RUNNING or self.state == State.INTERRUPTED:
-            if UpdateType.TRAINING_DONE in updates:
-                # this is used to discriminate between training and optimization interruptions
-                self.training_done = True
-
-            if UpdateType.THRESHOLD in updates:
-                val = updates[UpdateType.THRESHOLD]
-                self.pb_threshold.setValue(val[0]+1)
-                self.pb_threshold.setFormat('Threshold optimization: {:.2f}'.format(val[1]))
-
-            if UpdateType.BEST_THRESHOLD in updates:
-                val = updates[UpdateType.BEST_THRESHOLD]
-                self.pb_threshold.setFormat('Best threshold: {:.2f} (m={:.2f})'.format(*val))
-                self.threshold = val
+            if UpdateType.RETRAIN in updates:
+                self._update_epochs(value=updates[UpdateType.RETRAIN])
 
     def _save_model(self):
         """
         Export the model.
         :return:
         """
-        # TODO: refactor somewhere else
         if self.state == State.IDLE:
             if self.model:
-                where = QFileDialog.getSaveFileName(caption='Save model')[0]
-
+                where = Path(QFileDialog.getSaveFileName(caption='Save model')[0])
                 export_type = self.save_choice.currentText()
-                if ModelSaveMode.MODELZOO.value == export_type:
-                    from napari_denoiseg.utils import build_modelzoo
 
-                    axes = self.axes_widget.get_axes()
-                    axes = axes.replace('S', 'b').lower()
-
-                    if 'b' not in axes:
-                        axes = 'b' + axes
-
-                    if 'c' not in axes:
-                        axes = axes + 'c'
-
-                    build_modelzoo(where + '.bioimage.io.zip',
-                                   self.model.logdir / "weights_best.h5",
-                                   self.inputs,
-                                   self.outputs,
-                                   self.tf_version,
-                                   axes)
-                else:
-                    self.model.keras_model.save_weights(where + '.h5')
-
-                # save configuration as well
-                save_configuration(self.model.config, Path(where).parent)
+                # save
+                parameters = {
+                    'export_type': export_type,
+                    'model': self.model,
+                    'axes': self.new_axes,
+                    'input_path': self.inputs,
+                    'output_path': self.outputs,
+                    'tf_version': self.tf_version
+                }
+                save_model(where, **parameters)
 
     def _training_expert_setter(self):
         if self.expert_settings is None:
@@ -519,13 +502,13 @@ class TrainWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_2D_n10, denoiseg_data_3D_n10
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n20, denoiseg_data_3D_n20
 
-    dims = '3D'  # '2D'
+    dims = '2D'  # '3D'
     if dims == '3D':
-        data = denoiseg_data_3D_n10()
+        data = denoiseg_data_3D_n20()
     else:
-        data = denoiseg_data_2D_n10()
+        data = denoiseg_data_2D_n20()
 
     # create a Viewer
     viewer = napari.Viewer()

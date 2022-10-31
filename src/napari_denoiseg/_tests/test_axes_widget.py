@@ -2,21 +2,37 @@ import pytest
 
 from napari_denoiseg.widgets import AxesWidget
 
+"""
+The axes widget limits the type of axes and the length based on the image shape.
 
+Allowed axes are (STZ)YX(C), with Z mandatory if 3D is checked.
+"""
+
+
+@pytest.mark.qt
 @pytest.mark.parametrize('shape_length', [i for i in range(2, 6)])
 def test_axes_widget_no_Z_defaults(qtbot, shape_length):
+    """
+    Test that the axes widget is valid without Z for axes length 2, 3, 4 and 5.
+    """
     widget = AxesWidget(shape_length, False)
 
     assert widget.is_valid()
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape_length', [i for i in range(3, 7)])
 def test_axes_widget_Z_defaults(qtbot, shape_length):
+    """
+    Test that the axes widget is valid with Z for axes length 3, 4, 5 and 6.
+    """
+
     widget = AxesWidget(shape_length, True)
 
     assert widget.is_valid()
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape_length, is_3D', [(2, True), (6, False)])
 def test_axes_widget_invalid_defaults(qtbot, shape_length, is_3D):
     widget = AxesWidget(shape_length, is_3D)
@@ -24,6 +40,7 @@ def test_axes_widget_invalid_defaults(qtbot, shape_length, is_3D):
     assert not widget.is_valid()
 
 
+@pytest.mark.qt
 def test_axes_widget_change_dims(qtbot):
     widget = AxesWidget(6, False)  # default text is now invalid, regardless of is_3D or n_axes
     assert not widget.is_valid()  # cannot be valid with n=6 and no 3D
@@ -36,6 +53,7 @@ def test_axes_widget_change_dims(qtbot):
     assert widget.is_valid()
 
 
+@pytest.mark.qt
 def test_axes_widget_change_dims(qtbot):
     widget = AxesWidget(4, True)
     assert widget.is_valid()  # default is valid

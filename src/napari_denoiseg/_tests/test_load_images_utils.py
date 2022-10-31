@@ -14,6 +14,7 @@ from napari_denoiseg.utils import (
     lazy_load_generator
 )
 
+
 # TODO: test when no image is found
 
 
@@ -153,12 +154,15 @@ def test_load_from_disk_different_shapes(tmp_path, shape1, shape2, axes):
 
 ###################################################################
 # test load_pairs_from_disk
+@pytest.mark.parametrize('n', [1, 2])
 @pytest.mark.parametrize('shape, axes', [((8, 8), 'YX'),
                                          ((4, 8, 8), 'ZYX'),
                                          ((16, 8, 32, 3), 'ZYXC'),
                                          ((16, 8, 16, 32, 3), 'TZYXC')])
-def test_load_pairs_from_disk_same_shape(tmp_path, shape, axes):
-    n = 10
+def test_load_pairs_from_disk_same_shape(tmp_path, n, shape, axes):
+    """
+    Load pairs of images with same shape from the disk
+    """
     folders = ['X', 'Y']
     for f in folders:
         os.mkdir(tmp_path / f)
@@ -171,7 +175,39 @@ def test_load_pairs_from_disk_same_shape(tmp_path, shape, axes):
         save_img(tmp_path / folders[1], n, shape)
 
     # load images
-    load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
+    X, Y, _axes = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
+    assert X.shape[0] == Y.shape[0] == n
+    if 'C' in axes:
+        assert X.shape[:-1] == Y.shape
+    else:
+        assert X.shape == Y.shape
+
+
+@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8), (16, 16), 'YX'),
+                                                  ((4, 8, 8), (5, 16, 16), 'ZYX'),
+                                                  ((16, 8, 32, 3), (8, 16, 16, 3), 'ZYXC'),
+                                                  ((16, 8, 16, 32, 3), (16, 8, 32, 32, 3), 'TZYXC')])
+def test_load_pairs_from_disk_as_list(tmp_path, shape1, shape2, axes):
+    """
+    Load pairs of images with same shape from the disk
+    """
+    folders = ['X', 'Y']
+    for f in folders:
+        os.mkdir(tmp_path / f)
+
+    save_img(tmp_path / folders[0], 1, shape1)
+    save_img(tmp_path / folders[0], 1, shape2, prefix='2_')
+
+    if 'C' in axes:
+        save_img(tmp_path / folders[1], 1, shape1[:-1])
+        save_img(tmp_path / folders[1], 1, shape2[:-1], prefix='2_')
+    else:
+        save_img(tmp_path / folders[1], 1, shape1)
+        save_img(tmp_path / folders[1], 1, shape2, prefix='2_')
+
+    # load images
+    X, Y, _axes = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
+    assert type(X) == type(Y) == list
 
 
 @pytest.mark.parametrize('shape, axes', [((8, 8), 'YX'),
@@ -179,6 +215,9 @@ def test_load_pairs_from_disk_same_shape(tmp_path, shape, axes):
                                          ((16, 8, 32, 3), 'ZYXC'),
                                          ((16, 8, 16, 32, 3), 'TZYXC')])
 def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
+    """
+    Load images with unbalanced pairs (some X don't have a corresponding Y)
+    """
     n = [15, 5]
     folders = ['X', 'Y']
     for f in folders:
@@ -192,9 +231,14 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
         save_img(tmp_path / folders[1], n[1], shape)
 
     # load images, replacing n[1]-n[0] last images with blank frames
-    X, Y, n_loaded = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
-    assert Y[n[1]:, ...].min() == Y[n[1]:, ...].max() == 0
-    assert n[0] == n_loaded
+    X, Y, _axes = load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes, check_exists=False)
+    m = 0
+    for i in range(Y.shape[0]):
+        if Y[i].min() == Y[i].max() == 0:
+            m += 1
+    assert m == n[0]-n[1]
+
+    assert X.shape[0] == Y.shape[0] == n[0]
 
     # load images with the check_exists flag triggers error
     with pytest.raises(FileNotFoundError):
@@ -203,6 +247,9 @@ def test_load_pairs_from_disk_different_numbers(tmp_path, shape, axes):
 
 @pytest.mark.parametrize('shape1, shape2', [((8, 8), (4, 8, 8)), ((4, 8, 8), (8, 8)), ((8, 8), (8, 9))])
 def test_load_pairs_from_disk_different_shapes(tmp_path, shape1, shape2):
+    """
+    Load pairs of images with incompatible shapes/axes
+    """
     n = 10
     folders = ['X', 'Y']
     for f in folders:
@@ -214,22 +261,6 @@ def test_load_pairs_from_disk_different_shapes(tmp_path, shape1, shape2):
     # load images
     with pytest.raises(ValueError):
         load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], 'YX')
-
-
-@pytest.mark.parametrize('shape1, shape2, axes', [((8, 8, 3), (8, 8), 'YXC'),
-                                                  ((4, 8, 8), (8, 8), 'CYX'),
-                                                  ((8, 6, 8), (8, 8), 'YCX')])
-def test_load_pairs_from_disk_different_shapes_C(tmp_path, shape1, shape2, axes):
-    n = 10
-    folders = ['X', 'Y']
-    for f in folders:
-        os.mkdir(tmp_path / f)
-
-    save_img(tmp_path / folders[0], n, shape1)
-    save_img(tmp_path / folders[1], n, shape2)
-
-    # load images
-    load_pairs_from_disk(tmp_path / folders[0], tmp_path / folders[1], axes)
 
 
 def test_lazy_generator(tmp_path):

@@ -52,8 +52,8 @@ class ThresholdWidget(QWidget):
                                              ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
-                                             'https://github.com/juglab/napari_denoiseg',
-                                             'https://github.com/juglab/napari_denoiseg'))
+                                             'https://juglab.github.io/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg/issues'))
 
         # add GPU button
         gpu_button = create_gpu_label()
@@ -241,9 +241,11 @@ class ThresholdWidget(QWidget):
                     self.worker.yielded.connect(lambda x: self._update(x))
                     self.worker.start()
                 else:
-                    ntf.show_error('Select a model')
+                    # ntf.show_error('Select a model')
+                    ntf.show_info('Select a model')
             else:
-                ntf.show_error('Invalid axes')
+                # ntf.show_error('Invalid axes')
+                ntf.show_info('Invalid axes')
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 
@@ -261,9 +263,9 @@ class ThresholdWidget(QWidget):
 
 
 if __name__ == "__main__":
-    from napari_denoiseg._sample_data import denoiseg_data_2D_n10
+    from napari_denoiseg._sample_data import denoiseg_data_2D_n20
 
-    data = denoiseg_data_2D_n10()
+    data = denoiseg_data_2D_n20()
 
     # create a Viewer
     viewer = napari.Viewer()

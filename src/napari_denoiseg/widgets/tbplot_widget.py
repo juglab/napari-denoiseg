@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from magicgui.widgets import Container
 from qtpy.QtGui import QCursor, QIcon, QPixmap
 from qtpy.QtCore import Qt, QSize
@@ -11,6 +13,7 @@ import pyqtgraph as pg
 import webbrowser
 
 from napari_denoiseg.resources import ICON_TF
+from napari_denoiseg.utils import get_default_path
 
 
 class TBPlotWidget(Container):
@@ -79,7 +82,9 @@ class TBPlotWidget(Container):
             from tensorboard import program
 
             self.tb = program.TensorBoard()
-            self.tb.configure(argv=[None, '--logdir', 'models'])
+
+            path = str(Path(get_default_path(), 'models').absolute())
+            self.tb.configure(argv=[None, '--logdir', path])
             self.url = self.tb.launch()
 
             webbrowser.open(self.url)

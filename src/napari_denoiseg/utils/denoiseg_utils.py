@@ -1,12 +1,13 @@
 import os
-import pathlib
+from pathlib import Path
 import warnings
 from contextlib import contextmanager
 from enum import Enum
+from typing import Union
+
 import numpy as np
 from itertools import permutations
 
-from denoiseg.utils.compute_precision_threshold import measure_precision
 
 from napari_denoiseg.resources import DOC_BIOIMAGE
 
@@ -37,15 +38,15 @@ class UpdateType(Enum):
     EPOCH = 'epoch'
     BATCH = 'batch'
     LOSS = 'loss'
-    THRESHOLD = 'threshold'
-    BEST_THRESHOLD = 'best threshold'
     N_IMAGES = 'number of images'
     IMAGE = 'image'
     TRAINING_DONE = 'training done'
+    CRASHED = 'crashed'
     DONE = 'done'
+    RETRAIN = 'retrain'
 
 
-def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
+def build_modelzoo(path: Union[str, Path], weights: str, inputs, outputs, tf_version: str, axes='byxc'):
     import os
     from bioimageio.core.build_spec import build_model
 
@@ -64,7 +65,8 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                 output_path=path,
                 name='DenoiSeg',
                 description="Super awesome DenoiSeg model. The best.",
-                authors=[{"name": "Tim-Oliver Buchholz"}, {"name": "Mangal Prakash"},
+                authors=[{"name": "Tim-Oliver Buchholz"},
+                         {"name": "Mangal Prakash"},
                          {"name": "Alexander Krull"},
                          {"name": "Florian Jug"}],
                 license="BSD-3-Clause",
@@ -82,9 +84,6 @@ def build_modelzoo(path, weights, inputs, outputs, tf_version, axes='byxc'):
                 tensorflow_version=tf_version,
                 attachments={"files": head}
                 )
-    head, _ = os.path.split(path)
-    head = os.path.join(os.path.normcase(head), "config.json")
-    os.remove(os.path.abspath(head))
 
 
 def get_shape_order(shape_in, axes_in, ref_axes):
@@ -174,33 +173,6 @@ def are_axes_valid(axes: str):
             return False
 
     return True
-
-
-def optimize_threshold(model, image_data, label_data, axes, widget=None):
-    """
-
-    :return:
-    """
-    for i_t, ts in enumerate(np.linspace(0.1, 1, 19)):
-
-        shape = (*image_data.shape[:-1], 3)
-        predictions = np.zeros(shape, dtype=np.float32)
-
-        # TODO: can't predict all S dim together in CSBDeep?
-        for i_s in range(shape[0]):
-            # predict and select only the segmentation predictions
-            predictions[i_s, ...] = model.predict(image_data[i_s, ...], axes=axes[1:])[..., -3:]
-
-        # threshold prediction and convert to int type
-        lab_gt = label_data.astype(np.int64)
-        lab_pred = (predictions >= ts).astype(np.int64)
-
-        score = measure_precision()(lab_gt, lab_pred)
-
-        if widget is not None and widget.state == State.IDLE:
-            break
-
-        yield i_t, ts, score
 
 
 def reshape_data(x, y, axes: str):
@@ -304,7 +276,7 @@ def reshape_data_single(x, axes: str):
     if len(_axes) != len(_x.shape):
         raise ValueError('Incompatible data and axes.')
 
-    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0, 'Unknown axes'  # all axes are part of REF_AXES
 
     # get new x shape
     new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, REF_AXES)
@@ -396,7 +368,7 @@ def get_napari_shapes(shape_in, axes_in):
 
 
 def get_default_path():
-    return os.path.join(pathlib.Path.home(), ".napari", "DenoiSeg")
+    return os.path.join(Path.home(), ".napari", "DenoiSeg")
 
 
 @contextmanager

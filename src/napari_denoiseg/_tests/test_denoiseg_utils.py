@@ -4,7 +4,6 @@ import pytest
 
 from marshmallow import ValidationError
 from napari_denoiseg._tests.test_utils import (
-    create_model,
     create_model_zoo_parameters
 )
 from napari_denoiseg.utils import (
@@ -18,12 +17,14 @@ from napari_denoiseg.utils import (
     reshape_napari,
     get_shape_order,
     REF_AXES,
-    NAPARI_AXES
+    NAPARI_AXES,
+    cwd
 )
 
 
 ###################################################################
 # test build_modelzoo
+@pytest.mark.bioimage_io
 @pytest.mark.parametrize('shape', [(1, 16, 16, 1),
                                    (1, 16, 8, 1),
                                    (1, 16, 8, 3),
@@ -33,27 +34,15 @@ from napari_denoiseg.utils import (
 def test_build_modelzoo_allowed_shapes(tmp_path, shape):
     # create model and save it to disk
     parameters = create_model_zoo_parameters(tmp_path, shape)
-    build_modelzoo(*parameters)
+
+    with cwd(tmp_path):
+        build_modelzoo(*parameters)
 
     # check if modelzoo exists
     assert Path(parameters[0]).exists()
 
 
-@pytest.mark.parametrize('shape', [(8,), (8, 16), (1, 16, 16), (32, 16, 8, 16, 32, 3)])
-def test_build_modelzoo_disallowed_shapes(tmp_path, shape):
-    """
-    Test ModelZoo creation based on disallowed shapes.
-
-    :param tmp_path:
-    :param shape:
-    :return:
-    """
-    # create model and save it to disk
-    with pytest.raises(AssertionError):
-        parameters = create_model_zoo_parameters(tmp_path, shape)
-        build_modelzoo(*parameters)
-
-
+@pytest.mark.bioimage_io
 @pytest.mark.parametrize('shape', [(8, 16, 16, 3),
                                    (8, 16, 16, 8, 3)])
 def test_build_modelzoo_disallowed_batch(tmp_path, shape):
@@ -64,10 +53,12 @@ def test_build_modelzoo_disallowed_batch(tmp_path, shape):
     :param shape:
     :return:
     """
+    parameters = create_model_zoo_parameters(tmp_path, shape)
+
     # create model and save it to disk
     with pytest.raises(ValidationError):
-        parameters = create_model_zoo_parameters(tmp_path, shape)
-        build_modelzoo(*parameters)
+        with cwd(tmp_path):
+            build_modelzoo(*parameters)
 
 
 @pytest.mark.parametrize('shape, axes, final_shape',
@@ -114,7 +105,12 @@ def test_filter_dimensions_error(shape, is_3D):
 
 
 @pytest.mark.parametrize('axes, valid', [('XSYCZ', True),
+                                         ('STZYXC', True),
+                                         ('XSTYCZ', True),
                                          ('YZX', True),
+                                         ('YZX', True),
+                                         ('ZYX', True),
+                                         ('YXC', True),
                                          ('TCS', True),
                                          ('xsYcZ', True),
                                          ('YzX', True),
@@ -127,40 +123,6 @@ def test_filter_dimensions_error(shape, is_3D):
                                          ('STZCYXL', False)])
 def test_are_axes_valid(axes, valid):
     assert are_axes_valid(axes) == valid
-
-
-# TODO add more tests
-@pytest.mark.parametrize('shape, axes', [((1, 16, 16, 1), 'SYXC')])
-def test_optimize_threshold(tmp_path, shape, axes):
-    from denoiseg.utils.seg_utils import convert_to_oneHot
-
-    # create model and data
-    model = create_model(tmp_path, shape)
-    X_val = np.random.random(shape)
-
-    if 'C' in axes:
-        y_shape = shape[:-1]
-    else:
-        y_shape = shape
-
-    Y_val = np.random.randint(0, 255, y_shape, dtype=np.int16)
-    _y_onehot = convert_to_oneHot(Y_val)
-
-    # instantiate generator
-    gen = optimize_threshold(model, X_val, _y_onehot, axes)
-
-    thresholds = []
-    while True:
-        t = next(gen, None)
-
-        if t:
-            _, temp_threshold, temp_score = t
-
-            thresholds.append(temp_threshold)
-        else:
-            break
-
-    assert len(thresholds) == 19
 
 
 ############################################

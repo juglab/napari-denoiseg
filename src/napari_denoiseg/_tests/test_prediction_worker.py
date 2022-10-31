@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from napari_denoiseg._tests.test_utils import create_model, save_img, save_weights_h5
+from napari_denoiseg._tests.test_utils import create_simple_model, save_img, save_weights_h5
 from napari_denoiseg.utils.prediction_worker import _run_lazy_prediction, _run_prediction, _run_prediction_to_disk
 from napari_denoiseg.utils import State, UpdateType, lazy_load_generator, load_from_disk
 
@@ -17,21 +17,19 @@ class MonkeyPatchWidget:
         return self.path
 
 
-@pytest.mark.parametrize('n', [1, 3])
-@pytest.mark.parametrize('t', [0, 0.6])
-@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.parametrize('n', [2])
+@pytest.mark.parametrize('t', [0.6])
+@pytest.mark.parametrize('n_tiles', [2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',
                          [((16, 16), (1, 16, 16, 1), 'YX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'TYX'),
-                          ((16, 32, 32), (1, 16, 32, 32, 1), 'ZYX'),
-                          ((5, 16, 16, 3), (5, 16, 16, 3), 'SYXC'),
-                          ((5, 16, 16, 5), (25, 16, 16, 1), 'SYXT'),
-                          ((16, 32, 32, 3), (1, 16, 32, 32, 3), 'ZYXC'),
-                          ((5, 16, 32, 32, 3), (5, 16, 32, 32, 3), 'SZYXC')])
+                          ((2, 16, 16), (2, 16, 16, 1), 'TYX'),
+                          ((16, 16, 16), (1, 16, 16, 16, 1), 'ZYX'),
+                          ((2, 16, 16, 3), (2, 16, 16, 3), 'TYXC'),
+                          ((16, 16, 16, 3), (1, 16, 16, 16, 3), 'ZYXC'),
+                          ((2, 16, 16, 16, 3), (2, 16, 16, 16, 3), 'SZYXC')])
 def test_run_lazy_prediction_same_size(tmp_path, t, n, n_tiles, shape, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -58,21 +56,18 @@ def test_run_lazy_prediction_same_size(tmp_path, t, n, n_tiles, shape, shape_den
     assert len(image_files) == 2 * n
 
 
-@pytest.mark.parametrize('t', [0, 0.6])
-@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.parametrize('t', [0.6])
+@pytest.mark.parametrize('n_tiles', [2])
 @pytest.mark.parametrize('shape1, shape2, shape_denoiseg, axes',
                          [((16, 16), (32, 32), (1, 16, 16, 1), 'YX'),
-                          ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'SYX'),
-                          ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'TYX'),
+                          ((2, 16, 16), (3, 32, 32), (2, 16, 16, 1), 'TYX'),
                           ((16, 32, 32), (32, 16, 16), (1, 16, 32, 32, 1), 'ZYX'),
-                          ((5, 32, 32), (3, 16, 16), (5, 32, 32, 1), 'TYX'),
-                          ((5, 16, 16, 3), (3, 32, 32, 3), (5, 16, 16, 3), 'SYXC'),
-                          ((5, 16, 16, 5), (3, 32, 32, 5), (25, 16, 16, 1), 'SYXT'),
+                          ((5, 16, 16, 3), (3, 32, 32, 3), (5, 16, 16, 3), 'TYXC'),
                           ((16, 32, 32, 3), (32, 16, 16, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_lazy_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -101,21 +96,18 @@ def test_run_lazy_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape
     assert len(image_files) == 2 * 2 * n
 
 
-@pytest.mark.parametrize('t', [0, 0.6])
-@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.parametrize('t', [0.6])
+@pytest.mark.parametrize('n_tiles', [2])
 @pytest.mark.parametrize('shape1, shape2, shape_denoiseg, axes',
                          [((16, 16), (32, 32), (1, 16, 16, 1), 'YX'),
-                          ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'SYX'),
-                          ((5, 16, 16), (3, 32, 32), (5, 16, 16, 1), 'TYX'),
-                          ((16, 32, 32), (16, 16, 16), (1, 16, 32, 32, 1), 'ZYX'),
-                          ((5, 32, 32), (3, 16, 16), (5, 32, 32, 1), 'TYX'),
-                          ((5, 16, 16, 3), (3, 32, 32, 3), (5, 16, 16, 3), 'SYXC'),
-                          ((5, 16, 16, 5), (3, 32, 32, 5), (25, 16, 16, 1), 'SYXT'),
+                          ((2, 16, 16), (3, 32, 32), (2, 16, 16, 1), 'TYX'),
+                          ((16, 32, 32), (32, 16, 16), (1, 16, 32, 32, 1), 'ZYX'),
+                          ((5, 16, 16, 3), (3, 32, 32, 3), (5, 16, 16, 3), 'TYXC'),
                           ((16, 32, 32, 3), (32, 16, 16, 3), (1, 16, 32, 32, 3), 'ZYXC'),
                           ((5, 16, 32, 32, 3), (3, 16, 16, 16, 3), (5, 16, 32, 32, 3), 'SZYXC')])
 def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, shape2, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -146,21 +138,19 @@ def test_run_from_disk_prediction_different_sizes(tmp_path, t, n_tiles, shape1, 
     assert len(image_files) == 2 * 2 * n
 
 
-@pytest.mark.parametrize('n', [1, 3])
-@pytest.mark.parametrize('t', [0, 0.6])
-@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.parametrize('n', [2])
+@pytest.mark.parametrize('t', [0.6])
+@pytest.mark.parametrize('n_tiles', [2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',
                          [((16, 16), (1, 16, 16, 1), 'YX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'TYX'),
-                          ((16, 32, 32), (1, 16, 32, 32, 1), 'ZYX'),
-                          ((5, 16, 16, 3), (5, 16, 16, 3), 'SYXC'),
-                          ((5, 16, 16, 5), (25, 16, 16, 1), 'SYXT'),
-                          ((16, 32, 32, 3), (1, 16, 32, 32, 3), 'ZYXC'),
-                          ((5, 16, 32, 32, 3), (5, 16, 32, 32, 3), 'SZYXC')])
+                          ((2, 16, 16), (2, 16, 16, 1), 'TYX'),
+                          ((16, 16, 16), (1, 16, 16, 16, 1), 'ZYX'),
+                          ((2, 16, 16, 3), (2, 16, 16, 3), 'TYXC'),
+                          ((16, 16, 16, 3), (1, 16, 16, 16, 3), 'ZYXC'),
+                          ((2, 16, 16, 16, 3), (2, 16, 16, 16, 3), 'SZYXC')])
 def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_denoiseg, axes):
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # create files
@@ -181,17 +171,16 @@ def test_run_prediction_from_disk_numpy(tmp_path, n, t, n_tiles, shape, shape_de
     assert len(hist) == n * shape_denoiseg[0] + 2
 
 
-@pytest.mark.parametrize('t', [0, 0.6])
-@pytest.mark.parametrize('n_tiles', [1, 2])
+@pytest.mark.qt
+@pytest.mark.parametrize('t', [0.6])
+@pytest.mark.parametrize('n_tiles', [2])
 @pytest.mark.parametrize('shape, shape_denoiseg, axes',
                          [((16, 16), (1, 16, 16, 1), 'YX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'SYX'),
-                          ((5, 16, 16), (5, 16, 16, 1), 'TYX'),
-                          ((16, 32, 32), (1, 16, 32, 32, 1), 'ZYX'),
-                          ((5, 3, 16, 16), (5, 16, 16, 3), 'SCYX'),
-                          ((5, 3, 16, 16), (15, 16, 16, 1), 'TSYX'),
-                          ((3, 16, 32, 32), (1, 16, 32, 32, 3), 'CZYX'),
-                          ((3, 5, 16, 32, 32), (5, 16, 32, 32, 3), 'CSZYX')])
+                          ((2, 16, 16), (2, 16, 16, 1), 'TYX'),
+                          ((16, 16, 16), (1, 16, 16, 16, 1), 'ZYX'),
+                          ((2, 16, 16, 3), (2, 16, 16, 3), 'TYXC'),
+                          ((16, 16, 16, 3), (1, 16, 16, 16, 3), 'ZYXC'),
+                          ((2, 16, 16, 16, 3), (2, 16, 16, 16, 3), 'SZYXC')])
 def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, shape, shape_denoiseg, axes):
     viewer = make_napari_viewer()
 
@@ -201,7 +190,7 @@ def test_run_prediction_from_layers(tmp_path, make_napari_viewer, t, n_tiles, sh
     viewer.add_image(img, name=name)
 
     # create model and save it to disk
-    model = create_model(tmp_path, shape_denoiseg)
+    model = create_simple_model(tmp_path, shape_denoiseg)
     path_to_h5 = save_weights_h5(model, tmp_path)
 
     # run prediction (it is a generator)

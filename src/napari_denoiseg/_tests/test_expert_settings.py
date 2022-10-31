@@ -8,9 +8,14 @@ from napari_denoiseg.widgets import TrainingSettingsWidget
 from napari_denoiseg.utils import generate_config
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape', [(1, 16, 16, 1),
                                    (1, 16, 16, 16, 1)])
 def test_default_values(qtbot, shape):
+    """
+    Check that the default config values and the default expert settings from
+    the widget are the same.
+    """
     # parent widget
     widget = QWidget()
 
@@ -33,8 +38,12 @@ def test_default_values(qtbot, shape):
     assert config.denoiseg_alpha == settings['denoiseg_alpha']
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape', [(1, 16, 16, 1), (1, 16, 16, 16, 1)])
 def test_configuration_compatibility(qtbot, shape):
+    """
+    Check that the default expert settings are valid configuration settings.
+    """
     # parent widget
     widget = QWidget()
 
