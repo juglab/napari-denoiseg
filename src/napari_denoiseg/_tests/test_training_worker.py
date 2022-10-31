@@ -536,6 +536,7 @@ def test_check_napari_data_C(shape1, shape2, axes):
     check_napari_data(x, y, axes)
 
 
+@pytest.mark.qt
 def test_prepare_data_layers_no_labels(make_napari_viewer):
     shape = (10, 8, 8)
 
@@ -561,6 +562,7 @@ def test_prepare_data_layers_no_labels(make_napari_viewer):
                             'SYX')
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('perc', [0, 10, 22, 93, 95, 100])
 def test_prepare_data_layers_not_enough_data(make_napari_viewer, perc):
     shape = (50, 8, 8)
@@ -591,6 +593,7 @@ def test_prepare_data_layers_not_enough_data(make_napari_viewer, perc):
                             'SYX')
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape, axes, final_axes',
                          [((20, 8, 8), 'SYX', 'SYXC'),
                           ((20, 2, 8, 8), 'SZYX', 'SZYXC')])
@@ -630,6 +633,7 @@ def test_prepare_data_layers_no_CT(make_napari_viewer, shape, axes, final_axes):
     assert new_axes == final_axes
 
 
+@pytest.mark.qt
 def test_prepare_data_layers_ZSYX(make_napari_viewer):
     axes = 'ZSYX'
     shape_x = (2, 20, 8, 8)
@@ -670,6 +674,7 @@ def test_prepare_data_layers_ZSYX(make_napari_viewer):
     assert new_axes == 'SZYXC'
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape, axes, final_axes',
                          [((20, 4, 8, 8), 'STYX', 'SYXC'),
                           ((4, 20, 8, 8), 'TSYX', 'SYXC'),
@@ -727,6 +732,7 @@ def test_prepare_data_layers_T_no_C(make_napari_viewer, shape, axes, final_axes)
     assert new_axes == final_axes
 
 
+@pytest.mark.qt
 @pytest.mark.parametrize('shape, axes, final_axes',
                          [((20, 4, 3, 8, 8), 'STCYX', 'SYXC'),
                           ((3, 4, 20, 8, 8), 'CTSYX', 'SYXC'),
