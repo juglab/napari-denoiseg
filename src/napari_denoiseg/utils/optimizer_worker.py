@@ -63,6 +63,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
     """
     # make sure that labels are int64
     lab_gt = label_data.astype(np.int64)
+    image_32 = image_data.astype(np.float32)
 
     for i_t, ts in enumerate(np.linspace(0.1, 1, 19)):
 
@@ -70,7 +71,7 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         scores = []
         for i_s in range(shape[0]):
             # predict and select only the segmentation predictions
-            prediction = model.predict(image_data[i_s, ...], axes=axes[1:])[..., -3:]
+            prediction = model.predict(image_32[i_s, ...], axes=axes[1:])[..., -3:]
 
             # compute labels
             lab_pred, _ = compute_labels(prediction, ts)
@@ -81,4 +82,4 @@ def optimize_threshold(model, image_data, label_data, axes, widget=None):
         if widget is not None and widget.state == State.IDLE:
             break
 
-        yield i_t, ts, np.mean(scores)
+        yield i_t, ts, np.nanmean(scores)
