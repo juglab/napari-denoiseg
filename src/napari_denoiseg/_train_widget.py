@@ -221,23 +221,23 @@ class TrainWidget(QWidget):
         self.axes_widget = AxesWidget()
 
         # others
-        self.n_epochs_spin = create_int_spinbox(1, 1000, 2, tooltip='Number of epochs')
+        self.n_epochs_spin = create_int_spinbox(1, 1000, 30, tooltip='Number of epochs')
         self.n_epochs = self.get_n_epochs()
 
-        self.n_steps_spin = create_int_spinbox(1, 1000, 10, tooltip='Number of steps per epochs')
+        self.n_steps_spin = create_int_spinbox(1, 1000, 200, tooltip='Number of steps per epochs')
         self.n_steps = self.n_steps_spin.value()
 
         # batch size
-        self.batch_size_spin = create_int_spinbox(1, 512, 16, 1)
-        self.batch_size_spin.setToolTip('Number of patches per batch (decrease if GPU memory is insufficient)')
+        self.batch_size_spin = create_int_spinbox(1, 512, 16, 1, tooltip='Number of patches per batch (decrease if '
+                                                                         'GPU memory is insufficient)')
 
         # patch size
-        self.patch_size_XY = create_int_spinbox(16, 512, 16, 8, tooltip='Dimension of the patches in XY')
+        self.patch_size_XY = create_int_spinbox(16, 512, 64, 8, tooltip='Dimension of the patches in XY')
 
         # 3D checkbox
         self.enable_3d = enable_3d()
         self.enable_3d.native.setToolTip('Use a 3D network')
-        self.patch_size_Z = create_int_spinbox(16, 512, 16, 8, False, tooltip='Dimension of the patches in Z')
+        self.patch_size_Z = create_int_spinbox(16, 512, 32, 8, False, tooltip='Dimension of the patches in Z')
 
         formLayout = QFormLayout()
         formLayout.addRow(self.axes_widget.label.text(), self.axes_widget.text_field)
