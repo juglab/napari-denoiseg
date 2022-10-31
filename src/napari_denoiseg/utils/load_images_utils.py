@@ -5,6 +5,8 @@ import numpy as np
 
 from tifffile import imread
 
+from napari.utils import notifications as ntf
+
 from csbdeep.data import RawData
 from csbdeep.utils import consume
 
@@ -109,7 +111,9 @@ def load_pairs_generator(source_dir, target_dir, axes, check_exists=True):
 
     # check if the corresponding target exists
     if check_exists:
-        consume(t.exists() or _raise(FileNotFoundError(t)) for s, t in pairs)
+        for _, t in pairs:
+            if not t.exists():
+                raise FileNotFoundError(f'Could not find {t.absolute()}')
     else:
         # alternatively, replace non-existing files with None
         consume(p[1].exists() or substitute_by_none(pairs, i) for i, p in enumerate(pairs))

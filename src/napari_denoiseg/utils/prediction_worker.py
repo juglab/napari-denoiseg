@@ -135,6 +135,7 @@ def _run_prediction(widget,
                     is_tiled=False,
                     n_tiles=4):
     """
+    Run prediction and show the result in napari.
 
     :param widget:
     :param model:
@@ -214,6 +215,7 @@ def _run_prediction_to_disk(widget,
                             is_tiled=False,
                             n_tiles=4):
     """
+    Load all data in memory and run prediction, saving the result to the disk.
 
     :param widget:
     :param model:
