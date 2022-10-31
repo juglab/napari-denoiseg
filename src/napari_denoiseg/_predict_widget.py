@@ -43,7 +43,9 @@ SAMPLE = 'Sample data'
 
 class PredictWidgetWrapper(ScrollWidgetWrapper):
     def __init__(self, napari_viewer):
-        super().__init__(PredictWidget(napari_viewer))
+        self.widget = PredictWidget(napari_viewer)
+
+        super().__init__(self.widget)
 
 
 class PredictWidget(QWidget):

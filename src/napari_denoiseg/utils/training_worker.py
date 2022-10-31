@@ -83,6 +83,8 @@ def training_worker(widget, pretrained_model=None, expert_settings=None):
         ntf.show_info('Creating patches')
         # get images and labels
         X_train, Y_train, X_val, Y_val_onehot, Y_val, widget.new_axes = load_images(widget, patch_shape)
+        print(f'Training size {X_train.shape}')
+        print(f'Validation size {X_val.shape}')
 
         # create DenoiSeg configuration
         new_epochs = widget.n_epochs

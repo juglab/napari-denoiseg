@@ -57,26 +57,19 @@ The resulting configuration is:
  'denoiseg_alpha': 0.5}
 ```
 
-Here we commented some lines with the equivalent parameters in the napari plugin. Parameters that were not specifically 
-set in the `DenoiSegConfig` call are set their default and might not need to be set in the napari plugin either.
-
 In order to reproduce the result using the plugin, we then follow these steps:
 
-1. In napari, go to `File / Open sample / napari-denoiseg / Download data (2D)`, after the time necessary to download the data, it will automatically add the BSD68 data set to napari.
+1. In napari, go to `File / Open sample / napari-denoiseg / Download 2D data (n20 noise)`, after the time necessary to download the data, it will automatically add the BSD68 data set to napari.
 2. Confirm that your environment is properly set for GPU training by checking that the GPU indicator (top right) in the plugin displays a greenish GPU label.
 3. Select the validation layer in `Val`.
 4. In `Training parameters`, set: <br>
-`N epochs` = 200 <br>
-`N steps` = 400 <br>
+`N epochs` = 15 <br>
+`N steps` = 200 <br>
 `Batch size` = 128 <br>
 `Patch XY` = 64 <br>
-5. Click on the gear button to open the `Expert settings` and set: <br>
-`U-Net kernel size` = 3 <br>
-`U-Net residuals` = True (check) <br>
-`Split channels` = False (uncheck) <br>
-`N2V radius` = 2 <br>
-6. You can compare the configuration above to the rest of the `Expert settings` to confirm that the other default values are properly set.
-7. Train!
+    > We use different settings here because we have less patches that in the notebook. 
+5. You can compare the configuration above to the rest of the `Expert settings` to confirm that the other default values are properly set.
+6. Train!
 
 If your GPU is too small for the training parameters (loading batches in the GPU memory creates out-of-memory errors), then you should decrease the `Batch size` parameter.
 

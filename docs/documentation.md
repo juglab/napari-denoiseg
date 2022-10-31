@@ -120,10 +120,14 @@ Stop the training. The model can be directly saved afterwards.
 Reset the model, the next training session will be from scratch. After resetting the model, information on the previously trained network is lost and prediction or saving the model is no longer possible.
 - `Continue training`:
 Continue training using the current parameters but the trained network weights.
-> Note that the continuing training will train with the same parameters as before, to the exception of the number of epochs, 
+
+
+> Important: at the beginning of the training, the patches are created. This process can take some time and might appear as hanging while it is running.
+
+> Note: continuing training will train with the same parameters as before, to the exception of the number of epochs, 
 which can be updated.
 
-During training, the log and the weights are saved to a hidden folder in your `/home/`, under `.napari/DenoiSeg/models`. 
+> Note: During training, the log and the weights are saved to a hidden folder in your `/home/`, under `.napari/DenoiSeg/models`. 
 
 ### 6 -  Training progress
 

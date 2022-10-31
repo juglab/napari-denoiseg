@@ -8,7 +8,6 @@ from typing import Union
 import numpy as np
 from itertools import permutations
 
-from denoiseg.utils.compute_precision_threshold import measure_precision
 
 from napari_denoiseg.resources import DOC_BIOIMAGE
 
@@ -174,33 +173,6 @@ def are_axes_valid(axes: str):
             return False
 
     return True
-
-
-def optimize_threshold(model, image_data, label_data, axes, widget=None):
-    """
-
-    :return:
-    """
-    for i_t, ts in enumerate(np.linspace(0.1, 1, 19)):
-
-        shape = (*image_data.shape[:-1], 3)
-        predictions = np.zeros(shape, dtype=np.float32)
-
-        # TODO: can't predict all S dim together in CSBDeep?
-        for i_s in range(shape[0]):
-            # predict and select only the segmentation predictions
-            predictions[i_s, ...] = model.predict(image_data[i_s, ...], axes=axes[1:])[..., -3:]
-
-        # threshold prediction and convert to int type
-        lab_gt = label_data.astype(np.int64)
-        lab_pred = (predictions >= ts).astype(np.int64)
-
-        score = measure_precision()(lab_gt, lab_pred)
-
-        if widget is not None and widget.state == State.IDLE:
-            break
-
-        yield i_t, ts, score
 
 
 def reshape_data(x, y, axes: str):

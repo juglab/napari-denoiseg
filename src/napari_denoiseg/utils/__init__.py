@@ -8,7 +8,6 @@ from .denoiseg_utils import (
     get_shape_order,
     reshape_data,
     reshape_data_single,
-    optimize_threshold,
     reshape_napari,
     get_napari_shapes,
     get_default_path,
@@ -31,7 +30,7 @@ from .io_utils import (
     save_tf,
     save_modelzoo
 )
-from .optimizer_worker import optimizer_worker
+from .optimizer_worker import optimizer_worker, optimize_threshold
 from .prediction_worker import prediction_worker
 from .training_worker import training_worker
 from .loading_worker import loading_worker
