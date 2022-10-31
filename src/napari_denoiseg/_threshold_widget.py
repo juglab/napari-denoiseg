@@ -241,9 +241,11 @@ class ThresholdWidget(QWidget):
                     self.worker.yielded.connect(lambda x: self._update(x))
                     self.worker.start()
                 else:
-                    ntf.show_error('Select a model')
+                    # ntf.show_error('Select a model')
+                    ntf.show_info('Select a model')
             else:
-                ntf.show_error('Invalid axes')
+                # ntf.show_error('Invalid axes')
+                ntf.show_info('Invalid axes')
         elif self.state == State.RUNNING:
             self.state = State.IDLE
 

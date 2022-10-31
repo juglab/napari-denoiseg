@@ -201,16 +201,20 @@ def load_images(widget, patch_shape=(256, 256)):
         path_val_Y = widget.val_labels_folder.get_folder()
 
         if not Path(path_train_X).exists():
-            ntf.show_error('X train folder doesn\'t exist')
+            # ntf.show_error('X train folder doesn\'t exist')
+            ntf.show_info('X train folder doesn\'t exist')
 
         if not Path(path_train_Y).exists():
-            ntf.show_error('Y train folder doesn\'t exist')
+            # ntf.show_error('Y train folder doesn\'t exist')
+            ntf.show_info('Y train folder doesn\'t exist')
 
         if not Path(path_val_X).exists():
-            ntf.show_error('X val folder doesn\'t exist')
+            # ntf.show_error('X val folder doesn\'t exist')
+            ntf.show_info('X val folder doesn\'t exist')
 
         if not Path(path_val_Y).exists():
-            ntf.show_error('Y val folder doesn\'t exist')
+            # ntf.show_error('Y val folder doesn\'t exist')
+            ntf.show_info('Y val folder doesn\'t exist')
 
         return prepare_data_disk(path_train_X, path_train_Y, path_val_X, path_val_Y, axes, patch_shape)
 
@@ -439,15 +443,18 @@ def prepare_data_layers(raw, gt, perc_labels, axes):
 
     if perc_labels == 0 or perc_labels == 100:
         err = 'Percentage of training labels cannot be 0 or 100%.'
-        ntf.show_error(err)
+        # ntf.show_error(err)
+        ntf.show_info(err)
         raise ValueError(err)
     if len(label_indices) == 0 or n_train_labels < 5:
         err = 'Not enough labeled images for training, label more frames or decrease label percentage.'
-        ntf.show_error(err)
+        # ntf.show_error(err)
+        ntf.show_info(err)
         raise ValueError(err)
     if n_labels - n_train_labels < 2:
         err = 'Not enough labeled images for validation, label more frames or decrease label percentage.'
-        ntf.show_error(err)
+        # ntf.show_error(err)
+        ntf.show_info(err)
         raise ValueError(err)
 
     # split labeled frames between train and val sets
@@ -603,7 +610,8 @@ def sanity_check_training_size(X_train, model, axes):
         if n % div_by != 0:
             err = "training images must be evenly divisible by %d along axes %s (axis %s has " \
                   "incompatible size %d)" % (div_by, axes_relevant, a, n)
-            ntf.show_error(err)
+            # ntf.show_error(err)
+            ntf.show_info(err)
             raise ValueError(err)
 
 

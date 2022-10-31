@@ -318,7 +318,8 @@ class TrainWidget(QWidget):
                 self.worker.returned.connect(self._done)
                 self.worker.start()
             else:
-                ntf.show_error('Invalid axes')
+                # ntf.show_error('Invalid axes')
+                ntf.show_info('Invalid axes')
         else:
             self.state = State.IDLE
 
