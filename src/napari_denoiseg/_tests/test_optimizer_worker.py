@@ -21,10 +21,9 @@ def test_optimize_threshold(tmp_path, shape, axes):
         y_shape = shape
 
     Y_val = np.random.randint(0, 255, y_shape, dtype=np.int16)
-    _y_onehot = convert_to_oneHot(Y_val)
 
     # instantiate generator
-    gen = optimize_threshold(model, X_val, _y_onehot, axes)
+    gen = optimize_threshold(model, X_val, Y_val, axes)
 
     thresholds = []
     while True:

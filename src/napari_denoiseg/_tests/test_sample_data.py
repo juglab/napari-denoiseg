@@ -18,4 +18,3 @@ from napari_denoiseg import (
 def test_load_data(load_dataset):
     data = load_dataset()
     assert len(data) == 2
-    assert data[0][0].shape == data[1][0].shape
