@@ -62,8 +62,8 @@ class PredictWidget(QWidget):
                                              ICON_JUGLAB,
                                              'A joint denoising and segmentation algorithm requiring '
                                              'only a few annotated ground truth images.',
-                                             'https://github.com/juglab/napari_denoiseg',
-                                             'https://github.com/juglab/napari_denoiseg'))
+                                             'https://juglab.github.io/napari_denoiseg',
+                                             'https://github.com/juglab/napari_denoiseg/issues'))
 
         # add GPU button
         gpu_button = create_gpu_label()
@@ -173,7 +173,7 @@ class PredictWidget(QWidget):
 
         self.threshold_spin = threshold_spin()
         self.threshold_spin.native.setEnabled(False)
-        self.threshold_spin.native.setToolTip('Threshold to use on all the segmentation channels')
+        self.threshold_spin.native.setToolTip('Threshold to use on all segmentation channels')
         self.threshold_group.layout().addWidget(self.threshold_spin.native)
 
         self.layout().addWidget(self.threshold_group)
