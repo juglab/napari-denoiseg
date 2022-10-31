@@ -8,7 +8,7 @@ This set of plugins can train, retrain and predict on images from napari or from
 the models for later use and is compatible with [Bioimage.io](https://bioimage.io/#/). 
 
 
-<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/training.gif" width="800" />
+<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/prediction.gif" width="800" />
 
 # Documentation
 

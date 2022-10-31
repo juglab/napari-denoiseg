@@ -276,7 +276,7 @@ def reshape_data_single(x, axes: str):
     if len(_axes) != len(_x.shape):
         raise ValueError('Incompatible data and axes.')
 
-    assert len(list_diff(list(_axes), list(REF_AXES))) == 0  # all axes are part of REF_AXES
+    assert len(list_diff(list(_axes), list(REF_AXES))) == 0, 'Unknown axes'  # all axes are part of REF_AXES
 
     # get new x shape
     new_x_shape, new_axes, indices = get_shape_order(_x.shape, _axes, REF_AXES)

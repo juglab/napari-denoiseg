@@ -30,7 +30,7 @@ instructions.
 You can try out a demo by loading the `DenoiSeg Demo prediction` plugin and directly clicking on `Predict`.
 
 
-<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/????????.gif" width="800" />
+<img src="https://raw.githubusercontent.com/juglab/napari-denoiseg/master/docs/images/prediction.gif" width="800" />
 
 
 ## Documentation

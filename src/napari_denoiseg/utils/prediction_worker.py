@@ -147,7 +147,15 @@ def _run_prediction(widget,
     """
 
     # reshape data
-    _data, new_axes = reshape_data_single(images, axes)
+    try:
+        _data, new_axes = reshape_data_single(images, axes)
+    except ValueError as e:
+        msg = 'Data and axes are incompatible.'
+        ntf.show_info(msg)
+        warnings.warn(msg)
+        print(e)
+        return
+
     yield {UpdateType.N_IMAGES: _data.shape[0]}
 
     # this is to prevent the memory from saturating on the gpu on my machine
