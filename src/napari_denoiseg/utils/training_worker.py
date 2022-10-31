@@ -12,7 +12,12 @@ import napari.utils.notifications as ntf
 
 from denoiseg.utils.seg_utils import convert_to_oneHot
 from denoiseg.utils.denoiseg_data_preprocessing import augment_patches
-from tensorflow.python.framework.errors_impl import ResourceExhaustedError, UnknownError, NotFoundError
+from tensorflow.python.framework.errors_impl import (
+    ResourceExhaustedError,
+    UnknownError,
+    NotFoundError,
+    InvalidArgumentError
+)
 
 from napari_denoiseg.utils import (
     State,
@@ -664,8 +669,11 @@ def train(model, training_data, validation_X, validation_Y, epochs, steps_per_ep
         except MemoryError as e:
             msg = 'MemoryError can be an OOM error on the GPU (reduce batch and/or patch size, close other processes).'
             train_error(updater, str(e), msg)
+        except InvalidArgumentError as e:
+            msg = 'InvalidArgumentError can be the result of a mismatch between shapes in the model, check input dims.'
+            train_error(updater, e.message, msg)
         except ResourceExhaustedError as e:
-            msg = 'ResourceExhaustedError can be an OOM error on the GPU (reduce batch and/or patch size)'
+            msg = 'ResourceExhaustedError can be an OOM error on the GPU (reduce batch and/or patch size).'
             train_error(updater, e.message, msg)
         except (NotFoundError, UnknownError) as e:
             msg = 'NotFoundError or UnknownError can be caused by an improper loading of cudnn, try restarting.'
