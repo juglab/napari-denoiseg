@@ -23,9 +23,15 @@ def optimizer_worker(widget):
     # grab images
     # TODO here can be list of files
     if is_from_disk:
-        images, labels, _ = load_pairs_from_disk(widget.images_folder.get_folder(),
-                                                 widget.labels_folder.get_folder(),
-                                                 axes)
+        try:
+            images, labels, _ = load_pairs_from_disk(widget.images_folder.get_folder(),
+                                                     widget.labels_folder.get_folder(),
+                                                     axes)
+        except FileNotFoundError as e:
+            # ntf.show_error('Error loading images. Make sure they have the same name in each folder.')
+            ntf.show_info('Error loading images. Make sure they have the same name in each folder.')
+            print(e)
+            return
     else:
         images, labels = widget.images.value.data, widget.labels.value.data
 
