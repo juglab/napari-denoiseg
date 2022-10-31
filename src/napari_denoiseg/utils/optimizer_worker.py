@@ -24,19 +24,20 @@ def optimizer_worker(widget):
     # TODO here can be list of files
     if is_from_disk:
         try:
-            images, labels, _ = load_pairs_from_disk(widget.images_folder.get_folder(),
-                                                     widget.labels_folder.get_folder(),
-                                                     axes)
+            images, labels, new_axes = load_pairs_from_disk(widget.images_folder.get_folder(),
+                                                            widget.labels_folder.get_folder(),
+                                                            axes)
         except FileNotFoundError as e:
             # ntf.show_error('Error loading images. Make sure they have the same name in each folder.')
             ntf.show_info('Error loading images. Make sure they have the same name in each folder.')
             print(e)
             return
     else:
+        new_axes = axes
         images, labels = widget.images.value.data, widget.labels.value.data
 
     # reshape data
-    _x, _y, new_axes = reshape_data(images, labels, axes)
+    _x, _y, new_axes = reshape_data(images, labels, new_axes)
     assert _x.shape[0] > 0
     assert _x.shape[:-1] == _y.shape, 'Image and labels should have the same shape (except C dimension)'
 
