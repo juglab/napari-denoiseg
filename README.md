@@ -14,13 +14,6 @@ A napari plugin performing joint denoising and segmentation of microscopy images
 
 ## Installation
 
-You can install `napari-denoiseg` via [pip]:
-```bash
-    pip install napari-denoiseg
-```
-Or through the [napari-hub](https://napari.org/stable/plugins/find_and_install_plugin.html).
-
-
 Check out the [documentation](https://juglab.github.io/napari-denoiseg/installation.html) for more detailed installation 
 instructions. 
 
